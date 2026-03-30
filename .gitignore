@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+.next/
+.turbo/
+out/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# testing
+coverage/
+
+# misc
+*.tsbuildinfo
+*.log
+
+# Agent files
+AGENTS.md
+architecture.md
+build_spec.md
+CLAUDE.md
+data_model.md
+prompts.md

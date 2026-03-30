@@ -1,0 +1,25 @@
+{
+  "name": "@deepmint/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./root": "./root.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@deepmint/db": "workspace:*",
+    "@deepmint/shared": "workspace:*",
+    "@trpc/server": "^11.0.0",
+    "superjson": "^2.2.2",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@deepmint/tsconfig": "workspace:*",
+    "typescript": "^5.8.2"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "extends": "@deepmint/tsconfig/node.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": [".", "schema"]
+}

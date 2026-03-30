@@ -1,0 +1,21 @@
+{
+  "name": "@deepmint/ingestion",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@deepmint/db": "workspace:*",
+    "@deepmint/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepmint/tsconfig": "workspace:*",
+    "typescript": "^5.8.2"
+  }
+}
