@@ -1,2 +1,2 @@
-// tRPC API — populated in Prompt 1.5
-export {};
+export { appRouter, type AppRouter } from "./root";
+export { createContext, type Context } from "./trpc";
