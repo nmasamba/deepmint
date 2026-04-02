@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -12,9 +15,10 @@
   },
   "dependencies": {
     "@deepmint/db": "workspace:*",
-    "@deepmint/shared": "workspace:*",
+    "@deepmint/ingestion": "workspace:*",
     "@deepmint/scoring": "workspace:*",
-    "@deepmint/ingestion": "workspace:*"
+    "@deepmint/shared": "workspace:*",
+    "inngest": "^4.1.0"
   },
   "devDependencies": {
     "@deepmint/tsconfig": "workspace:*",

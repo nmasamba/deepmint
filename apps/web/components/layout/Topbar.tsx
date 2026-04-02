@@ -1,11 +1,13 @@
 "use client";
 
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useUser } from "@clerk/nextjs";
 import { InstrumentSearch } from "@/components/InstrumentSearch";
+import { SubmitClaimForm } from "@/components/claims/SubmitClaimForm";
 import { useRouter } from "next/navigation";
 
 export function Topbar() {
   const router = useRouter();
+  const { isSignedIn } = useUser();
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-bg-primary/80 px-4 backdrop-blur-sm md:px-6">
@@ -20,6 +22,7 @@ export function Topbar() {
 
       {/* Right side */}
       <div className="flex items-center gap-4">
+        {isSignedIn && <SubmitClaimForm />}
         <UserButton
           appearance={{
             elements: {

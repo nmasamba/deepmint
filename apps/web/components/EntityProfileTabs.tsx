@@ -1,12 +1,14 @@
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClaimsTimeline } from "@/components/claims/ClaimsTimeline";
 
 interface EntityProfileTabsProps {
   entityType: "player" | "guide";
+  entityId: string;
 }
 
-export function EntityProfileTabs({ entityType }: EntityProfileTabsProps) {
+export function EntityProfileTabs({ entityType, entityId }: EntityProfileTabsProps) {
   return (
     <Tabs defaultValue="overview" className="mt-8">
       <TabsList className="bg-bg-secondary border border-border">
@@ -41,11 +43,7 @@ export function EntityProfileTabs({ entityType }: EntityProfileTabsProps) {
       </TabsContent>
 
       <TabsContent value="claims" className="mt-6">
-        <div className="rounded-lg border border-border bg-bg-secondary p-6">
-          <p className="text-text-secondary">
-            Immutable claim history will appear here. Every prediction timestamped and tracked.
-          </p>
-        </div>
+        <ClaimsTimeline entityId={entityId} showEntity={false} />
       </TabsContent>
 
       <TabsContent value="stats" className="mt-6">

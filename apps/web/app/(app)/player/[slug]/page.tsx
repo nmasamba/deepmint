@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { db } from "@deepmint/db";
+import { db, eq } from "@deepmint/db";
 import { entities } from "@deepmint/db/schema";
-import { eq } from "drizzle-orm";
 import { EntityProfileHeader } from "@/components/EntityProfileHeader";
 import { EntityProfileTabs } from "@/components/EntityProfileTabs";
 
@@ -30,7 +29,7 @@ export default async function PlayerProfilePage({ params }: PlayerProfilePagePro
   return (
     <div className="mx-auto max-w-4xl">
       <EntityProfileHeader entity={entity} />
-      <EntityProfileTabs entityType="player" />
+      <EntityProfileTabs entityType="player" entityId={entity.id} />
     </div>
   );
 }

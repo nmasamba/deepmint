@@ -1,9 +1,8 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter, createContext } from "@deepmint/api";
 import { auth } from "@clerk/nextjs/server";
-import { db } from "@deepmint/db";
+import { db, eq } from "@deepmint/db";
 import { entities } from "@deepmint/db/schema";
-import { eq } from "drizzle-orm";
 
 async function handler(req: Request) {
   return fetchRequestHandler({

@@ -24,3 +24,4 @@ export const db = new Proxy({} as PostgresJsDatabase<typeof schema>, {
 });
 
 export * from "./schema";
+export { eq, ne, gt, gte, lt, lte, and, or, inArray, sql, desc, asc, ilike, like, isNull, isNotNull, between, notInArray, exists, notExists } from "drizzle-orm";

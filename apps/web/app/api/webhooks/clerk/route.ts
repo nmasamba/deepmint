@@ -1,8 +1,7 @@
 import { headers } from "next/headers";
 import { Webhook } from "svix";
-import { db } from "@deepmint/db";
+import { db, eq } from "@deepmint/db";
 import { entities } from "@deepmint/db/schema";
-import { eq } from "drizzle-orm";
 import { slugify } from "@deepmint/shared";
 
 interface ClerkWebhookEvent {

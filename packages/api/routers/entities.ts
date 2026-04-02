@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, ilike, asc } from "drizzle-orm";
+import { eq, ilike, asc } from "@deepmint/db";
 import { entities } from "@deepmint/db/schema";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 
