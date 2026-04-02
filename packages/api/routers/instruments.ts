@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, ilike, or, desc, and, lt, sql } from "drizzle-orm";
+import { eq, ilike, or, desc, and, lt, sql } from "@deepmint/db";
 import { instruments, consensusSignals } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
 import { router, publicProcedure } from "../trpc";
