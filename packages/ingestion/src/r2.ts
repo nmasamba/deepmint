@@ -4,12 +4,12 @@ import {
 } from "@aws-sdk/client-s3";
 
 function getR2Client(): S3Client {
-  const accountId = process.env.R2_ACCOUNT_ID;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
+  const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
 
   if (!accountId || !accessKeyId || !secretAccessKey) {
-    throw new Error("R2 credentials not configured (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)");
+    throw new Error("R2 credentials not configured (CLOUDFLARE_R2_ACCOUNT_ID, CLOUDFLARE_R2_ACCESS_KEY_ID, CLOUDFLARE_R2_SECRET_ACCESS_KEY)");
   }
 
   return new S3Client({
@@ -32,7 +32,7 @@ export async function uploadSnapshot(
   contentType: string = "image/png",
 ): Promise<string> {
   const client = getR2Client();
-  const bucket = process.env.R2_BUCKET_NAME ?? "deepmint-snapshots";
+  const bucket = process.env.CLOUDFLARE_R2_BUCKET ?? "deepmint-snapshots";
 
   await client.send(
     new PutObjectCommand({
@@ -50,7 +50,7 @@ export async function uploadSnapshot(
  * Get the public URL for a snapshot.
  */
 export function getSnapshotUrl(key: string): string {
-  const publicUrl = process.env.R2_PUBLIC_URL ?? "https://snapshots.deepmint.com";
+  const publicUrl = process.env.CLOUDFLARE_R2_PUBLIC_URL ?? "https://snapshots.deepmint.com";
   return `${publicUrl}/${key}`;
 }
 
