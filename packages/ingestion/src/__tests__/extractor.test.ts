@@ -65,7 +65,7 @@ describe.skipIf(!HAS_API_KEY)("extractClaims (live LLM)", () => {
     expect(tickers).toContain("META");
   });
 
-  it("rejects non-Mag7 tickers as invalid", { timeout: 60000 }, async () => {
+  it("rejects non-Mag7 tickers as invalid", { timeout: 120000 }, async () => {
     const text = `
       I'm very bullish on AMD. Target price $200 within 30 days.
       Also long on AAPL targeting $260 in 90 days.

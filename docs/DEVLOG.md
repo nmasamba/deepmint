@@ -4,6 +4,54 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-04-04 — Sprint 3 Complete
+
+### Status
+- **Sprint 1**: Complete
+- **Sprint 2**: Complete
+- **Sprint 3**: Complete
+- **Sprint 4**: Not started
+
+### What was built
+Sprint 3 (Scoring Engine) delivers the full scoring pipeline: market data integration, markout computation, entity scoring, leaderboards, consensus signals, and regime-aware EIV. All scoring formulas implemented as pure functions with comprehensive tests.
+
+Prompts completed: 3.1 (Market Data), 3.2 (Markout Worker), 3.3 (Scoring Functions + Worker), 3.4 (Leaderboard), 3.5 (Leaderboard UI), 3.6 (Profile Tabs), 3.7 (Consensus Signals), 3.8 (Continuous Brier), 3.9 (Regime-Aware EIV).
+
+### Key decisions
+- **Massive.com SDK** — Polygon.io rebranded to Massive.com in Oct 2025. Using `@massive.com/client-js` v10.5.0. API endpoints at `api.massive.com` (old `api.polygon.io` still works). Env var stays `POLYGON_API_KEY`.
+- **Rate limiting** — Simple delay queue (12.5s between requests) for Massive starter plan (5 req/min).
+- **Regime detection simplified** — Using placeholder VIX/S&P values until live macro data integration. Regime detection is functional with real inputs.
+- **Score upsert strategy** — Delete old + insert new for entity+date combination (not true upsert, simpler and avoids complex unique constraints).
+- **vitest env loading** — Added `vitest.config.ts` to all test packages to load `.env.local` from monorepo root. Previously, live API tests (LLM extraction) were silently skipped because env vars weren't available.
+
+### Test results
+```
+pnpm check  — 8/8 packages, 0 errors
+pnpm build  — clean (web + worker, 7 functions registered)
+pnpm test   — 105 passed (71 scoring + 16 shared + 18 ingestion)
+  - 71 scoring tests (player, guide, anti-gaming, consensus, regime, EIV)
+  - 6 live LLM extraction tests against HuggingFace Inference
+  - 11 Merkle tree tests
+  - 6 content hasher tests
+  - 6 demo source adapter tests
+  - 5 Polygon price fallback tests
+```
+
+### Env vars required for Sprint 3
+| Variable | Status | Notes |
+|----------|--------|-------|
+| `POLYGON_API_KEY` | Set | Massive.com (formerly Polygon.io) — added 2026-04-04 |
+| `UPSTASH_REDIS_REST_URL` | Not set | Optional — cache bypassed gracefully |
+| `UPSTASH_REDIS_REST_TOKEN` | Not set | Optional |
+
+### Schema changes
+- Added `brier_slices` JSONB column to `outcomes` table via Drizzle migration (`0001_supreme_eternity.sql`)
+
+### What's next
+Sprint 4: Notifications + Error Tracking — Resend email, Sentry integration, and polish.
+
+---
+
 ## 2026-04-03 — Post-Sprint 2: Env Var Remediation + Clerk Webhooks
 
 ### What was done

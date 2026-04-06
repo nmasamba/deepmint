@@ -19,5 +19,8 @@
     "@types/node": "^25.5.0",
     "typescript": "^5.8.2",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@massive.com/client-js": "^10.5.0"
   }
 }

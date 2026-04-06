@@ -2,7 +2,10 @@
 
 import { SubmitClaimForm } from "@/components/claims/SubmitClaimForm";
 import { ClaimsTimeline } from "@/components/claims/ClaimsTimeline";
+import { Mag7Grid } from "@/components/dashboard/Mag7Grid";
+import { SocialFeed } from "@/components/dashboard/SocialFeed";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Target } from "lucide-react";
 
 export default function DashboardPage() {
@@ -26,13 +29,31 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Recent Claims Feed */}
+      {/* Mag 7 Consensus Grid */}
       <div>
         <h2 className="mb-4 text-lg font-semibold text-text-primary">
-          Recent Claims
+          Mag 7 Consensus
         </h2>
-        <ClaimsTimeline />
+        <Mag7Grid />
       </div>
+
+      {/* Feed Tabs: Following / All */}
+      <Tabs defaultValue="following">
+        <div className="flex items-center justify-between">
+          <TabsList className="bg-bg-secondary">
+            <TabsTrigger value="following">Following</TabsTrigger>
+            <TabsTrigger value="all">All Claims</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="following" className="mt-4">
+          <SocialFeed />
+        </TabsContent>
+
+        <TabsContent value="all" className="mt-4">
+          <ClaimsTimeline />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

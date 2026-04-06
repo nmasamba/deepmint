@@ -1,9 +1,10 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ShieldCheck, UserPlus, Calendar } from "lucide-react";
+import { ShieldCheck, Calendar } from "lucide-react";
+import { FollowButton } from "@/components/FollowButton";
+import { trpc } from "@/lib/trpc";
 
 interface EntityProfileHeaderProps {
   entity: {
@@ -18,6 +19,8 @@ interface EntityProfileHeaderProps {
     brokerLinkStatus: string | null;
     createdAt: string | Date;
   };
+  /** Hide the follow button (e.g. on own profile) */
+  hideFollow?: boolean;
 }
 
 function getInitials(name: string): string {
@@ -37,10 +40,14 @@ function formatDate(date: string | Date): string {
   });
 }
 
-export function EntityProfileHeader({ entity }: EntityProfileHeaderProps) {
+export function EntityProfileHeader({ entity, hideFollow }: EntityProfileHeaderProps) {
   const isVerified =
     entity.isVerified || entity.brokerLinkStatus === "verified";
   const styleTags = entity.styleTags ?? [];
+
+  const { data: followerData } = trpc.social.followerCount.useQuery(
+    { entityId: entity.id },
+  );
 
   return (
     <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
@@ -107,18 +114,13 @@ export function EntityProfileHeader({ entity }: EntityProfileHeaderProps) {
             <span>Joined {formatDate(entity.createdAt)}</span>
           </div>
           <span>&middot;</span>
-          <span>-- followers</span>
+          <span>
+            {followerData?.count ?? 0} follower{followerData?.count !== 1 ? "s" : ""}
+          </span>
         </div>
 
         {/* Follow button */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-accent text-accent hover:bg-accent/10"
-        >
-          <UserPlus className="mr-1.5 h-4 w-4" />
-          Follow
-        </Button>
+        {!hideFollow && <FollowButton targetEntityId={entity.id} />}
       </div>
     </div>
   );

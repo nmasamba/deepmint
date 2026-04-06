@@ -5,6 +5,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.3.0] — Sprint 3: Scoring Engine (2026-04-04)
+
+### Added
+- **Market Data Client** (`packages/shared/src/polygon.ts`) — Full Massive.com (formerly Polygon.io) integration: `getEODPrice()`, `getHistoricalPrices()`, `getCurrentPrice()`, `getBatchEODPrices()` with `@massive.com/client-js` SDK
+- **Polygon Cache** (`packages/shared/src/polygonCache.ts`) — Redis cache layer (Upstash) with 1hr historical / 5min current TTLs, graceful bypass when unconfigured
+- **Markout Worker** (`apps/worker/functions/markout.ts`) — Inngest cron (17:00 ET weekdays): resolves expired claims with entry/exit prices, return bps, direction correctness, target hit detection
+- **Scoring Package** (`packages/scoring/src/`) — 7 pure-function modules:
+  - `player.ts` — Sharpe ratio, Calmar ratio, CVaR5, max drawdown, consistency score, MAE/MFE
+  - `guide.ts` — Hit rate, avg return bps, z-test significance, Brier score, target precision, continuous Brier, time-decayed Brier
+  - `anti-gaming.ts` — Minimum thresholds (30 trades, 90 days), kurtosis/turnover/leverage penalties
+  - `consensus.ts` — Weighted consensus signal (Guide ×1.2, broker-verified ×1.5, recency decay, confidence boost)
+  - `regime.ts` — Market regime detection (bull/bear/high_vol/low_vol/rotation) from VIX, S&P return, sector dispersion
+  - `eiv.ts` — Regime-Aware Expected Information Value with Bayesian shrinkage
+  - `utils.ts` — avg, stddev, normalCDF
+- **Scoring Worker** (`apps/worker/functions/score.ts`) — Triggered by `markouts/completed`; computes all entity scores and upserts to DB
+- **Consensus Signal Worker** (`apps/worker/functions/consensus-signal.ts`) — Computes weighted signals per Mag 7 instrument
+- **Leaderboard Refresh Worker** (`apps/worker/functions/leaderboard-refresh.ts`) — Triggered by `scoring/completed`
+- **Leaderboard Router** (`packages/api/routers/leaderboard.ts`) — `top` and `byTicker` endpoints
+- **Consensus Router** (`packages/api/routers/consensus.ts`) — `byInstrument`, `mag7`, `history` endpoints
+- **Scores Router** (`packages/api/routers/scores.ts`) — `byEntity`, `history` endpoints
+- **Leaderboard Page** (`apps/web/app/(app)/leaderboard/page.tsx`) — Full UI with entity type tabs, metric filters, ranked table
+- **Entity Profile Tabs** — Overview tab with EIV card + score cards, Stats tab with full metrics table
+- **ConsensusSignalBadge** — BULLISH/BEARISH/NEUTRAL badge with conviction meter
+- **Mag7Grid** — Dashboard widget showing consensus signals for all 7 instruments
+- **brierSlices** JSONB column on outcomes table (Drizzle migration)
+- **vitest env loading** — All test packages now load `.env.local` for live API testing
+
+### Dependencies
+- `@massive.com/client-js` (packages/shared) — Massive.com REST API client (formerly @polygon.io/client-js)
+
+### Tests (105 total)
+- Player scoring: 19 tests (Sharpe, Calmar, CVaR5, drawdown, consistency, MAE/MFE)
+- Guide scoring: 25 tests (hit rate, avg return, z-test, Brier, target precision, continuous Brier, slice outcomes)
+- Anti-gaming: 7 tests (eligibility, kurtosis, turnover, leverage)
+- Consensus: 5 tests (direction, weighting, decay)
+- Regime + EIV: 15 tests (detection thresholds, EIV computation, shrinkage, formatting)
+- Merkle tree: 11 tests
+- Polygon price: 5 tests
+- Content hasher: 6 tests
+- Demo source adapter: 6 tests
+- LLM extractor: 6 tests (5 live HuggingFace + 1 key check)
+
+---
+
 ## [Unreleased] — Sprint 2 Fixes + Env Remediation (2026-04-03)
 
 ### Known Issues

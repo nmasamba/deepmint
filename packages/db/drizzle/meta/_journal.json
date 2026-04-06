@@ -8,6 +8,13 @@
       "when": 1775063038980,
       "tag": "0000_medical_hammerhead",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775317397094,
+      "tag": "0001_supreme_eternity",
+      "breakpoints": true
     }
   ]
 }

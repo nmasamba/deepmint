@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, timestamp, pgEnum, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, integer, timestamp, pgEnum, boolean, jsonb } from 'drizzle-orm/pg-core';
 import { claims } from './claims';
 import { instruments } from './instruments';
 
@@ -14,6 +14,7 @@ export const outcomes = pgTable('outcomes', {
   returnBps: integer('return_bps').notNull(),                         // basis points (100 = 1%)
   directionCorrect: boolean('direction_correct').notNull(),
   targetHit: boolean('target_hit'),                                   // null if no target was set
+  brierSlices: jsonb('brier_slices').$type<Array<{ daysBeforeResolution: number; priceCents: number; directionCorrect: boolean }>>(),
   computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

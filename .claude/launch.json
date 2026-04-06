@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@deepmint/web", "dev"],
-      "port": 3000
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "export PATH=/Users/nm/.nvm/versions/node/v22.17.1/bin:$PATH && pnpm --filter @deepmint/web dev --port $PORT"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
