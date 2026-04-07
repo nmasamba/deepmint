@@ -15,6 +15,13 @@
       "when": 1775317397094,
       "tag": "0001_supreme_eternity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775550623968,
+      "tag": "0002_flippant_gamma_corps",
+      "breakpoints": true
     }
   ]
 }

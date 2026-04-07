@@ -6,6 +6,8 @@ import { leaderboardRouter } from "./routers/leaderboard";
 import { consensusRouter } from "./routers/consensus";
 import { scoresRouter } from "./routers/scores";
 import { socialRouter } from "./routers/social";
+import { tickerRouter } from "./routers/ticker";
+import { paperRouter } from "./routers/paper";
 
 export const appRouter = router({
   entity: entityRouter,
@@ -15,6 +17,8 @@ export const appRouter = router({
   consensus: consensusRouter,
   scores: scoresRouter,
   social: socialRouter,
+  ticker: tickerRouter,
+  paper: paperRouter,
 });
 
 export type AppRouter = typeof appRouter;

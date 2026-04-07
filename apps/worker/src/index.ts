@@ -5,6 +5,7 @@ import { markoutFunction } from "../functions/markout";
 import { scoreFunction } from "../functions/score";
 import { leaderboardRefreshFunction } from "../functions/leaderboard-refresh";
 import { consensusSignalFunction } from "../functions/consensus-signal";
+import { digestFunction } from "../functions/digest";
 
 // Export all Inngest functions for the serve handler
 export const inngestFunctions = [
@@ -15,6 +16,7 @@ export const inngestFunctions = [
   scoreFunction,
   leaderboardRefreshFunction,
   consensusSignalFunction,
+  digestFunction,
 ];
 
 // Re-export the Inngest client

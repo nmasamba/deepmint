@@ -5,6 +5,69 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.4.0] — Sprint 4: Social + Polish (2026-04-07)
+
+### Added
+- **Social Router** (`packages/api/routers/social.ts`) — 11 tRPC endpoints:
+  - Follow/unfollow with self-follow prevention and duplicate guards
+  - `isFollowing`, `followers`, `following` (cursor-paginated), `followerCount` (Redis-first, DB fallback)
+  - Social feed: claims from followed entities with cursor pagination
+  - Watchlist: `addToWatchlist`, `removeFromWatchlist`, `myWatchlist`, `isWatching`
+  - Email preferences: `emailPreferences`, `updateEmailPreferences` (upsert)
+- **FollowButton** — Client component with optimistic follow/unfollow + count invalidation
+- **WatchButton** — Toggle watch state for instruments with Eye/EyeOff icons
+- **SocialFeed** — Infinite scroll feed of claims from followed entities
+- **WatchlistSidebar** — Dashboard sidebar widget showing watched instruments with links and remove buttons
+- **Dashboard Grid Layout** — Two-column layout (main + sidebar) with Following/All Claims tabs
+- **EntityProfileHeader** — Live follower counts via tRPC, functional Follow button integration
+
+- **Ticker Router** (`packages/api/routers/ticker.ts`) — `overview` procedure: instrument + consensus + price + top 5 guides (by EIV) + top 5 players (by Sharpe) + claim stats
+- **Ticker Page Redesign** — Full layout: header with live price, large consensus signal badge with conviction meter, consensus breakdown (Recharts donut chart + stats), top entities panels, recent claims, watch button
+- **ConsensusBreakdown** — Recharts PieChart (donut) with weighted bullish/bearish/neutral percentages, raw counts, avg target vs current, dispersion
+- **TopEntitiesPanel** — Ranked entity list with avatar, name, verified badge, metric value
+- **Non-Mag-7 Guard** — Ticker pages for non-Mag-7 symbols show "Coming soon" state
+
+- **Paper Router** (`packages/api/routers/paper.ts`) — 6 tRPC endpoints:
+  - `createPortfolio` (max 5), `myPortfolios` with summary stats
+  - `addTrade` with cash balance validation, `closeTrade` at current market price
+  - `portfolioDetail` with all trades + available cash, `portfolioPerformance` with equity/P&L/return bps
+- **Paper Portfolio Page** — Split layout: portfolio list (create/select) + detail view
+  - Positions table (open/closed), P&L tracking, equity curve (Recharts LineChart)
+  - NewTradeForm dialog with instrument search, side toggle, quantity input
+
+- **Email Digest Worker** (`apps/worker/functions/digest.ts`) — Inngest cron (noon UTC weekdays): gathers new claims + outcomes from followed entities, sends via Resend
+- **Email Preferences Schema** (`packages/db/schema/emailPreferences.ts`) — `digestEnabled`, `digestFrequency` per entity
+- **Settings Page** — Email notification toggle (daily/weekly digest) with frequency selector
+
+- **Education Track** (`apps/web/app/(app)/learn/`) — 5 static learning modules:
+  1. "What Makes a Good Trade?" — risk/reward, position sizing, Kelly criterion
+  2. "Reading a Track Record" — Sharpe, Calmar, max drawdown, win rate
+  3. "Why Predictions Need Horizons" — timeframe accuracy, horizon skills
+  4. "The Confidence Calibration Trap" — Brier scores, overconfidence
+  5. "Paper Trading Your First Portfolio" — step-by-step guide
+- **ModuleCard** — Progress bar, difficulty badge, estimated time
+- **ModuleContent** — Section navigation, inline content rendering, quiz system
+- **useLearnProgress** hook — localStorage-based progress tracking
+
+- **Landing Page** — Hero ("Follow people who are provably good"), How It Works (3-step), Social Proof (live DB counters), Footer
+- **Entity Stats** — `entity.stats` public procedure for live claim/outcome/entity counts
+- **Error Pages** — `not-found.tsx` (404), `error.tsx` (error boundary), `global-error.tsx` (root error)
+- **OpenGraph / Twitter Card Metadata** — Enhanced root layout metadata with OG tags
+
+- **CI Pipeline** (`.github/workflows/ci.yml`) — Type check, test, build on push/PR
+- **Vercel Config** (`vercel.json`) — Next.js deployment settings
+- **Sentry Integration** — Client, server, and edge config files for error tracking
+
+### Dependencies
+- `recharts` (apps/web) — Charts for consensus breakdown and equity curves
+- `resend` (apps/worker) — Email delivery for digest worker
+- `@sentry/nextjs` (apps/web) — Error tracking and monitoring
+
+### Database Migrations
+- Migration 0002: `email_preferences` table (entityId unique, digestEnabled, digestFrequency)
+
+---
+
 ## [0.3.0] — Sprint 3: Scoring Engine (2026-04-04)
 
 ### Added

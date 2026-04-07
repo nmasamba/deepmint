@@ -1,12 +1,17 @@
+import { HeroSection } from "@/components/landing/HeroSection";
+import { HowItWorks } from "@/components/landing/HowItWorks";
+import { ChoosePath } from "@/components/landing/ChoosePath";
+import { SocialProof } from "@/components/landing/SocialProof";
+import { Footer } from "@/components/landing/Footer";
+
 export default function HomePage() {
   return (
-    <main className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-text-primary">Deepmint</h1>
-        <p className="mt-2 text-text-secondary">
-          Follow people who are provably good.
-        </p>
-      </div>
+    <main className="min-h-screen bg-bg-primary">
+      <HeroSection />
+      <HowItWorks />
+      <ChoosePath />
+      <SocialProof />
+      <Footer />
     </main>
   );
 }

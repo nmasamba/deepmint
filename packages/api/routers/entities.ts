@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, ilike, asc } from "@deepmint/db";
-import { entities } from "@deepmint/db/schema";
+import { eq, ilike, asc, sql } from "@deepmint/db";
+import { entities, claims, outcomes } from "@deepmint/db/schema";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 
 export const entityRouter = router({
@@ -87,4 +87,26 @@ export const entityRouter = router({
 
       return results;
     }),
+
+  /** Public stats for landing page (claim count, outcome count, entity count). */
+  stats: publicProcedure.query(async ({ ctx }) => {
+    const [[claimsResult], [outcomesResult], [entitiesResult]] =
+      await Promise.all([
+        ctx.db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(claims),
+        ctx.db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(outcomes),
+        ctx.db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(entities),
+      ]);
+
+    return {
+      claimsCount: claimsResult?.count ?? 0,
+      outcomesCount: outcomesResult?.count ?? 0,
+      entitiesCount: entitiesResult?.count ?? 0,
+    };
+  }),
 });

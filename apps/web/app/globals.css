@@ -3,23 +3,23 @@
 @theme {
   /* Deepmint Design System — AGENTS.md §4 */
 
-  /* Background */
-  --color-bg-primary: #0A0F1A;
-  --color-bg-secondary: #111827;
-  --color-bg-tertiary: #1A2332;
+  /* Background — deepened to match logo's dark field */
+  --color-bg-primary: #080C14;
+  --color-bg-secondary: #0D1219;
+  --color-bg-tertiary: #151C28;
 
-  /* Borders */
-  --color-border: #1E293B;
-  --color-border-hover: #334155;
+  /* Borders — cooler, subtler against darker bg */
+  --color-border: #1A2233;
+  --color-border-hover: #2A3A50;
 
-  /* Accent */
-  --color-accent: #2DD4BF;
-  --color-accent-hover: #14B8A6;
+  /* Accent — shifted from teal toward the logo's mint-green */
+  --color-accent: #34D399;
+  --color-accent-hover: #2BBF88;
 
-  /* Text */
+  /* Text — slight warmth kept, secondary nudged greener */
   --color-text-primary: #E2E8F0;
-  --color-text-secondary: #94A3B8;
-  --color-text-muted: #64748B;
+  --color-text-secondary: #8FA3B8;
+  --color-text-muted: #5A6E82;
 
   /* Semantic */
   --color-long: #22C55E;

@@ -4,6 +4,98 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-04-07 — Sprint 4 Complete
+
+### Status
+- **Sprint 1**: Complete
+- **Sprint 2**: Complete
+- **Sprint 3**: Complete
+- **Sprint 4**: Complete
+- **Sprint 5**: Not started
+
+### What was built
+Sprint 4 (Social + Polish) delivers social features, paper trading, education, and production readiness. All 8 prompts completed (4.1–4.8).
+
+Prompts completed:
+- 4.1 Social Router (follow, unfollow, feed, follower counts with Redis)
+- 4.2 Watchlist Router (add/remove instruments, sidebar widget)
+- 4.3 Ticker Page (full redesign with consensus breakdown, donut chart, top entities, conviction meter)
+- 4.4 Paper Portfolio (create portfolios, add/close trades, P&L tracking, equity curve)
+- 4.5 Email Digest Worker (Inngest cron, Resend integration, email preferences)
+- 4.6 Education Track (5 learning modules with quizzes, localStorage progress)
+- 4.7 Landing Page + Polish (hero, how-it-works, social proof, 404/error pages, OG meta tags)
+- 4.8 Deployment (CI pipeline, Vercel config, Sentry integration)
+
+### Key decisions
+- **Social feed** uses tRPC infinite query matching ClaimsTimeline data shape for component reuse
+- **Watchlist** extends the social router rather than creating a separate router — keeps related social features grouped
+- **Ticker page** uses SSR for initial data (consensus, price) + client-side tRPC for top entities
+- **Paper portfolio cash** calculated from trade history (not stored) to avoid state sync issues
+- **Education modules** are pure client-side with localStorage — no backend needed for MVP
+- **Landing page** outside `(app)` layout (no sidebar) for clean public presentation
+- **Entity stats** added to entity router for live counters on landing page
+
+### New files created
+```
+packages/api/routers/social.ts       — 11 endpoints (follow + watchlist + email prefs)
+packages/api/routers/ticker.ts       — overview endpoint
+packages/api/routers/paper.ts        — 6 endpoints (portfolio + trades)
+packages/db/schema/emailPreferences.ts — email digest settings
+
+apps/worker/functions/digest.ts       — daily email digest
+
+apps/web/components/FollowButton.tsx
+apps/web/components/WatchButton.tsx
+apps/web/components/dashboard/SocialFeed.tsx
+apps/web/components/dashboard/WatchlistSidebar.tsx
+apps/web/components/ticker/ConsensusBreakdown.tsx
+apps/web/components/ticker/TopEntitiesPanel.tsx
+apps/web/components/paper/PortfolioList.tsx
+apps/web/components/paper/PortfolioDetail.tsx
+apps/web/components/paper/NewTradeForm.tsx
+apps/web/components/paper/EquityCurve.tsx
+apps/web/components/learn/ModuleCard.tsx
+apps/web/components/learn/ModuleContent.tsx
+apps/web/components/landing/HeroSection.tsx
+apps/web/components/landing/HowItWorks.tsx
+apps/web/components/landing/SocialProof.tsx
+apps/web/components/landing/Footer.tsx
+apps/web/lib/learnModules.ts
+apps/web/hooks/useLearnProgress.ts
+apps/web/app/(app)/learn/[moduleId]/page.tsx
+apps/web/app/(app)/ticker/[symbol]/TickerClientSection.tsx
+apps/web/app/not-found.tsx
+apps/web/app/error.tsx
+apps/web/app/global-error.tsx
+apps/web/sentry.client.config.ts
+apps/web/sentry.server.config.ts
+apps/web/sentry.edge.config.ts
+.github/workflows/ci.yml
+vercel.json
+```
+
+### Test results
+```
+pnpm --filter @deepmint/scoring test  — 71 passed
+pnpm --filter @deepmint/shared test   — 16 passed
+Total: 87 passing (scoring + shared)
+```
+
+### Env vars needed for Sprint 4
+| Variable | Status | Notes |
+|----------|--------|-------|
+| `RESEND_API_KEY` | Not set | Needed for email digest worker |
+| `NEXT_PUBLIC_SENTRY_DSN` | Not set | Needed for Sentry error tracking |
+| `SENTRY_AUTH_TOKEN` | Not set | Needed for Sentry source maps |
+
+### Schema changes
+- Migration 0002: `email_preferences` table
+
+### What's next
+Sprint 5+: Follow-Signal Simulate, Regime-Aware Leaderboards, Notification System, Shadow Order Book, Proof-of-Skin (SnapTrade), B2B Scoring API, Expand Beyond Mag 7.
+
+---
+
 ## 2026-04-04 — Sprint 3 Complete
 
 ### Status

@@ -117,7 +117,7 @@ export default function LeaderboardPage() {
           </div>
         ) : !data || data.length === 0 ? (
           <div className="px-4 py-12 text-center text-text-secondary">
-            No scores available yet. Scores will appear after claims are resolved.
+            No scores yet. AI will rank analysts once predictions are resolved against real outcomes.
           </div>
         ) : (
           <div className="divide-y divide-border">

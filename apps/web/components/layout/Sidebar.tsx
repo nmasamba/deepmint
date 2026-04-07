@@ -52,10 +52,10 @@ export function Sidebar() {
           {/* Logo */}
           <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
             <Image
-              src="/logo.png"
+              src="/logo-sidebar.png"
               alt="Deepmint"
-              width={140}
-              height={32}
+              width={280}
+              height={64}
               className="h-8 w-auto"
               priority
             />

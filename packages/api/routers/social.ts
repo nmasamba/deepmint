@@ -2,9 +2,11 @@ import { z } from "zod";
 import { eq, and, desc, lt, sql, inArray } from "@deepmint/db";
 import {
   follows,
+  watchlists,
   entities,
   claims,
   instruments,
+  emailPreferences,
 } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
@@ -250,7 +252,7 @@ export const socialRouter = router({
         .from(follows)
         .where(eq(follows.followerId, ctx.entity.id));
 
-      const followedIds = followedRows.map((r) => r.followedId);
+      const followedIds = followedRows.map((r: { followedId: string }) => r.followedId);
 
       if (followedIds.length === 0) {
         return { items: [], nextCursor: null };
@@ -297,5 +299,145 @@ export const socialRouter = router({
           ? items[items.length - 1]?.claim.createdAt.toISOString()
           : null,
       };
+    }),
+
+  // ---------------------------------------------------------------------------
+  // Watchlist
+  // ---------------------------------------------------------------------------
+
+  /** Add an instrument to the user's watchlist. */
+  addToWatchlist: protectedProcedure
+    .input(z.object({ instrumentId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      // Prevent duplicates
+      const [existing] = await ctx.db
+        .select({ id: watchlists.id })
+        .from(watchlists)
+        .where(
+          and(
+            eq(watchlists.entityId, ctx.entity.id),
+            eq(watchlists.instrumentId, input.instrumentId),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        return { alreadyWatching: true };
+      }
+
+      await ctx.db.insert(watchlists).values({
+        entityId: ctx.entity.id,
+        instrumentId: input.instrumentId,
+      });
+
+      return { alreadyWatching: false };
+    }),
+
+  /** Remove an instrument from the user's watchlist. */
+  removeFromWatchlist: protectedProcedure
+    .input(z.object({ instrumentId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const deleted = await ctx.db
+        .delete(watchlists)
+        .where(
+          and(
+            eq(watchlists.entityId, ctx.entity.id),
+            eq(watchlists.instrumentId, input.instrumentId),
+          ),
+        )
+        .returning({ id: watchlists.id });
+
+      return { removed: deleted.length > 0 };
+    }),
+
+  /** Get the user's watchlist with instrument details. */
+  myWatchlist: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({
+        watchlist: watchlists,
+        instrument: {
+          id: instruments.id,
+          ticker: instruments.ticker,
+          name: instruments.name,
+          sector: instruments.sector,
+        },
+      })
+      .from(watchlists)
+      .innerJoin(instruments, eq(watchlists.instrumentId, instruments.id))
+      .where(eq(watchlists.entityId, ctx.entity.id))
+      .orderBy(desc(watchlists.createdAt));
+
+    return rows;
+  }),
+
+  /** Check if the user is watching an instrument. */
+  isWatching: protectedProcedure
+    .input(z.object({ instrumentId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .select({ id: watchlists.id })
+        .from(watchlists)
+        .where(
+          and(
+            eq(watchlists.entityId, ctx.entity.id),
+            eq(watchlists.instrumentId, input.instrumentId),
+          ),
+        )
+        .limit(1);
+
+      return { isWatching: !!row };
+    }),
+
+  // ---------------------------------------------------------------------------
+  // Email Preferences
+  // ---------------------------------------------------------------------------
+
+  /** Get email preferences for current user. */
+  emailPreferences: protectedProcedure.query(async ({ ctx }) => {
+    const [prefs] = await ctx.db
+      .select()
+      .from(emailPreferences)
+      .where(eq(emailPreferences.entityId, ctx.entity.id))
+      .limit(1);
+
+    // Default: digest enabled, daily frequency
+    return prefs ?? { digestEnabled: true, digestFrequency: "daily" };
+  }),
+
+  /** Update email preferences (upsert). */
+  updateEmailPreferences: protectedProcedure
+    .input(
+      z.object({
+        digestEnabled: z.boolean(),
+        digestFrequency: z.enum(["daily", "weekly"]).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [existing] = await ctx.db
+        .select({ id: emailPreferences.id })
+        .from(emailPreferences)
+        .where(eq(emailPreferences.entityId, ctx.entity.id))
+        .limit(1);
+
+      if (existing) {
+        await ctx.db
+          .update(emailPreferences)
+          .set({
+            digestEnabled: input.digestEnabled,
+            ...(input.digestFrequency
+              ? { digestFrequency: input.digestFrequency }
+              : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(emailPreferences.entityId, ctx.entity.id));
+      } else {
+        await ctx.db.insert(emailPreferences).values({
+          entityId: ctx.entity.id,
+          digestEnabled: input.digestEnabled,
+          digestFrequency: input.digestFrequency ?? "daily",
+        });
+      }
+
+      return { success: true };
     }),
 });
