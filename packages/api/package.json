@@ -13,11 +13,13 @@
   },
   "dependencies": {
     "@deepmint/db": "workspace:*",
+    "@deepmint/scoring": "workspace:*",
     "@deepmint/shared": "workspace:*",
     "@trpc/server": "^11.13.0",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.37.0",
     "drizzle-orm": "^0.41.0",
+    "inngest": "^4.1.0",
     "superjson": "^2.2.2",
     "zod": "^3.24.0"
   },

@@ -4,17 +4,64 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
-## 2026-04-07 — Sprint 4 Complete
+## 2026-04-08 — Sprint 5 Complete
 
 ### Status
 - **Sprint 1**: Complete
 - **Sprint 2**: Complete
 - **Sprint 3**: Complete
-- **Sprint 4**: Complete
+- **Sprint 4**: Complete (including post-sprint branding overhaul)
+- **Sprint 5**: Complete
+
+### What was built
+Sprint 5 (Post-MVP Features) delivers four major features building on the MVP foundation.
+
+Features completed:
+- **5.1 Follow-Signal Simulate** — Users can mirror any Guide/Player's future claims as auto-logged paper trades with side-by-side performance comparison
+- **5.2 Regime-Aware Leaderboards** — Current market regime detection (bull/bear/high_vol/low_vol/rotation) with leaderboard filtering and "Best in Current Conditions" featured section
+- **5.3 Shadow Order Book** — Influence detection scoring function, real-time + nightly aggregation workers, influence API (aggregated only — raw events private), Guide profile influence tab, dashboard trending widget
+- **5.4 Notification System** — In-app notifications (bell icon with polling), new_follower and signal_trade_logged triggers, preference toggles per notification type
+
+### UX Fixes (post-implementation)
+- **Auth redirect loop** — Middleware now checks `userId` and redirects authenticated users from `/` → `/dashboard`. Previously, signing in would return to the landing page with no visible change.
+- **Sticky landing navbar** — Created `LandingNavbar` component (sticky, backdrop-blur). Logo removed from HeroSection to avoid duplication. Navbar has Sign In + Get Started CTAs.
+- **Clickable logos** — Sidebar logo wrapped in `<Link href="/dashboard">`. Topbar shows logo on mobile (where sidebar is hidden).
+- **Clerk social buttons invisible** — Apple logo was black-on-dark. Fixed with `filter: brightness(0) invert(1)` on provider icons. Added explicit `backgroundColor`, `border`, and `color` to `socialButtonsBlockButton` elements. Added `headerTitle` and `headerSubtitle` color overrides.
+
+### Key Decisions
+- **Signal-simulate reuses paper portfolios** — No parallel trade system. Signal-simulate portfolios are standard `paperPortfolios` rows linked via a `signal_simulate_portfolios` join table. All existing P&L logic from `packages/api/routers/paper.ts` is reused.
+- **Regime detection uses placeholder data** — `detectRegime()` from `packages/scoring/src/regime.ts` works with configurable VIX/S&P thresholds. Sprint 5 uses placeholder indicators (VIX=18, S&P return=1%). Live data integration deferred to Sprint 6.
+- **Influence privacy enforced at router level** — The `influence` router only queries the aggregated `influence_scores` table. Raw `influence_events` are never exposed. No procedure leaks individual event data. This is a critical invariant (AGENTS.md §10.9).
+- **Notifications use polling, not SSE** — `NotificationBell` polls `unreadCount` every 30 seconds via `refetchInterval`. Avoids SSE/WebSocket complexity. Can upgrade to Supabase Realtime in Sprint 6 as a drop-in enhancement.
+- **createNotification is a shared utility** — Called directly by workers rather than via event pipeline. Checks `notification_preferences` before inserting. Simple and debuggable.
+- **Inngest events emitted from tRPC routers** — `claims/created` (from claims.submit) and `social/followed` (from social.follow) are emitted non-blocking (`.catch(() => {})`) to avoid failing user actions when Inngest is unavailable.
+
+### Tests
+- **95 tests passing** (79 scoring + 16 shared)
+- 8 new influence detection tests (happy path, wrong instrument, no follow, before guide, lag exceeded, direction match/mismatch, multiple claims, empty arrays)
+- Ingestion tests require HF_API_KEY (not counted in CI-safe total)
+
+### Sprint 6+ Available
+1. B2B Scoring API (public REST at /api/v1/)
+2. Proof-of-Skin (SnapTrade read-only broker verification)
+3. Expand Beyond Mag 7 (S&P 500 top 50 → full S&P → Russell 1000)
+4. Live regime data (VIX/S&P from Polygon.io replacing placeholders)
+5. Supabase Realtime upgrade for notifications
+6. Outcome matured + rank change notification triggers
+
+---
+
+## 2026-04-07 — Sprint 4 Complete + Landing Page & Branding Overhaul
+
+### Status
+- **Sprint 1**: Complete
+- **Sprint 2**: Complete
+- **Sprint 3**: Complete
+- **Sprint 4**: Complete (including post-sprint branding overhaul)
 - **Sprint 5**: Not started
 
 ### What was built
-Sprint 4 (Social + Polish) delivers social features, paper trading, education, and production readiness. All 8 prompts completed (4.1–4.8).
+Sprint 4 (Social + Polish) delivers social features, paper trading, education, and production readiness. All 8 prompts completed (4.1–4.8). Post-sprint work overhauled the landing page, branding, and design system.
 
 Prompts completed:
 - 4.1 Social Router (follow, unfollow, feed, follower counts with Redis)
@@ -26,6 +73,18 @@ Prompts completed:
 - 4.7 Landing Page + Polish (hero, how-it-works, social proof, 404/error pages, OG meta tags)
 - 4.8 Deployment (CI pipeline, Vercel config, Sentry integration)
 
+Post-sprint:
+- **Logo integration** — Transparent-background PNGs generated from source logo via sharp pixel manipulation (luminance + saturation thresholding). Deployed across hero, sidebar, footer, auth pages, 404 page.
+- **Landing page rewrite** — Messaging overhauled three times:
+  1. Initial: generic "provably good" track record messaging
+  2. AI-heavy: overemphasised web scraping and AI agents
+  3. Final: balanced — AI-powered ranking + clear Guide/Player dual CTAs
+- **New ChoosePath component** — Side-by-side cards for Guide ("I'm an Analyst") and Player ("I'm a Trader") with dedicated sign-up flows
+- **Design system palette shift** — Accent from teal `#2DD4BF` → mint-green `#34D399` to match logo; backgrounds deepened to `#080C14`
+- **Hero layout** — Left-aligned with compact logo (brand mark style, not centred splash)
+- **Favicon suite** — favicon.ico, 16px, 32px, apple-touch-icon
+- **SEO metadata** — Updated all OG/Twitter card titles and descriptions
+
 ### Key decisions
 - **Social feed** uses tRPC infinite query matching ClaimsTimeline data shape for component reuse
 - **Watchlist** extends the social router rather than creating a separate router — keeps related social features grouped
@@ -34,6 +93,9 @@ Prompts completed:
 - **Education modules** are pure client-side with localStorage — no backend needed for MVP
 - **Landing page** outside `(app)` layout (no sidebar) for clean public presentation
 - **Entity stats** added to entity router for live counters on landing page
+- **Logo transparency** — Sharp pixel manipulation (not external tools) to remove logo background; luminance < 65 + saturation range < 25 = transparent, with gradual alpha fade for anti-aliasing
+- **Accent colour shift** — Teal → mint-green was a deliberate move to match the logo's green glow centre, making the entire palette feel cohesive
+- **Left-aligned hero** — Moved away from centred logo layout (felt dated) to modern left-aligned brand mark + headline
 
 ### New files created
 ```
@@ -60,6 +122,7 @@ apps/web/components/landing/HeroSection.tsx
 apps/web/components/landing/HowItWorks.tsx
 apps/web/components/landing/SocialProof.tsx
 apps/web/components/landing/Footer.tsx
+apps/web/components/landing/ChoosePath.tsx  — NEW (post-sprint)
 apps/web/lib/learnModules.ts
 apps/web/hooks/useLearnProgress.ts
 apps/web/app/(app)/learn/[moduleId]/page.tsx
@@ -72,6 +135,16 @@ apps/web/sentry.server.config.ts
 apps/web/sentry.edge.config.ts
 .github/workflows/ci.yml
 vercel.json
+```
+
+### Assets created
+```
+apps/web/public/logo-hero.png         — 400w transparent PNG (~47KB)
+apps/web/public/logo-sidebar.png      — 280w transparent PNG (~25KB)
+apps/web/public/favicon.ico           — 32x32
+apps/web/public/favicon-16.png        — 16x16
+apps/web/public/favicon-32.png        — 32x32
+apps/web/public/apple-touch-icon.png  — 180x180
 ```
 
 ### Test results
@@ -91,8 +164,25 @@ Total: 87 passing (scoring + shared)
 ### Schema changes
 - Migration 0002: `email_preferences` table
 
+### Design system changes (globals.css)
+| Token | Before | After |
+|-------|--------|-------|
+| `--color-bg-primary` | `#0A0F1A` | `#080C14` |
+| `--color-bg-secondary` | `#111827` | `#0D1219` |
+| `--color-bg-tertiary` | `#1A2332` | `#151C28` |
+| `--color-accent` | `#2DD4BF` | `#34D399` |
+| `--color-accent-hover` | `#14B8A6` | `#2BBF88` |
+| `--color-border` | `#1E293B` | `#1A2233` |
+
 ### What's next
-Sprint 5+: Follow-Signal Simulate, Regime-Aware Leaderboards, Notification System, Shadow Order Book, Proof-of-Skin (SnapTrade), B2B Scoring API, Expand Beyond Mag 7.
+Sprint 5+ features available (prompts.md):
+1. **Follow-Signal Simulate** — Mirror Guide/Player signals as paper trades
+2. **Regime-Aware Leaderboards** — Filter by market regime (bull/bear/high_vol)
+3. **B2B Scoring API** — REST API at `/api/v1/` with API key auth
+4. **Notification System** — In-app notifications via SSE, bell icon with unread count
+5. **Shadow Order Book** — Influence graph tracking who moves retail liquidity
+6. **Proof-of-Skin** — SnapTrade read-only broker verification
+7. **Expand Beyond Mag 7** — S&P 500 top 50 → full S&P → Russell 1000
 
 ---
 

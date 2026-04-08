@@ -9,6 +9,7 @@ import {
   Search,
   ClipboardList,
   Briefcase,
+  Copy,
   GraduationCap,
   Settings,
 } from "lucide-react";
@@ -37,6 +38,11 @@ const navItems: NavItem[] = [
     href: "/paper-portfolio",
     icon: Briefcase,
   },
+  {
+    label: "Signal Simulate",
+    href: "/signal-simulate",
+    icon: Copy,
+  },
   { label: "Learn", href: "/learn", icon: GraduationCap },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
@@ -50,7 +56,10 @@ export function Sidebar() {
       <aside className="hidden md:flex md:w-60 md:flex-col md:fixed md:inset-y-0 z-30">
         <div className="flex h-full flex-col border-r border-border bg-bg-secondary">
           {/* Logo */}
-          <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
+          <Link
+            href="/dashboard"
+            className="flex h-16 items-center gap-2.5 border-b border-border px-5 transition-opacity hover:opacity-80"
+          >
             <Image
               src="/logo-sidebar.png"
               alt="Deepmint"
@@ -59,7 +68,7 @@ export function Sidebar() {
               className="h-8 w-auto"
               priority
             />
-          </div>
+          </Link>
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1 px-3 py-4">

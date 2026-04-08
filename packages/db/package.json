@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./index.ts",
-    "./schema": "./schema/index.ts"
+    "./schema": "./schema/index.ts",
+    "./queries/createNotification": "./queries/createNotification.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",

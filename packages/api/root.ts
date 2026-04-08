@@ -8,6 +8,10 @@ import { scoresRouter } from "./routers/scores";
 import { socialRouter } from "./routers/social";
 import { tickerRouter } from "./routers/ticker";
 import { paperRouter } from "./routers/paper";
+import { signalSimulateRouter } from "./routers/signalSimulate";
+import { regimeRouter } from "./routers/regime";
+import { influenceRouter } from "./routers/influence";
+import { notificationsRouter } from "./routers/notifications";
 
 export const appRouter = router({
   entity: entityRouter,
@@ -19,6 +23,10 @@ export const appRouter = router({
   social: socialRouter,
   ticker: tickerRouter,
   paper: paperRouter,
+  signalSimulate: signalSimulateRouter,
+  regime: regimeRouter,
+  influence: influenceRouter,
+  notifications: notificationsRouter,
 });
 
 export type AppRouter = typeof appRouter;

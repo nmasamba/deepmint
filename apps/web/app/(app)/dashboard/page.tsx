@@ -5,6 +5,7 @@ import { ClaimsTimeline } from "@/components/claims/ClaimsTimeline";
 import { Mag7Grid } from "@/components/dashboard/Mag7Grid";
 import { SocialFeed } from "@/components/dashboard/SocialFeed";
 import { WatchlistSidebar } from "@/components/dashboard/WatchlistSidebar";
+import { TrendingInfluencers } from "@/components/influence/TrendingInfluencers";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Target } from "lucide-react";
@@ -62,6 +63,7 @@ export default function DashboardPage() {
       {/* Sidebar */}
       <aside className="space-y-6">
         <WatchlistSidebar />
+        <TrendingInfluencers />
       </aside>
     </div>
   );

@@ -67,7 +67,7 @@ importers:
         version: 0.41.0(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(postgres@3.4.8)
       inngest:
         specifier: ^4.1.0
-        version: 4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
+        version: 4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
       lucide-react:
         specifier: ^0.487.0
         version: 0.487.0(react@19.2.4)
@@ -137,7 +137,7 @@ importers:
         version: link:../../packages/shared
       inngest:
         specifier: ^4.1.0
-        version: 4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
+        version: 4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
       resend:
         specifier: ^6.10.0
         version: 6.10.0
@@ -157,6 +157,9 @@ importers:
       '@deepmint/db':
         specifier: workspace:*
         version: link:../db
+      '@deepmint/scoring':
+        specifier: workspace:*
+        version: link:../scoring
       '@deepmint/shared':
         specifier: workspace:*
         version: link:../shared
@@ -172,6 +175,9 @@ importers:
       drizzle-orm:
         specifier: ^0.41.0
         version: 0.41.0(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(postgres@3.4.8)
+      inngest:
+        specifier: ^4.1.0
+        version: 4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
       superjson:
         specifier: ^2.2.2
         version: 2.2.6
@@ -9967,7 +9973,7 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76):
+  inngest@4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76):
     dependencies:
       '@bufbuild/protobuf': 2.11.0
       '@inngest/ai': 0.1.7

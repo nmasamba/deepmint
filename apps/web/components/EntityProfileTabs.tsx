@@ -12,7 +12,9 @@ import {
   BarChart3,
   Shield,
   Zap,
+  Users,
 } from "lucide-react";
+import { InfluenceTab } from "@/components/influence/InfluenceTab";
 
 interface EntityProfileTabsProps {
   entityType: "player" | "guide";
@@ -256,6 +258,14 @@ export function EntityProfileTabs({
         >
           Stats
         </TabsTrigger>
+        {entityType === "guide" && (
+          <TabsTrigger
+            value="influence"
+            className="data-[state=active]:bg-bg-tertiary data-[state=active]:text-accent"
+          >
+            Influence
+          </TabsTrigger>
+        )}
       </TabsList>
 
       <TabsContent value="overview" className="mt-6">
@@ -269,6 +279,12 @@ export function EntityProfileTabs({
       <TabsContent value="stats" className="mt-6">
         <StatsTab entityType={entityType} entityId={entityId} />
       </TabsContent>
+
+      {entityType === "guide" && (
+        <TabsContent value="influence" className="mt-6">
+          <InfluenceTab entityId={entityId} />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }

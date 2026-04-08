@@ -5,6 +5,91 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.5.0] — Sprint 5: Signal Simulate, Influence Graph, Regime Leaderboards, Notifications (2026-04-08)
+
+### Added
+- **Follow-Signal Simulate** — Mirror a Guide or Player's claims as auto-logged paper trades
+  - New `signal_simulate_portfolios` table linking followers to dedicated paper portfolios
+  - `signalSimulate` tRPC router: create, list, deactivate, comparison (side-by-side performance)
+  - Inngest worker: auto-logs paper trades on `claims/created` events (1% allocation per signal)
+  - Signal Simulate page with ComparisonChart (Recharts) showing signal vs own portfolio
+  - "Mirror Signals" button on entity profile headers
+  - Sidebar navigation item
+- **Regime-Aware Leaderboards** — Filter leaderboard by market regime
+  - `regime` tRPC router: `current` (detects regime via VIX/S&P thresholds), `history` (regime tags over time)
+  - `bestInCurrentConditions` leaderboard procedure: top entities by EIV within current regime
+  - RegimeBadge component (bull=green, bear=red, high_vol=amber, low_vol=blue, rotation=purple)
+  - BestInRegime featured section on leaderboard page
+  - Regime filter buttons alongside existing metric filters
+- **Shadow Order Book (Influence Graph)** — Tracks who moves retail liquidity
+  - `detectInfluenceEvents` pure scoring function (packages/scoring) with 8 unit tests
+  - `influence-track` Inngest worker: real-time detection on `claims/created`
+  - `influence-aggregate` Inngest worker: nightly 30-day aggregation on `scoring/completed`
+  - `influence` tRPC router: `topInfluencers`, `byGuide`, `myInfluencers` (aggregated only — raw events never exposed)
+  - Influence tab on Guide profiles (follower count, events, avg response time, top instruments)
+  - TrendingInfluencers dashboard widget
+  - "Most Influential" metric added to leaderboard
+- **Notification System** — In-app notifications with preference controls
+  - `notifications` and `notification_preferences` tables
+  - `notifications` tRPC router: list (cursor-paginated), unreadCount, markRead, preferences, updatePreferences
+  - `createNotification` utility (respects user preferences before inserting)
+  - Notification triggers: new_follower, signal_trade_logged (more types ready for Sprint 6)
+  - NotificationBell in topbar with unread badge (polls every 30s)
+  - NotificationPreferences toggles on settings page
+  - `claims/created` Inngest event emitted from claims router (powers signal-simulate + influence tracking)
+  - `social/followed` Inngest event emitted from social router (powers new-follower notification)
+
+### Fixed
+- **Auth redirect** — Authenticated users visiting `/` now redirect to `/dashboard` (previously stayed on landing page)
+- **Sticky landing navbar** — Logo + Sign In / Get Started buttons fixed to top of landing page on scroll
+- **Clickable logos** — Sidebar logo links to `/dashboard`; mobile topbar also shows logo linking to `/dashboard`
+- **Clerk dark theme** — Social login buttons (Apple, Google) now have visible backgrounds, borders, and white icons; header title/subtitle text visible; footer centered
+
+### Changed
+- Claims router now emits `claims/created` Inngest event after claim submission
+- Social router now emits `social/followed` Inngest event after follow
+- Leaderboard page includes regime indicators, filters, and "Best in Current Conditions" section
+- Dashboard sidebar includes TrendingInfluencers widget
+- Guide entity profile includes "Influence" tab
+- Settings page includes "In-App Notifications" preference section
+- `@deepmint/api` now depends on `inngest` and `@deepmint/scoring`
+- Worker count: 8 → 12 functions registered
+
+### Technical
+- New schema: `signal_simulate_portfolios`, `notifications`, `notification_preferences` (2 migrations)
+- New routers: `signalSimulate`, `regime`, `influence`, `notifications`
+- New workers: `signal-simulate`, `influence-track`, `influence-aggregate`, `notify-new-follower`
+- New scoring function: `detectInfluenceEvents` with full test coverage
+- Tests: 95 passing (79 scoring + 16 shared + ingestion tests require HF API key)
+
+---
+
+## [0.4.1] — Sprint 4: Landing Page + Branding Overhaul (2026-04-07)
+
+### Changed
+- **Landing Page Rewrite** — Complete messaging overhaul emphasising AI-powered analyst ranking and dual user paths (Guide / Player):
+  - Hero: "Follow the market's smart movers. Or better yet, become one." — left-aligned layout with compact logo
+  - How It Works: "Choose Your Path → AI Scores the Outcome → The Best Rise the Ranks"
+  - New **ChoosePath** section — side-by-side Guide ("I'm an Analyst") and Player ("I'm a Trader") cards with dedicated sign-up CTAs
+  - Social Proof: "Predictions Tracked" / "AI-Scored Outcomes" / "Guides & Players"
+  - Footer: "AI-ranked analysts. Verified track records."
+- **Design System Palette** — Shifted to match logo's native colours:
+  - Backgrounds deepened: `#0A0F1A` → `#080C14` (primary), `#111827` → `#0D1219` (secondary)
+  - Accent shifted from teal `#2DD4BF` → mint-green `#34D399` to match logo's green glow
+  - Borders softened, text-secondary nudged cooler
+- **Logo Integration** — Transparent-background PNGs generated from source logo via sharp:
+  - `logo-hero.png` (400w, ~47KB) — hero + auth pages
+  - `logo-sidebar.png` (280w, ~25KB) — sidebar + footer + 404 page
+  - Background removal via luminance + saturation thresholding with anti-aliased edges
+- **Favicon Suite** — `favicon.ico`, `favicon-16.png`, `favicon-32.png`, `apple-touch-icon.png`
+- **SEO Metadata** — Title: "Deepmint — AI-Ranked Analyst Track Records", updated OG/Twitter descriptions
+- **In-App Copy** — Dashboard, explore, learn, leaderboard, paper portfolio, settings pages updated with AI-aware descriptions
+
+### Added
+- `apps/web/components/landing/ChoosePath.tsx` — Dual-path sign-up section (Guide vs Player)
+
+---
+
 ## [0.4.0] — Sprint 4: Social + Polish (2026-04-07)
 
 ### Added
@@ -49,7 +134,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - **ModuleContent** — Section navigation, inline content rendering, quiz system
 - **useLearnProgress** hook — localStorage-based progress tracking
 
-- **Landing Page** — Hero ("Follow people who are provably good"), How It Works (3-step), Social Proof (live DB counters), Footer
+- **Landing Page** — Hero, How It Works, Social Proof, Footer (later overhauled in 0.4.1)
 - **Entity Stats** — `entity.stats` public procedure for live claim/outcome/entity counts
 - **Error Pages** — `not-found.tsx` (404), `error.tsx` (error boundary), `global-error.tsx` (root error)
 - **OpenGraph / Twitter Card Metadata** — Enhanced root layout metadata with OG tags

@@ -7,16 +7,19 @@ export interface Context {
   db: typeof db;
   userId: string | null;
   entity: (typeof entities.$inferSelect) | null;
+  isAdmin: boolean;
 }
 
 export function createContext(opts: {
   userId: string | null;
   entity: (typeof entities.$inferSelect) | null;
+  isAdmin?: boolean;
 }): Context {
   return {
     db,
     userId: opts.userId,
     entity: opts.entity,
+    isAdmin: opts.isAdmin ?? false,
   };
 }
 

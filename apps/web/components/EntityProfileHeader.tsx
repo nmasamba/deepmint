@@ -2,8 +2,9 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ShieldCheck, Calendar } from "lucide-react";
+import { ShieldCheck, Calendar, Copy } from "lucide-react";
 import { FollowButton } from "@/components/FollowButton";
+import { MirrorSignalsButton } from "@/components/signal-simulate/MirrorSignalsButton";
 import { trpc } from "@/lib/trpc";
 
 interface EntityProfileHeaderProps {
@@ -119,8 +120,13 @@ export function EntityProfileHeader({ entity, hideFollow }: EntityProfileHeaderP
           </span>
         </div>
 
-        {/* Follow button */}
-        {!hideFollow && <FollowButton targetEntityId={entity.id} />}
+        {/* Follow + Mirror buttons */}
+        {!hideFollow && (
+          <div className="flex items-center gap-2">
+            <FollowButton targetEntityId={entity.id} />
+            <MirrorSignalsButton targetEntityId={entity.id} />
+          </div>
+        )}
       </div>
     </div>
   );

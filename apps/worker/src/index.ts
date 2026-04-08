@@ -6,6 +6,10 @@ import { scoreFunction } from "../functions/score";
 import { leaderboardRefreshFunction } from "../functions/leaderboard-refresh";
 import { consensusSignalFunction } from "../functions/consensus-signal";
 import { digestFunction } from "../functions/digest";
+import { signalSimulateFunction } from "../functions/signal-simulate";
+import { influenceTrackFunction } from "../functions/influence-track";
+import { influenceAggregateFunction } from "../functions/influence-aggregate";
+import { notifyNewFollowerFunction } from "../functions/notify-new-follower";
 
 // Export all Inngest functions for the serve handler
 export const inngestFunctions = [
@@ -17,6 +21,10 @@ export const inngestFunctions = [
   leaderboardRefreshFunction,
   consensusSignalFunction,
   digestFunction,
+  signalSimulateFunction,
+  influenceTrackFunction,
+  influenceAggregateFunction,
+  notifyNewFollowerFunction,
 ];
 
 // Re-export the Inngest client

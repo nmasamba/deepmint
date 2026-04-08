@@ -18,6 +18,9 @@ import {
 import { VALID_HORIZONS, RATIONALE_TAGS, getCurrentPrice } from "@deepmint/shared";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { Inngest } from "inngest";
+
+const inngest = new Inngest({ id: "deepmint" });
 
 // Rate limiter: 10 claims per hour per entity (sliding window)
 // Falls back to no-op when Upstash env vars are not set (local dev)
@@ -107,6 +110,21 @@ export const claimRouter = router({
           // eventId is null for Player self-logged claims
         })
         .returning();
+
+      // Emit event for downstream workers (signal-simulate, influence tracking)
+      await inngest.send({
+        name: "claims/created",
+        data: {
+          claimId: claim.id,
+          entityId: claim.entityId,
+          instrumentId: claim.instrumentId,
+          direction: claim.direction,
+          horizonDays: claim.horizonDays,
+          entryPriceCents: claim.entryPriceCents,
+        },
+      }).catch(() => {
+        // Non-blocking: don't fail claim submission if Inngest is unavailable
+      });
 
       return claim;
     }),

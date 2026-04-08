@@ -11,6 +11,9 @@ import {
 import { TRPCError } from "@trpc/server";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 import { Redis } from "@upstash/redis";
+import { Inngest } from "inngest";
+
+const inngest = new Inngest({ id: "deepmint" });
 
 // Redis helper — lazy init, null when env vars not set (local dev)
 function getRedis(): Redis | null {
@@ -75,6 +78,17 @@ export const socialRouter = router({
       if (redis) {
         await redis.incr(FOLLOWER_COUNT_KEY(input.targetEntityId));
       }
+
+      // Emit event for notification worker
+      await inngest.send({
+        name: "social/followed",
+        data: {
+          followerId: ctx.entity.id,
+          followedId: input.targetEntityId,
+        },
+      }).catch(() => {
+        // Non-blocking
+      });
 
       return { alreadyFollowing: false };
     }),

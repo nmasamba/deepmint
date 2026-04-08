@@ -7,13 +7,25 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
-import { Trophy, TrendingUp, Target, BarChart3 } from "lucide-react";
+import { Trophy, TrendingUp, Target, BarChart3, Users } from "lucide-react";
+import { RegimeBadge } from "@/components/leaderboard/RegimeBadge";
+import { BestInRegime } from "@/components/leaderboard/BestInRegime";
 
 const METRICS = [
   { value: "hit_rate", label: "Hit Rate", icon: Target },
   { value: "sharpe", label: "Sharpe Ratio", icon: TrendingUp },
   { value: "eiv_overall", label: "EIV", icon: BarChart3 },
   { value: "avg_return_bps", label: "Avg Return", icon: TrendingUp },
+  { value: "influence_events_30d", label: "Most Influential", icon: Users },
+] as const;
+
+const REGIME_FILTERS = [
+  { value: "", label: "All Regimes" },
+  { value: "bull", label: "Bull" },
+  { value: "bear", label: "Bear" },
+  { value: "high_vol", label: "High Vol" },
+  { value: "low_vol", label: "Low Vol" },
+  { value: "rotation", label: "Rotation" },
 ] as const;
 
 function formatScore(metric: string, value: number): string {
@@ -28,10 +40,14 @@ export default function LeaderboardPage() {
     undefined
   );
   const [metric, setMetric] = useState("hit_rate");
+  const [regimeFilter, setRegimeFilter] = useState("");
+
+  const { data: currentRegime } = trpc.regime.current.useQuery();
 
   const { data, isLoading } = trpc.leaderboard.top.useQuery({
     metric,
     entityType,
+    regimeTag: regimeFilter || undefined,
     limit: 50,
   });
 
@@ -40,7 +56,13 @@ export default function LeaderboardPage() {
       <div className="flex items-center gap-3">
         <Trophy className="h-6 w-6 text-accent" />
         <h1 className="text-2xl font-bold text-text-primary">Leaderboard</h1>
+        {currentRegime && (
+          <RegimeBadge regime={currentRegime.regime} />
+        )}
       </div>
+
+      {/* Best in Current Conditions */}
+      <BestInRegime />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4">
@@ -92,6 +114,23 @@ export default function LeaderboardPage() {
               </button>
             );
           })}
+        </div>
+
+        {/* Regime filter */}
+        <div className="flex gap-2">
+          {REGIME_FILTERS.map((r) => (
+            <button
+              key={r.value}
+              onClick={() => setRegimeFilter(r.value)}
+              className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+                regimeFilter === r.value
+                  ? "bg-accent/10 text-accent border border-accent/30"
+                  : "bg-bg-secondary text-text-secondary border border-border hover:bg-bg-tertiary"
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
         </div>
       </div>
 
