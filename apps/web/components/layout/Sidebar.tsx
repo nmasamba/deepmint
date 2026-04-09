@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   Trophy,
@@ -12,6 +13,9 @@ import {
   Copy,
   GraduationCap,
   Settings,
+  Shield,
+  Database,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,8 +51,17 @@ const navItems: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
+const adminNavItems: NavItem[] = [
+  { label: "Claim Review", href: "/admin/review", icon: Shield },
+  { label: "Instruments", href: "/admin/instruments", icon: Database },
+  { label: "API Keys", href: "/admin/api-keys", icon: KeyRound },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useUser();
+  const isAdmin =
+    (user?.publicMetadata as { role?: string } | undefined)?.role === "admin";
 
   return (
     <>
@@ -94,6 +107,36 @@ export function Sidebar() {
                 </Link>
               );
             })}
+
+            {isAdmin && (
+              <div className="pt-4">
+                <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
+                  Admin
+                </div>
+                {adminNavItems.map((item) => {
+                  const isActive =
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-accent/10 text-accent"
+                          : "text-text-secondary hover:bg-bg-tertiary hover:text-text-primary",
+                      )}
+                    >
+                      <Icon className="h-4.5 w-4.5 shrink-0" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </nav>
 
           {/* Bottom section */}

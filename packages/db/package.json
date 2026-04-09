@@ -6,7 +6,8 @@
   "exports": {
     ".": "./index.ts",
     "./schema": "./schema/index.ts",
-    "./queries/createNotification": "./queries/createNotification.ts"
+    "./queries/createNotification": "./queries/createNotification.ts",
+    "./seed/sp500-top50": "./seed/sp500-top50.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",

@@ -13,6 +13,7 @@ export const entities = pgTable('entities', {
   avatarUrl: varchar('avatar_url', { length: 500 }),
   styleTags: jsonb('style_tags').$type<string[]>().default([]),       // e.g. ['value', 'tech', 'macro']
   brokerLinkStatus: brokerLinkStatusEnum('broker_link_status').default('none'),
+  snaptradeUserId: varchar('snaptrade_user_id', { length: 255 }),      // SnapTrade registered user ID
   isVerified: boolean('is_verified').default(false),
   isAllowlisted: boolean('is_allowlisted').default(false),            // for Guides
   sourceUrl: varchar('source_url', { length: 500 }),                  // Guide's public profile/blog

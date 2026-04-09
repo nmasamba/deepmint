@@ -10,7 +10,7 @@ async function handler(req: Request) {
     req,
     router: appRouter,
     createContext: async () => {
-      const { userId } = await auth();
+      const { userId, sessionClaims } = await auth();
 
       let entity = null;
       if (userId) {
@@ -22,7 +22,13 @@ async function handler(req: Request) {
         entity = found ?? null;
       }
 
-      return createContext({ userId, entity });
+      // Check admin role from Clerk publicMetadata
+      const publicMetadata =
+        (sessionClaims?.publicMetadata as { role?: string } | undefined) ??
+        (sessionClaims?.["public_metadata"] as { role?: string } | undefined);
+      const isAdmin = publicMetadata?.role === "admin";
+
+      return createContext({ userId, entity, isAdmin });
     },
   });
 }

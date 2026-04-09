@@ -53,7 +53,12 @@ export const adminProcedure = t.procedure.use(({ ctx, next }) => {
       message: "Authentication required",
     });
   }
-  // TODO: Check admin role once role system is implemented
+  if (!ctx.isAdmin) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Admin role required",
+    });
+  }
   return next({
     ctx: {
       ...ctx,

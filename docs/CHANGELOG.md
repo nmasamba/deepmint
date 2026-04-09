@@ -5,6 +5,67 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.6.0] — Sprint 6: B2B API, Proof-of-Skin, Instrument Expansion (2026-04-09)
+
+### Changed
+- **LLM extraction model** switched from `Qwen/Qwen3-235B-A22B` to `google/gemma-4-31B-it:fastest` (HuggingFace router). The `:fastest` suffix routes to the lowest-latency provider currently serving the model. Observed extraction time dropped to 7–26s per call (previously 18–60s+ with intermittent cold-start timeouts). `LLM_MODEL` env var still overrides the default.
+- **Extractor test timeouts** raised from 60s/120s to 180s per test to give cold-start calls sufficient headroom on any upstream provider.
+
+### Fixed
+- **B2B API was unreachable** — Clerk middleware was protecting `/api/v1/*` with session auth, blocking all Bearer-token requests. Added `/api/v1(.*)` to the `isPublicRoute` matcher in `apps/web/middleware.ts` so these routes are authenticated via the Bearer API key pipeline instead of Clerk.
+- **Consensus endpoint leaked internal UUID** — `GET /api/v1/instruments/{ticker}/consensus` was returning `instrument.id` because the handler spread the full DB row into the response. Now constructs an explicit `publicInstrument` projection (ticker/name/exchange/assetClass/sector only) matching the OpenAPI schema.
+
+
+### Added
+- **Expand Beyond Mag 7** — admin-driven instrument universe expansion
+  - New `ticker_requests` table (pending/approved/rejected) for user-submitted tickers
+  - Seed file `packages/db/seed/sp500-top50.ts` with ~50 S&P 500 tickers beyond Mag 7 (JPM, V, MA, LLY, UNH, AVGO, ORCL, XOM, and others with sector/industry metadata)
+  - `instruments` router extended with admin procedures: `adminList`, `adminCreate`, `adminBatchCreate` (idempotent, emits `instruments/batch-added` event), `adminToggleActive`, `requestTicker` (user-facing, rate limited), `listRequests`, `reviewRequest`
+  - Real admin check in `adminProcedure` via Clerk `publicMetadata.role === "admin"` (replaces prior placeholder)
+  - `backfill-prices` Inngest worker: on `instruments/batch-added`, validates Polygon.io historical coverage by fetching 365 days of daily bars; deactivates instruments with no data
+  - Admin page `/admin/instruments` with Instruments and User Requests tabs, active toggle, "Seed S&P 500 Top 50" button, approve/reject workflow
+  - Sidebar admin section (Shield/Database/KeyRound) conditionally rendered for admins
+- **Proof-of-Skin (SnapTrade broker verification)** — read-only broker linking
+  - `entities.snaptradeUserId` column; SnapTrade credentials stored in `brokerLinks.metadata` jsonb
+  - `snaptrade-typescript-sdk` added to `@deepmint/api`
+  - `packages/api/lib/snaptrade.ts` — SDK wrapper exposing only read-only methods: `getSnapTradeClient`, `registerUser`, `getLoginLink`, `listAccounts`, `getAccountActivities` (BUY/SELL filter), `deleteUser`. Returns null when credentials are unconfigured for graceful degradation.
+  - `broker` tRPC router with 5 procedures: `initLink`, `completeLink`, `status`, `disconnect` (preserves trade history, revokes SnapTrade user), `syncTrades` (rate limited 1/hour, inserts verified `playerTrades`)
+  - `broker-sync` Inngest daily cron (22:00 UTC weekdays) — syncs all active links since `lastSyncAt`, inserts trades with `isVerified=true`, backoff between calls
+  - `BrokerVerification` client component with states: unlinked / pending / verified / error; handles `snaptrade_success=true` OAuth return on settings page
+  - `leaderboard` router returns `entity.brokerLinkStatus`; leaderboard UI shows `ShieldCheck` icon next to verified Players
+  - Existing consensus weighting (`1.5x` for verified Players) automatically applies once an entity's status flips to `verified`
+- **B2B Scoring REST API** at `/api/v1/`
+  - `api_keys` table with SHA-256 `keyHash`, `keyPrefix`, `scopes` jsonb, `rateLimit`, `lastUsedAt`, `expiresAt`, `revokedAt`
+  - `apiKeys` tRPC router (admin-only): `create` (returns plaintext ONCE), `list`, `revoke`
+  - `/api/v1/lib/auth.ts` — Bearer extraction, SHA-256 lookup, active/expiry/scope validation, Upstash sliding-window rate limit, best-effort `lastUsedAt` update
+  - `/api/v1/lib/rateLimit.ts` — Upstash Redis sliding window keyed by API key id
+  - `/api/v1/lib/response.ts` — `jsonSuccess` / `jsonError` / `corsPreflight` with `X-RateLimit-*` headers and CORS
+  - `GET /api/v1/entities/{slug}/scores` — latest scores per `(metric, horizon, regime)`
+  - `GET /api/v1/instruments/{ticker}/consensus` — latest weighted consensus signal
+  - `GET /api/v1/leaderboard?metric=...` — ranked entities with optional `entityType`, `horizon`, `regimeTag`, `limit`
+  - `GET /api/v1/openapi.json` — OpenAPI 3.1 spec for all 3 endpoints
+  - Admin page `/admin/api-keys` — create (with scope selection + rate-limit input), list, revoke; displays plaintext key exactly once with copy-to-clipboard
+
+### Migration
+- `0005_colorful_nemesis.sql` — adds `api_keys`, `ticker_requests`, `entities.snaptrade_user_id`
+
+### Env vars
+- `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY` — optional; wrapper no-ops gracefully when missing
+- `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` — required for B2B API rate limiting
+
+### Dependencies
+- `@deepmint/api` adds `snaptrade-typescript-sdk`
+- `@deepmint/web` adds `@upstash/ratelimit`, `@upstash/redis`
+- `@deepmint/worker` now depends on `@deepmint/api` (to share the SnapTrade wrapper)
+
+### Invariants preserved
+- Append-only claims/events/notes untouched
+- Broker integration is READ-ONLY (no trade execution path exists)
+- Consensus still uses weighted scores (never raw vote counts)
+- Individual influence events remain private; the B2B API only exposes aggregated scores
+
+---
+
 ## [0.5.0] — Sprint 5: Signal Simulate, Influence Graph, Regime Leaderboards, Notifications (2026-04-08)
 
 ### Added

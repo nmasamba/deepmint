@@ -52,6 +52,7 @@ export const leaderboardRouter = router({
           entitySlug: entities.slug,
           entityType: entities.type,
           entityAvatar: entities.avatarUrl,
+          entityBrokerLinkStatus: entities.brokerLinkStatus,
         })
         .from(scores)
         .innerJoin(entities, eq(scores.entityId, entities.id))
@@ -72,6 +73,7 @@ export const leaderboardRouter = router({
           slug: row.entitySlug,
           type: row.entityType,
           avatarUrl: row.entityAvatar,
+          brokerLinkStatus: row.entityBrokerLinkStatus,
         },
         score: parseFloat(row.value),
         horizon: row.horizon,

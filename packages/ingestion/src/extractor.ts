@@ -20,7 +20,7 @@ function getLLMClient(): OpenAI {
   });
 }
 
-const DEFAULT_MODEL = "Qwen/Qwen3-235B-A22B";
+const DEFAULT_MODEL = "google/gemma-4-31B-it:fastest";
 
 const EXTRACTION_PROMPT = `You are a financial claim extractor. Given raw text from an analyst or trader, extract structured predictions.
 

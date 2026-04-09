@@ -14,6 +14,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "@deepmint/api": "workspace:*",
     "@deepmint/db": "workspace:*",
     "@deepmint/ingestion": "workspace:*",
     "@deepmint/scoring": "workspace:*",

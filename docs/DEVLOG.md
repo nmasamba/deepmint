@@ -4,6 +4,62 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-04-09 — Sprint 6 Complete
+
+### Status
+- **Sprint 1–5**: Complete
+- **Sprint 6**: Complete (B2B API, Proof-of-Skin, Instrument Expansion)
+
+### What was built
+Sprint 6 closes out the "Post-Launch Prompts" with the three remaining features — the B2B monetization layer, the broker-verified trust signal, and instrument universe expansion beyond Mag 7.
+
+#### 6.1 Expand Beyond Mag 7
+- New `ticker_requests` table lets authenticated users submit tickers they want tracked; admins approve/reject from `/admin/instruments` User Requests tab.
+- `packages/db/seed/sp500-top50.ts` provides ~50 curated tickers (JPM, V, LLY, UNH, AVGO, XOM …) with sector/industry/marketCapBucket metadata.
+- `instruments` router gained admin CRUD + batch seed procedures. `adminBatchCreate` is idempotent — it skips tickers already in the table and emits `instruments/batch-added` with only the newly-created ids.
+- `backfill-prices` Inngest worker listens for that event and validates each ticker against Polygon.io (365-day daily bars). Instruments Polygon can't serve are immediately deactivated, so the consensus worker (which only queries `isActive = true`) never starts quoting stale-data tickers.
+- `adminProcedure` now performs a real admin check against Clerk `sessionClaims.publicMetadata.role === "admin"` — previously a placeholder.
+- Sidebar renders a dedicated admin section (conditionally) with links to Review, Instruments, and API Keys.
+
+#### 6.2 Proof-of-Skin (SnapTrade broker verification)
+- **Read-only by design.** The SnapTrade wrapper in `packages/api/lib/snaptrade.ts` only exposes `registerUser`, `getLoginLink`, `listAccounts`, `getAccountActivities`, `deleteUser`. No trade-placement method exists, so the "no auto-execution" invariant is enforced at the import surface.
+- SnapTrade `userId`/`userSecret` credentials are stored in `brokerLinks.metadata` (jsonb) rather than dedicated columns — avoids another migration and keeps the schema generic across broker providers.
+- `broker` router has five procedures. `disconnect` does not delete `playerTrades` — historical verified trades remain in the record forever, matching the append-only spirit of the platform even though `playerTrades` is not strictly append-only.
+- `broker-sync` daily cron fetches activities since `lastSyncAt`, maps BUY/SELL actions to `playerTrades` with `isVerified=true`, stores entry price in integer cents, and staggers calls with `step.sleep("rate-limit", "1s")` to respect SnapTrade throttles.
+- `BrokerVerification` component handles the OAuth round-trip by reading `snaptrade_success=true` from the URL after the user returns from the broker login page.
+- The 1.5x consensus multiplier for verified Players required no code changes — `consensus-signal.ts` was already gated on `brokerLinkStatus === "verified"`, so flipping an entity's status immediately changes its weight on the next signal rebuild.
+- Graceful degradation: if `SNAPTRADE_CLIENT_ID` / `SNAPTRADE_CONSUMER_KEY` are missing, `getSnapTradeClient()` returns `null`, the UI shows "not configured", and `broker-sync` exits with `{ skipped: 0, reason: "snaptrade-not-configured" }` instead of crashing.
+
+#### 6.3 B2B Scoring REST API
+- Brand-new `/api/v1/` surface using Next.js App Router route handlers — deliberately separate from the tRPC internal API. External clients speak plain REST with JSON envelopes; internal clients stay on tRPC.
+- Keys use a `dm_live_<32 hex>` format. Only the SHA-256 hash plus a 16-char prefix are persisted; the plaintext is returned exactly once at creation time and must be stored by the caller. Admin list/revoke operations never touch plaintext.
+- Rate limiting is per API key via Upstash sliding window (default 60 req/min, configurable per key). Responses include `X-RateLimit-Limit`, `-Remaining`, `-Reset` headers; 429s include the same headers so clients can back off cleanly.
+- All responses follow a `{ data, meta: { requestId, timestamp } }` / `{ error: { code, message }, meta }` envelope. CORS is open on `/api/v1/*` since B2B consumers will hit this from browser-side dashboards.
+- Three endpoints ship in 6.3: entity scores, instrument consensus, and leaderboard. `openapi.json` serves a full OpenAPI 3.1 document so Swagger / Redoc / client generators work without extra setup.
+- Admin UI `/admin/api-keys` lets admins create (with scope + rate-limit selection), list, and revoke keys. On create, the plaintext is shown once in an amber warning banner with copy-to-clipboard; the prefix is used as the list identifier afterwards.
+
+### Architectural notes
+- The worker package now depends on `@deepmint/api` solely to import `@deepmint/api/lib/snaptrade`. This is a one-way dependency — `@deepmint/api` does not import from worker — so no circularity.
+- `packages/api/package.json` uses a subpath export (`./lib/snaptrade`) so the worker pulls only the SDK wrapper without dragging in tRPC router code.
+- All Sprint 6 schema changes landed in a single migration (`0005_colorful_nemesis.sql`) by editing the schema files first and then running `drizzle-kit generate` once.
+- No changes to the existing consensus/scoring workers were required. Both already respected `isActive` filtering and `brokerLinkStatus === "verified"` weighting, so they picked up the new instruments and verified players automatically.
+
+### Tests & verification
+- `pnpm check` (turbo typecheck across all 9 packages) — ✅ green across the board after fixing:
+  - Inngest v4 API change: triggers go inside the config block as `triggers: [...]`, not as a second positional arg.
+  - `FAILED_PRECONDITION` → `PRECONDITION_FAILED` (correct tRPC error code).
+  - Added `@deepmint/api` to worker deps and `@upstash/ratelimit` + `@upstash/redis` to web.
+- `pnpm test` — 95/96 passed. The single failure is `packages/ingestion` `extractor.test.ts > extracts a clear bullish AAPL prediction`, an external HuggingFace Inference API timeout (60s) unrelated to Sprint 6. The other 5 live-LLM tests in the same suite passed.
+- Unit test coverage for Sprint 6 is deferred to follow-up work — the features are primarily integration-heavy (SnapTrade OAuth, Upstash rate limit, REST auth pipeline) and will be covered by API-level tests once the required env vars (`SNAPTRADE_*`, live `UPSTASH_*`) are provisioned.
+
+### Known follow-ups
+- Add integration tests for the 3 REST endpoints (happy path + 401/403/429/404).
+- Add a unit test for `generateKey()` ensuring SHA-256 hash stability and prefix extraction.
+- Wire up a lightweight API docs page under `/docs/api` that renders the `openapi.json` spec via a client-side Swagger/Redoc component.
+- Seed an initial admin user by setting `publicMetadata.role = "admin"` in Clerk for the development account.
+
+---
+
 ## 2026-04-08 — Sprint 5 Complete
 
 ### Status

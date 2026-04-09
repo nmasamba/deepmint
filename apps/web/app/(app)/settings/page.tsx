@@ -2,8 +2,9 @@
 
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Loader2, Mail, Bell } from "lucide-react";
+import { Loader2, Mail, Bell, ShieldCheck } from "lucide-react";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
+import { BrokerVerification } from "@/components/settings/BrokerVerification";
 
 export default function SettingsPage() {
   const utils = trpc.useUtils();
@@ -141,13 +142,13 @@ export default function SettingsPage() {
 
       {/* Broker Verification */}
       <div className="rounded-lg border border-border bg-bg-secondary p-6">
-        <h2 className="text-lg font-semibold text-text-primary">
-          Broker Verification
-        </h2>
-        <p className="mt-2 text-sm text-text-secondary">
-          Connect your brokerage account to verify your trades and earn a
-          verified badge. Coming soon.
-        </p>
+        <div className="flex items-center gap-2 mb-4">
+          <ShieldCheck className="h-5 w-5 text-text-secondary" />
+          <h2 className="text-lg font-semibold text-text-primary">
+            Broker Verification
+          </h2>
+        </div>
+        <BrokerVerification />
       </div>
     </div>
   );

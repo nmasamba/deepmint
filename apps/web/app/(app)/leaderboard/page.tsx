@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
-import { Trophy, TrendingUp, Target, BarChart3, Users } from "lucide-react";
+import { Trophy, TrendingUp, Target, BarChart3, Users, ShieldCheck } from "lucide-react";
 import { RegimeBadge } from "@/components/leaderboard/RegimeBadge";
 import { BestInRegime } from "@/components/leaderboard/BestInRegime";
 
@@ -188,6 +188,13 @@ export default function LeaderboardPage() {
                   <span className="text-text-primary font-medium truncate">
                     {row.entity.displayName}
                   </span>
+                  {row.entity.type === "player" &&
+                    row.entity.brokerLinkStatus === "verified" && (
+                      <ShieldCheck
+                        className="h-4 w-4 shrink-0 text-accent"
+                        aria-label="Broker verified"
+                      />
+                    )}
                 </div>
 
                 {/* Type */}

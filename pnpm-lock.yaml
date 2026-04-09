@@ -53,6 +53,12 @@ importers:
       '@trpc/server':
         specifier: ^11.13.0
         version: 11.13.0(typescript@5.9.3)
+      '@upstash/ratelimit':
+        specifier: ^2.0.8
+        version: 2.0.8(@upstash/redis@1.37.0)
+      '@upstash/redis':
+        specifier: ^1.37.0
+        version: 1.37.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -67,7 +73,7 @@ importers:
         version: 0.41.0(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(postgres@3.4.8)
       inngest:
         specifier: ^4.1.0
-        version: 4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
+        version: 4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
       lucide-react:
         specifier: ^0.487.0
         version: 0.487.0(react@19.2.4)
@@ -123,6 +129,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@deepmint/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@deepmint/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -137,7 +146,7 @@ importers:
         version: link:../../packages/shared
       inngest:
         specifier: ^4.1.0
-        version: 4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
+        version: 4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
       resend:
         specifier: ^6.10.0
         version: 6.10.0
@@ -177,7 +186,10 @@ importers:
         version: 0.41.0(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(postgres@3.4.8)
       inngest:
         specifier: ^4.1.0
-        version: 4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
+        version: 4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
+      snaptrade-typescript-sdk:
+        specifier: ^9.0.180
+        version: 9.0.180
       superjson:
         specifier: ^2.2.2
         version: 2.2.6
@@ -4997,6 +5009,10 @@ packages:
 
   siginfo@2.0.0:
     resolution: {integrity: sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g==}
+
+  snaptrade-typescript-sdk@9.0.180:
+    resolution: {integrity: sha512-H573r6Byix62ESilMeTXVaqrUmey1b0coh40LITLaxCQL3CQ8tk1gVHU0YP+W+PwR9HurF5CeYgZlmG14pA6Fg==}
+    engines: {node: '>=10'}
 
   sonner@2.0.7:
     resolution: {integrity: sha512-W6ZN4p58k8aDKA4XPcx2hpIQXBRAgyiWVkYhT7CvK6D3iAu7xjvVyhQHg2/iaKJZ1XVJ4r7XuwGL+WGEK37i9w==}
@@ -9973,7 +9989,7 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76):
+  inngest@4.1.0(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(next@15.5.14(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76):
     dependencies:
       '@bufbuild/protobuf': 2.11.0
       '@inngest/ai': 0.1.7
@@ -10619,6 +10635,12 @@ snapshots:
   shebang-regex@3.0.0: {}
 
   siginfo@2.0.0: {}
+
+  snaptrade-typescript-sdk@9.0.180:
+    dependencies:
+      axios: 1.14.0
+    transitivePeerDependencies:
+      - debug
 
   sonner@2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:

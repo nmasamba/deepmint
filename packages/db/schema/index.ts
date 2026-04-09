@@ -15,3 +15,5 @@ export * from './consensus';
 export * from './emailPreferences';
 export * from './signalSimulate';
 export * from './notifications';
+export * from './tickerRequests';
+export * from './apiKeys';
