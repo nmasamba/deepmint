@@ -28,7 +28,10 @@ export default function SignUpPage() {
           socialButtonsBlockButtonText: {
             color: "#E2E8F0",
           },
-          socialButtonsProviderIcon: {
+          // Only invert the Apple logo (black-on-dark is invisible). Google,
+          // Facebook, and X ship multicolor / light icons that must NOT be
+          // filtered — inverting them produces a white-on-white empty box.
+          socialButtonsProviderIcon__apple: {
             filter: "brightness(0) invert(1)",
           },
           dividerLine: {

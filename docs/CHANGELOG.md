@@ -11,9 +11,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - **LLM extraction model** switched from `Qwen/Qwen3-235B-A22B` to `google/gemma-4-31B-it:fastest` (HuggingFace router). The `:fastest` suffix routes to the lowest-latency provider currently serving the model. Observed extraction time dropped to 7–26s per call (previously 18–60s+ with intermittent cold-start timeouts). `LLM_MODEL` env var still overrides the default.
 - **Extractor test timeouts** raised from 60s/120s to 180s per test to give cold-start calls sufficient headroom on any upstream provider.
 
+### Security
+- **Admin role moved from `publicMetadata` to `privateMetadata`** — the admin role flag was previously readable from any client-side `useUser()` call, exposing admin identity in JS bundles. Now stored in Clerk `privateMetadata.role` (server-only). Admin checks in `apps/web/app/(app)/layout.tsx` and `apps/web/app/api/trpc/[trpc]/route.ts` use a two-tier lookup: first try the `sessionClaims.metadata` fast path (requires Clerk session token customization exposing `{{user.private_metadata}}` as `metadata`); fall back to `clerkClient().users.getUser(userId).privateMetadata.role` via the backend API if the claim is absent. `Sidebar` no longer calls `useUser()` — it accepts `isAdmin: boolean` as a server-resolved prop, so the `"admin"` string never lands in the client bundle.
+
 ### Fixed
 - **B2B API was unreachable** — Clerk middleware was protecting `/api/v1/*` with session auth, blocking all Bearer-token requests. Added `/api/v1(.*)` to the `isPublicRoute` matcher in `apps/web/middleware.ts` so these routes are authenticated via the Bearer API key pipeline instead of Clerk.
 - **Consensus endpoint leaked internal UUID** — `GET /api/v1/instruments/{ticker}/consensus` was returning `instrument.id` because the handler spread the full DB row into the response. Now constructs an explicit `publicInstrument` projection (ticker/name/exchange/assetClass/sector only) matching the OpenAPI schema.
+- **Clerk sign-in/sign-up icon inversion broke Google logo** — the `socialButtonsProviderIcon` filter (`brightness(0) invert(1)`) was intended to whiten Apple's black logo but was applied to every provider, turning Google's multicolor G into a white-on-white blank box. Scoped the filter to `socialButtonsProviderIcon__apple` only in both auth pages.
+- **Clerk "Last used" pill was dark-on-dark** — Clerk's default badge text color is unreadable on the dark theme. Added a scoped global CSS override in `apps/web/app/globals.css` matching `.cl-rootBox [class*="cl-badge"]` / `[class*="cl-internal"][class*="badge" i]` to force `color: var(--color-text-primary)` with `!important`. (The `badge` element key in Clerk's appearance API didn't match this element, so targeting by class attribute was the reliable path.)
 
 
 ### Added
@@ -21,7 +26,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   - New `ticker_requests` table (pending/approved/rejected) for user-submitted tickers
   - Seed file `packages/db/seed/sp500-top50.ts` with ~50 S&P 500 tickers beyond Mag 7 (JPM, V, MA, LLY, UNH, AVGO, ORCL, XOM, and others with sector/industry metadata)
   - `instruments` router extended with admin procedures: `adminList`, `adminCreate`, `adminBatchCreate` (idempotent, emits `instruments/batch-added` event), `adminToggleActive`, `requestTicker` (user-facing, rate limited), `listRequests`, `reviewRequest`
-  - Real admin check in `adminProcedure` via Clerk `publicMetadata.role === "admin"` (replaces prior placeholder)
+  - Real admin check in `adminProcedure` via Clerk `privateMetadata.role === "admin"` (replaces prior placeholder; see Security section below for the move from `publicMetadata`)
   - `backfill-prices` Inngest worker: on `instruments/batch-added`, validates Polygon.io historical coverage by fetching 365 days of daily bars; deactivates instruments with no data
   - Admin page `/admin/instruments` with Instruments and User Requests tabs, active toggle, "Seed S&P 500 Top 50" button, approve/reject workflow
   - Sidebar admin section (Shield/Database/KeyRound) conditionally rendered for admins
@@ -50,7 +55,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - `0005_colorful_nemesis.sql` — adds `api_keys`, `ticker_requests`, `entities.snaptrade_user_id`
 
 ### Env vars
-- `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY` — optional; wrapper no-ops gracefully when missing
+- `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY` — optional in Sprint 6 (wrapper no-ops gracefully when missing); **must be provisioned in Sprint 7** before the broker flow can be exercised live (see DEVLOG "Sprint 7 prerequisite — SnapTrade credentials")
 - `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` — required for B2B API rate limiting
 
 ### Dependencies

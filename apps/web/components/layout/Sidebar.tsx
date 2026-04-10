@@ -3,7 +3,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   Trophy,
@@ -57,11 +56,18 @@ const adminNavItems: NavItem[] = [
   { label: "API Keys", href: "/admin/api-keys", icon: KeyRound },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  /**
+   * Whether the current user has the admin role. Injected by the server-side
+   * layout so we never need to read role metadata from the client-side Clerk
+   * object — the flag is stored in Clerk `privateMetadata` and exposed only
+   * via a signed session-token claim read on the server.
+   */
+  isAdmin: boolean;
+}
+
+export function Sidebar({ isAdmin }: SidebarProps) {
   const pathname = usePathname();
-  const { user } = useUser();
-  const isAdmin =
-    (user?.publicMetadata as { role?: string } | undefined)?.role === "admin";
 
   return (
     <>

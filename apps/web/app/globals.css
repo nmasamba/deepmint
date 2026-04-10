@@ -51,3 +51,10 @@ body {
 .font-mono {
   font-family: var(--font-mono);
 }
+
+/* Clerk "Last used" pill next to social buttons — Clerk's default text
+   color is dark-on-dark inside the dark theme. Match provider button text. */
+.cl-rootBox [class*="cl-badge"],
+.cl-rootBox [class*="cl-internal"][class*="badge" i] {
+  color: var(--color-text-primary) !important;
+}

@@ -18,7 +18,7 @@ Sprint 6 closes out the "Post-Launch Prompts" with the three remaining features 
 - `packages/db/seed/sp500-top50.ts` provides ~50 curated tickers (JPM, V, LLY, UNH, AVGO, XOM …) with sector/industry/marketCapBucket metadata.
 - `instruments` router gained admin CRUD + batch seed procedures. `adminBatchCreate` is idempotent — it skips tickers already in the table and emits `instruments/batch-added` with only the newly-created ids.
 - `backfill-prices` Inngest worker listens for that event and validates each ticker against Polygon.io (365-day daily bars). Instruments Polygon can't serve are immediately deactivated, so the consensus worker (which only queries `isActive = true`) never starts quoting stale-data tickers.
-- `adminProcedure` now performs a real admin check against Clerk `sessionClaims.publicMetadata.role === "admin"` — previously a placeholder.
+- `adminProcedure` now performs a real admin check against Clerk `privateMetadata.role === "admin"` — previously a placeholder. (Originally shipped against `publicMetadata`; moved to `privateMetadata` the same day — see "Post-sprint hardening" below.)
 - Sidebar renders a dedicated admin section (conditionally) with links to Review, Instruments, and API Keys.
 
 #### 6.2 Proof-of-Skin (SnapTrade broker verification)
@@ -49,14 +49,53 @@ Sprint 6 closes out the "Post-Launch Prompts" with the three remaining features 
   - Inngest v4 API change: triggers go inside the config block as `triggers: [...]`, not as a second positional arg.
   - `FAILED_PRECONDITION` → `PRECONDITION_FAILED` (correct tRPC error code).
   - Added `@deepmint/api` to worker deps and `@upstash/ratelimit` + `@upstash/redis` to web.
-- `pnpm test` — 95/96 passed. The single failure is `packages/ingestion` `extractor.test.ts > extracts a clear bullish AAPL prediction`, an external HuggingFace Inference API timeout (60s) unrelated to Sprint 6. The other 5 live-LLM tests in the same suite passed.
-- Unit test coverage for Sprint 6 is deferred to follow-up work — the features are primarily integration-heavy (SnapTrade OAuth, Upstash rate limit, REST auth pipeline) and will be covered by API-level tests once the required env vars (`SNAPTRADE_*`, live `UPSTASH_*`) are provisioned.
+- `pnpm test` — **113/113 passing** after switching the LLM extraction model to `google/gemma-4-31B-it:fastest` and bumping extractor test timeouts to 180s.
+  - `@deepmint/shared`: 16 ✅
+  - `@deepmint/scoring`: 79 ✅
+  - `@deepmint/ingestion`: 18 ✅ (6 live-LLM extractor tests between 7.8–25.8s each)
+- Live end-to-end verification of the B2B API via `curl`:
+  - `GET /api/v1/openapi.json` (public) → 200 + spec
+  - No/invalid/malformed auth → 401 with proper JSON error envelopes and codes
+  - Valid key → 200 on leaderboard, consensus (AAPL bullish, conviction 0.3478), 404 on unknown entity slug
+  - `X-RateLimit-Limit` / `-Remaining` / `-Reset` headers present on all responses
+- Bugs caught during live verification and fixed before shipping:
+  1. Clerk middleware was gating `/api/v1/*` with session auth — added `/api/v1(.*)` to `isPublicRoute`.
+  2. Consensus endpoint was leaking `instrument.id` (internal UUID) — added explicit `publicInstrument` projection.
+  3. Migration `0005_colorful_nemesis.sql` wasn't applied to dev DB — ran `drizzle-kit migrate` cleanly.
+- Unit test coverage for SnapTrade OAuth flow and Upstash rate limit is deferred to follow-up work — requires provisioning `SNAPTRADE_*` and live `UPSTASH_*` env vars.
+
+### LLM model change (post-Sprint 6)
+- Switched default extraction model from `Qwen/Qwen3-235B-A22B` to `google/gemma-4-31B-it:fastest` via the HuggingFace router (`https://router.huggingface.co/v1`). The `:fastest` suffix tells the router to dispatch to whichever upstream provider is currently serving the model with the lowest latency, eliminating the cold-start timeouts that were flaking the AAPL extraction test.
+- No other code changes — client construction (OpenAI SDK pointed at the HF router), auth (`HF_API_KEY`), and extraction flow are identical. `LLM_MODEL` env var still overrides the default.
+- Performance: extractor suite runs in ~102s wall time (was 170s+ with frequent 60s timeouts). Individual calls now 7.8–25.8s vs 18–60s+ on Qwen.
+
+### Post-sprint hardening (same day)
+
+#### Admin role → `privateMetadata` (security)
+- Original implementation stored the admin flag in Clerk `publicMetadata.role`, which is readable from any client via `useUser()` and ends up in the JS bundle. Not acceptable for an admin gate.
+- Refactored to `privateMetadata.role` (server-only). Two-tier lookup handles both possible Clerk setups:
+  1. **Fast path** — read `sessionClaims.metadata.role` (requires the Clerk session token customization `{ "metadata": "{{user.private_metadata}}" }` — configured in Clerk Dashboard → Sessions → Customize session token).
+  2. **Fallback** — if the claim is absent, call `clerkClient().users.getUser(userId)` and read `privateMetadata.role` directly from the backend API. Adds one Clerk API call per admin page load but works regardless of session-token config.
+- `apps/web/components/layout/Sidebar.tsx` no longer imports `useUser` — it accepts `isAdmin: boolean` as a prop resolved server-side in `apps/web/app/(app)/layout.tsx` (converted to an `async` server component). Result: the string `"admin"` never appears in the client JS bundle.
+- Same two-tier check is applied in `apps/web/app/api/trpc/[trpc]/route.ts` so tRPC `adminProcedure` stays consistent with the UI gating.
+
+#### Clerk sign-in UI fixes
+- **Google logo rendered as a white box.** The blanket `socialButtonsProviderIcon` element override with `filter: brightness(0) invert(1)` was whitening Google's multicolor G into an empty box inside the white button border. Fix: scoped the filter to `socialButtonsProviderIcon__apple` (Clerk's per-provider modifier key). Apple's monochrome logo still flips to white; Google/Facebook/X pass through unfiltered.
+- **"Last used" pill was dark-on-dark.** Clerk's `badge` element key did not target this particular element and the appearance API override had no effect. Clerk's docs don't enumerate the key, and both the preview browser and Chrome-extension bridge were unavailable for DOM inspection. Went with a scoped global CSS rule in `apps/web/app/globals.css` targeting `.cl-rootBox [class*="cl-badge"]` and `[class*="cl-internal"][class*="badge" i]` with `color: var(--color-text-primary) !important`. Minimal, robust, and survives Clerk internal class renames as long as `badge` stays in the class string.
 
 ### Known follow-ups
 - Add integration tests for the 3 REST endpoints (happy path + 401/403/429/404).
 - Add a unit test for `generateKey()` ensuring SHA-256 hash stability and prefix extraction.
 - Wire up a lightweight API docs page under `/docs/api` that renders the `openapi.json` spec via a client-side Swagger/Redoc component.
-- Seed an initial admin user by setting `publicMetadata.role = "admin"` in Clerk for the development account.
+- Seed an initial admin user by setting `privateMetadata.role = "admin"` in Clerk for the development account (Dashboard → Users → select user → Metadata → **Private metadata** tab).
+
+### ⚠️ Sprint 7 prerequisite — SnapTrade credentials
+Sprint 6 shipped the Proof-of-Skin broker verification flow against `packages/api/lib/snaptrade.ts`, but no live credentials have been provisioned yet. **Before any Sprint 7 work that touches the broker flow (integration tests, live sync verification, UI polish):**
+- Register a SnapTrade client at <https://snaptrade.com> and obtain a `CLIENT_ID` / `CONSUMER_KEY`.
+- Set `SNAPTRADE_CLIENT_ID` and `SNAPTRADE_CONSUMER_KEY` in `.env.local` (and in Vercel env for preview / prod).
+- Smoke-test: sign in → Settings → "Verify Broker" → complete the OAuth round-trip → confirm `brokerLinks.status` flips to `verified` and a `syncTrades` run inserts at least one `playerTrades` row.
+- Update `docs/DEVLOG.md` with any quirks discovered during the live round-trip.
+- Until credentials are set, the wrapper will continue to return `null` from `getSnapTradeClient()` and the UI will show "Broker verification is not configured on this deployment." — this is the intended graceful-degradation path, not a bug.
 
 ---
 
