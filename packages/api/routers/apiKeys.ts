@@ -1,30 +1,15 @@
-import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { desc, eq } from "@deepmint/db";
 import { apiKeys } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
 import { router, adminProcedure } from "../trpc";
+import { generateKey } from "../lib/generateKey";
 
 const VALID_SCOPES = [
   "scores:read",
   "consensus:read",
   "leaderboard:read",
 ] as const;
-
-/**
- * Generate a new B2B API key.
- *
- * Format: dm_live_<32 random hex chars>
- * The plaintext key is returned to the caller exactly ONCE on creation.
- * Only the SHA-256 hash is persisted.
- */
-function generateKey(): { plaintext: string; hash: string; prefix: string } {
-  const secret = randomBytes(16).toString("hex"); // 32 chars
-  const plaintext = `dm_live_${secret}`;
-  const hash = createHash("sha256").update(plaintext).digest("hex");
-  const prefix = plaintext.slice(0, 16); // "dm_live_" + first 8 secret chars
-  return { plaintext, hash, prefix };
-}
 
 export const apiKeysRouter = router({
   /** Admin: create a new API key. */

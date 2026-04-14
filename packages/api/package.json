@@ -10,7 +10,8 @@
   },
   "scripts": {
     "check": "tsc --noEmit",
-    "clean": "rm -rf dist .turbo"
+    "clean": "rm -rf dist .turbo",
+    "test": "vitest run"
   },
   "dependencies": {
     "@deepmint/db": "workspace:*",
@@ -28,6 +29,7 @@
   "devDependencies": {
     "@deepmint/tsconfig": "workspace:*",
     "@types/node": "^25.5.0",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.4"
   }
 }

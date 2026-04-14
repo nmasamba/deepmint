@@ -14,6 +14,8 @@ import {
   detectRegime,
   computeRegimeAwareEIV,
 } from "@deepmint/scoring";
+import { getRegimeIndicators } from "@deepmint/shared";
+import { createNotification } from "@deepmint/db/queries/createNotification";
 
 /**
  * Scoring worker: triggered by markouts/completed event.
@@ -29,12 +31,20 @@ export const scoreFunction = inngest.createFunction(
     const result = await step.run("compute-scores", async () => {
       const today = new Date().toISOString().slice(0, 10);
 
-      // Detect current regime (simplified — use defaults until we have live VIX data)
-      const currentRegime = detectRegime({
-        sp500Return30d: 0.01, // placeholder — will be replaced with live data
-        vixLevel: 18, // placeholder
-        sectorDispersion: 0.08, // placeholder
-      });
+      // Detect current regime from live market data (VIX, S&P 500, sector ETFs)
+      let currentRegime;
+      try {
+        const indicators = await getRegimeIndicators();
+        currentRegime = detectRegime(indicators);
+        console.log(`[scoring] Regime detected: ${currentRegime}`, indicators);
+      } catch (err) {
+        console.warn("[scoring] Failed to fetch live regime indicators, using defaults:", err);
+        currentRegime = detectRegime({
+          sp500Return30d: 0.01,
+          vixLevel: 18,
+          sectorDispersion: 0.08,
+        });
+      }
 
       // Get all entities that have outcomes
       const entityRows = await db
@@ -225,6 +235,55 @@ export const scoreFunction = inngest.createFunction(
       console.log(
         `[scoring] Done: ${scored} entities scored, ${skipped} skipped`
       );
+
+      // Rank change notifications: compare today's vs yesterday's eiv_overall ranks
+      try {
+        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+        const [todayScores, yesterdayScores] = await Promise.all([
+          db.select({ entityId: scores.entityId, value: scores.value })
+            .from(scores)
+            .where(sql`${scores.metric} = 'eiv_overall' AND ${scores.asOfDate} = ${today}`),
+          db.select({ entityId: scores.entityId, value: scores.value })
+            .from(scores)
+            .where(sql`${scores.metric} = 'eiv_overall' AND ${scores.asOfDate} = ${yesterday}`),
+        ]);
+
+        if (yesterdayScores.length > 0 && todayScores.length > 0) {
+          // Build rank maps (sorted descending by value)
+          const buildRankMap = (rows: { entityId: string; value: string }[]) => {
+            const sorted = [...rows].sort((a, b) => parseFloat(b.value) - parseFloat(a.value));
+            const map = new Map<string, number>();
+            sorted.forEach((row, idx) => map.set(row.entityId, idx + 1));
+            return map;
+          };
+
+          const prevRanks = buildRankMap(yesterdayScores);
+          const newRanks = buildRankMap(todayScores);
+
+          for (const [entityId, newRank] of newRanks) {
+            const prevRank = prevRanks.get(entityId);
+            if (prevRank === undefined) continue; // New entrant, skip
+
+            const movement = prevRank - newRank; // positive = improved
+            if (Math.abs(movement) >= 3) {
+              await createNotification({
+                entityId,
+                type: "rank_change",
+                title: movement > 0
+                  ? `Your rank improved to #${newRank} (+${movement} positions)`
+                  : `Your rank dropped to #${newRank} (${movement} positions)`,
+                metadata: { previousRank: prevRank, newRank, metric: "eiv_overall" },
+              }).catch((err) => {
+                console.warn(`[scoring] Failed to send rank change notification:`, err);
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[scoring] Rank change notification check failed:", err);
+      }
+
       return { scored, skipped, regime: currentRegime };
     });
 

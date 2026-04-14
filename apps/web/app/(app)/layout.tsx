@@ -42,7 +42,7 @@ export default async function AppLayout({
     <div className="min-h-screen bg-bg-primary">
       <Sidebar isAdmin={isAdmin} />
       <div className="md:pl-60">
-        <Topbar />
+        <Topbar isAdmin={isAdmin} />
         <main className="px-4 py-6 md:px-6 pb-20 md:pb-6">{children}</main>
       </div>
       <Toaster

@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ---
 
+## [0.7.0] — Sprint 7: Hardening + Mobile PWA (2026-04-14)
+
+### Added
+- **generateKey() unit tests** — extracted `generateKey()` from `apiKeys` router into `packages/api/lib/generateKey.ts` with 5 unit tests (format, hash stability, prefix extraction, determinism, uniqueness). New vitest config for the `@deepmint/api` package.
+- **Live regime data from Polygon.io** — replaced hardcoded placeholder values (VIX=18, S&P=1%, dispersion=8%) with live market data. New functions in `packages/shared/src/polygon.ts`: `getIndexSnapshot()`, `getIndexClose()`, `getSectorETFReturns30d()`, `getRegimeIndicators()`. Results cached in Redis (1hr TTL). Graceful fallback to dev defaults when `POLYGON_API_KEY` is unset or API errors occur.
+- **Notification triggers** — "outcome matured" notifications fire when the markout worker resolves claims (includes return %, direction correctness, ticker). "rank change" notifications fire when an entity's EIV leaderboard rank shifts by 3+ positions between scoring runs. Both respect `notificationPreferences`.
+- **B2B REST API integration tests** — 15 tests across 3 test files covering entity scores, instrument consensus, and leaderboard endpoints (happy path, 401, 404, 400, rate limit headers). Tests require `TEST_API_KEY` env var and a running dev server; gracefully skip when unavailable. New vitest config for `apps/web`.
+- **API documentation page** — Swagger UI at `/docs/api` rendering the existing OpenAPI 3.1 spec via `swagger-ui-react` (dynamically imported, SSR disabled). Dark theme CSS overrides scoped to `.swagger-wrapper`. New "API Docs" nav item in sidebar.
+- **Mobile navigation overhaul** — hamburger menu button in Topbar (visible on mobile) opens a full-nav Sheet (shadcn/ui) with all 9 nav items + admin links. Bottom nav reduced from 5 to 4 items (Dashboard, Leaderboard, Explore, My Claims) for breathing room.
+- **Responsive audit** — dashboard sidebar content (watchlist, trending influencers) now visible on mobile via `order-first`. Leaderboard metric/regime filter buttons wrapped in horizontally scrollable containers with `overflow-x-auto`.
+- **PWA manifest + service worker** — `manifest.json` with standalone display, dark theme color, 192px/512px icons. `@serwist/next` integration for service worker (disabled in development). Offline fallback page at `/offline`. Apple Web App meta tags added to root layout.
+
+### Changed
+- Scoring worker and regime router now fetch live VIX, S&P 500, and sector ETF data instead of using hardcoded placeholders.
+- `Topbar` now accepts `isAdmin` prop from the server layout for mobile nav admin section visibility.
+
+---
+
 ## [0.6.0] — Sprint 6: B2B API, Proof-of-Skin, Instrument Expansion (2026-04-09)
 
 ### Changed

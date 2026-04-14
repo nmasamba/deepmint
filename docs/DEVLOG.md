@@ -4,6 +4,137 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-04-14 — Sprint 7 Complete
+
+### Status
+- **Sprint 1–6**: Complete
+- **Sprint 7**: Complete (Hardening + Mobile PWA)
+
+### What was built
+Sprint 7 addresses all known follow-ups from Sprint 6 DEVLOG and adds mobile PWA support. Two parts: hardening/follow-ups (7.1–7.5) and mobile PWA (7.6–7.8).
+
+#### 7.1 generateKey() Unit Test + API Test Infra
+- Extracted `generateKey()` from `packages/api/routers/apiKeys.ts` into `packages/api/lib/generateKey.ts` — now importable for testing.
+- New vitest config at `packages/api/vitest.config.ts` (same pattern as other packages).
+- 5 tests: format validation (`dm_live_<32 hex>`), hash length (64 hex), prefix extraction (first 16 chars), deterministic SHA-256 verification, uniqueness across calls.
+
+#### 7.2 Live Regime Data from Polygon.io
+- Added 5 new functions to `packages/shared/src/polygon.ts`:
+  - `getIndexSnapshot(ticker)` — fetches current VIX/SPX value via Massive SDK `getIndicesSnapshot` with fallback to `getIndicesOpenClose`
+  - `getIndexClose(ticker, date)` — historical index close
+  - `getSectorETFReturns30d()` — computes 30-day returns for 11 sector ETFs (XLF, XLK, XLE, XLV, XLI, XLC, XLY, XLP, XLU, XLRE, XLB)
+  - `getRegimeIndicators()` — convenience wrapper combining all above; Redis cached (1hr TTL)
+  - `stddev()` — standard deviation helper for sector dispersion
+- Updated `apps/worker/functions/score.ts` (lines 30-36) — replaced hardcoded `detectRegime({vixLevel: 18, ...})` with `getRegimeIndicators()` + try/catch fallback.
+- Updated `packages/api/routers/regime.ts` — `current` procedure now returns live indicator values.
+- Dev fallback values preserved for when `POLYGON_API_KEY` is unset.
+- **Risk note**: Polygon starter plan may not support index tickers (`I:VIX`, `I:SPX`). The error handling gracefully falls back to defaults.
+
+#### 7.3 Notification Triggers
+- **Outcome matured**: Added to `apps/worker/functions/markout.ts`. After each outcome insert, calls `createNotification()` with type `"outcome_matured"`, including return bps, direction correctness, and ticker. Uses non-blocking `.catch()` to avoid failing the markout on notification errors. Added `entityId` to `pendingClaims` select.
+- **Rank change**: Added to `apps/worker/functions/score.ts`. After the main scoring loop, compares today's vs yesterday's `eiv_overall` ranks. Entities whose rank changes by 3+ positions get notified. Skips when no previous-day data exists (first scoring run). Also non-blocking.
+- Both triggers use the existing `createNotification` utility from `packages/db/queries/createNotification.ts`, which already respects `notificationPreferences` (the `outcomeMature` and `rankChange` preference columns were added in Sprint 5).
+
+#### 7.4 B2B REST API Integration Tests
+- New vitest config at `apps/web/vitest.config.ts` with `__tests__/**/*.test.ts` include pattern.
+- 3 test files, 15 tests total:
+  - `entities-scores.test.ts`: 200 happy path, 401 (no token), 401 (invalid token), 404 (unknown slug), rate limit headers
+  - `instruments-consensus.test.ts`: 200 (AAPL), 401, 404 (unknown ticker), case insensitivity, rate limit headers
+  - `leaderboard.test.ts`: 200 with metric, 401, 400 (missing metric), optional params, rate limit headers
+- All tests gated with `describe.skipIf(!API_KEY)` — gracefully skip when `TEST_API_KEY` env var is absent.
+- Requires a running dev server at `TEST_BASE_URL` (default `http://localhost:3000`).
+
+#### 7.5 API Documentation Page
+- New page at `apps/web/app/(app)/docs/api/page.tsx` — Client Component rendering OpenAPI 3.1 spec via `swagger-ui-react` (dynamically imported with `next/dynamic`, SSR disabled).
+- Dark theme CSS overrides in `apps/web/app/globals.css` scoped to `.swagger-wrapper` — backgrounds, text, inputs, buttons, scheme container all themed to match Deepmint's dark palette.
+- Added type declarations at `apps/web/types/swagger-ui-react.d.ts` (swagger-ui-react ships no types).
+- "API Docs" nav link added to sidebar (lucide `FileText` icon).
+
+#### 7.6 Mobile Navigation Overhaul
+- New `apps/web/components/layout/MobileNav.tsx` — Sheet (shadcn/ui) sliding from the left, containing all 9 nav items + admin section. Each link closes the sheet on click.
+- `Topbar.tsx` — added hamburger `Menu` icon button (visible `md:hidden`), manages sheet open/close state. Now accepts `isAdmin` prop.
+- `apps/web/app/(app)/layout.tsx` — passes `isAdmin` to `<Topbar isAdmin={isAdmin} />`.
+- Bottom nav in `Sidebar.tsx` reduced from 5 to 4 items (removed Paper Portfolio from bottom nav — accessible via hamburger).
+
+#### 7.7 Responsive Audit
+- **Dashboard**: Sidebar content (watchlist, trending influencers) now uses `order-first lg:order-none` — visible at top of page on mobile, right column on desktop.
+- **Leaderboard**: Metric filter buttons and regime filter buttons wrapped in `overflow-x-auto` containers with `whitespace-nowrap`. Uses negative margin bleed (`-mx-4 px-4`) for edge-to-edge scrolling on mobile.
+- Other pages (ticker, profiles, paper portfolio, settings) already had adequate responsive patterns (flex-col/row transitions, max-width constraints, overflow-x-auto tables).
+
+#### 7.8 PWA Manifest + Service Worker
+- `apps/web/public/manifest.json` — standalone display, dark theme (#080C14), 192px + 512px icons (maskable).
+- PWA icons generated from `apple-touch-icon.png` via macOS `sips`.
+- Root layout metadata updated with `manifest`, `themeColor`, and `appleWebApp` fields.
+- `@serwist/next` integration:
+  - Service worker source at `apps/web/app/sw.ts` (excluded from main tsconfig, compiled separately by serwist).
+  - `next.config.ts` wrapped with `withSerwist()`.
+  - Disabled in development (`process.env.NODE_ENV === "development"`).
+  - Uses serwist's `defaultCache` runtime caching strategies.
+  - Offline fallback page at `/offline` — shows "You're offline" with retry button.
+
+### Tests & verification
+- `pnpm check` — **8/8 packages pass** (0 errors)
+- `pnpm test` — **118 passed, 15 skipped** (API integration tests skip without `TEST_API_KEY`)
+  - `@deepmint/scoring`: 79
+  - `@deepmint/shared`: 16
+  - `@deepmint/ingestion`: 18 (6 live LLM extraction tests, 7.8–23.7s each)
+  - `@deepmint/api`: 5 (generateKey tests)
+  - `@deepmint/web`: 15 skipped (require `TEST_API_KEY` + running server)
+
+### New files created
+```
+packages/api/lib/generateKey.ts           — extracted key generation function
+packages/api/vitest.config.ts             — vitest config for api package
+packages/api/__tests__/generateKey.test.ts — 5 generateKey unit tests
+
+apps/web/vitest.config.ts                 — vitest config for web package
+apps/web/__tests__/api-v1/helpers.ts      — shared test helpers (fetchApi, authHeaders)
+apps/web/__tests__/api-v1/entities-scores.test.ts
+apps/web/__tests__/api-v1/instruments-consensus.test.ts
+apps/web/__tests__/api-v1/leaderboard.test.ts
+
+apps/web/app/(app)/docs/api/page.tsx      — Swagger UI API docs page
+apps/web/types/swagger-ui-react.d.ts      — type declarations for swagger-ui-react
+
+apps/web/components/layout/MobileNav.tsx  — mobile nav sheet component
+apps/web/app/(app)/offline/page.tsx       — offline fallback page
+
+apps/web/public/manifest.json             — PWA manifest
+apps/web/public/icon-192.png              — PWA icon 192x192
+apps/web/public/icon-512.png              — PWA icon 512x512
+apps/web/app/sw.ts                        — service worker source
+```
+
+### Files modified
+```
+packages/api/routers/apiKeys.ts           — imports generateKey from lib
+packages/api/package.json                 — added vitest + test script
+packages/shared/src/polygon.ts            — 5 new index/regime functions
+packages/api/routers/regime.ts            — live regime indicators
+apps/worker/functions/score.ts            — live regime + rank change notifications
+apps/worker/functions/markout.ts          — outcome matured notifications
+apps/web/package.json                     — added vitest, swagger-ui-react, serwist
+apps/web/app/globals.css                  — Swagger UI dark theme overrides
+apps/web/app/layout.tsx                   — PWA manifest + apple web app metadata
+apps/web/app/(app)/layout.tsx             — pass isAdmin to Topbar
+apps/web/components/layout/Sidebar.tsx    — API Docs nav item, bottom nav reduced to 4
+apps/web/components/layout/Topbar.tsx     — hamburger menu, accepts isAdmin prop
+apps/web/app/(app)/dashboard/page.tsx     — sidebar order-first on mobile
+apps/web/app/(app)/leaderboard/page.tsx   — scrollable filter buttons
+apps/web/next.config.ts                   — serwist wrapper
+apps/web/tsconfig.json                    — exclude sw.ts from main check
+docs/CHANGELOG.md                         — Sprint 7 entry
+docs/DEVLOG.md                            — this entry
+```
+
+### Known follow-ups
+- To run B2B API integration tests live: create a test API key, set `TEST_API_KEY` in `.env.local`, start dev server, run `pnpm --filter @deepmint/web test`.
+- Swagger UI has React 19 peer dep warnings (react-inspector, react-copy-to-clipboard, react-debounce-input). Functional, but may need updates when those libraries release React 19 support.
+- Service worker offline caching will be most effective after a production build (`pnpm build`). In development, serwist is disabled to avoid interfering with HMR.
+- Sector ETF 30-day returns call `getEODPrice` sequentially per ETF with rate limiting (12.5s between requests). For 11 ETFs, worst case is ~2.5 minutes. Redis cache (1hr TTL) mitigates this — only the first call in each hour window pays the cost.
+
+---
+
 ## 2026-04-09 — Sprint 6 Complete
 
 ### Status

@@ -21,6 +21,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "https://deepmint.app",
   ),
+  manifest: "/manifest.json",
+  themeColor: "#080C14",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Deepmint",
+  },
   openGraph: {
     title: "Deepmint — AI-Ranked Analyst Track Records",
     description:

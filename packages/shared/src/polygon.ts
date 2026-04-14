@@ -224,6 +224,190 @@ export async function getHistoricalPrices(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Index / Regime Indicator support
+// ---------------------------------------------------------------------------
+
+/** Dev fallback values for index tickers and regime computation */
+const DEV_FALLBACK_INDEX: Record<string, number> = {
+  "I:VIX": 18,    // VIX level (unitless)
+  "I:SPX": 5300,  // S&P 500 points
+};
+
+const DEV_FALLBACK_SECTOR_RETURNS: Record<string, number> = {
+  XLF: 0.02, XLK: 0.03, XLE: -0.01, XLV: 0.01, XLI: 0.015,
+  XLC: 0.02, XLY: 0.01, XLP: 0.005, XLU: 0.008, XLRE: -0.005, XLB: 0.012,
+};
+
+const SECTOR_ETFS = ["XLF", "XLK", "XLE", "XLV", "XLI", "XLC", "XLY", "XLP", "XLU", "XLRE", "XLB"];
+
+/**
+ * Get the current (latest session) value for an index ticker.
+ * Returns the raw value (VIX is unitless, SPX is points).
+ */
+export async function getIndexSnapshot(ticker: string): Promise<number> {
+  const client = getClient();
+  if (!client) {
+    const fallback = DEV_FALLBACK_INDEX[ticker];
+    if (fallback !== undefined) return fallback;
+    throw new Error(`No fallback for index ticker: ${ticker}`);
+  }
+
+  try {
+    await rateLimit();
+    const resp = await client.getIndicesSnapshot({ tickerAnyOf: ticker });
+    const results = (resp as { results?: Array<{ value?: number; session?: { close?: number } }> }).results;
+    if (results && results.length > 0) {
+      const r = results[0];
+      // Prefer session close, fall back to value
+      const value = r.session?.close ?? r.value;
+      if (typeof value === "number") return value;
+    }
+  } catch {
+    // fall through to open/close
+  }
+
+  // Fallback: previous day open/close
+  try {
+    await rateLimit();
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const resp = await client.getIndicesOpenClose({ indicesTicker: ticker, date: yesterday });
+    const data = resp as { close?: number };
+    if (typeof data.close === "number") return data.close;
+  } catch {
+    // fall through
+  }
+
+  const fallback = DEV_FALLBACK_INDEX[ticker];
+  if (fallback !== undefined) return fallback;
+  throw new Error(`Failed to fetch index value for ${ticker}`);
+}
+
+/**
+ * Get end-of-day close for an index ticker on a specific date.
+ */
+export async function getIndexClose(ticker: string, date: string): Promise<number> {
+  const client = getClient();
+  if (!client) {
+    const fallback = DEV_FALLBACK_INDEX[ticker];
+    if (fallback !== undefined) return fallback;
+    throw new Error(`No fallback for index ticker: ${ticker}`);
+  }
+
+  await rateLimit();
+  const resp = await client.getIndicesOpenClose({ indicesTicker: ticker, date });
+  const data = resp as { close?: number };
+  if (typeof data.close !== "number") {
+    throw new Error(`No index close data for ${ticker} on ${date}`);
+  }
+  return data.close;
+}
+
+/**
+ * Compute 30-day returns for sector ETFs.
+ * Returns a Map of ticker → 30d return as decimal (e.g. 0.03 = 3%).
+ */
+export async function getSectorETFReturns30d(): Promise<Map<string, number>> {
+  const client = getClient();
+  if (!client) {
+    return new Map(Object.entries(DEV_FALLBACK_SECTOR_RETURNS));
+  }
+
+  const result = new Map<string, number>();
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today.getTime() - 30 * 86400000);
+  const todayStr = today.toISOString().slice(0, 10);
+  const pastStr = thirtyDaysAgo.toISOString().slice(0, 10);
+
+  for (const etf of SECTOR_ETFS) {
+    try {
+      const [currentEod, pastEod] = await Promise.all([
+        getEODPrice(etf, todayStr).catch(() => null),
+        getEODPrice(etf, pastStr).catch(() => null),
+      ]);
+
+      if (currentEod && pastEod && pastEod.closeCents > 0) {
+        const ret = (currentEod.closeCents - pastEod.closeCents) / pastEod.closeCents;
+        result.set(etf, ret);
+      }
+    } catch {
+      // Skip this ETF
+    }
+  }
+
+  return result;
+}
+
+function stddev(values: number[]): number {
+  if (values.length === 0) return 0;
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const sqDiffs = values.map((v) => (v - mean) ** 2);
+  return Math.sqrt(sqDiffs.reduce((a, b) => a + b, 0) / values.length);
+}
+
+export interface RegimeIndicators {
+  sp500Return30d: number;
+  vixLevel: number;
+  sectorDispersion: number;
+}
+
+/**
+ * Fetch live regime indicators: VIX level, S&P 500 30d return, sector dispersion.
+ * Results are cached in Redis for 1 hour. Falls back to dev defaults when API unavailable.
+ */
+export async function getRegimeIndicators(): Promise<RegimeIndicators> {
+  const { getCached } = await import("./polygonCache");
+
+  return getCached<RegimeIndicators>("regime:indicators", 3600, async () => {
+    const defaults: RegimeIndicators = {
+      sp500Return30d: 0.01,
+      vixLevel: 18,
+      sectorDispersion: 0.08,
+    };
+
+    // VIX
+    let vixLevel = defaults.vixLevel;
+    try {
+      vixLevel = await getIndexSnapshot("I:VIX");
+    } catch {
+      // use default
+    }
+
+    // S&P 500 30d return
+    let sp500Return30d = defaults.sp500Return30d;
+    try {
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today.getTime() - 30 * 86400000);
+      const [current, past] = await Promise.all([
+        getIndexSnapshot("I:SPX"),
+        getIndexClose("I:SPX", thirtyDaysAgo.toISOString().slice(0, 10)).catch(() => null),
+      ]);
+      if (past && past > 0) {
+        sp500Return30d = (current - past) / past;
+      }
+    } catch {
+      // use default
+    }
+
+    // Sector dispersion
+    let sectorDispersion = defaults.sectorDispersion;
+    try {
+      const sectorReturns = await getSectorETFReturns30d();
+      if (sectorReturns.size >= 5) {
+        sectorDispersion = stddev(Array.from(sectorReturns.values()));
+      }
+    } catch {
+      // use default
+    }
+
+    return { sp500Return30d, vixLevel, sectorDispersion };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Batch Operations
+// ---------------------------------------------------------------------------
+
 /**
  * Get EOD close prices for multiple tickers on the same date.
  * Returns a Map of ticker → close price in cents.

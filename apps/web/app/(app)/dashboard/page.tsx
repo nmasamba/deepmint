@@ -60,8 +60,8 @@ export default function DashboardPage() {
         </Tabs>
       </div>
 
-      {/* Sidebar */}
-      <aside className="space-y-6">
+      {/* Sidebar — shown below main content on mobile, right column on lg+ */}
+      <aside className="order-first lg:order-none space-y-6">
         <WatchlistSidebar />
         <TrendingInfluencers />
       </aside>

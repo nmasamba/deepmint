@@ -2,6 +2,7 @@ import { inngest } from "../inngest";
 import { db, eq, and, isNull, lte, sql } from "@deepmint/db";
 import { claims, outcomes, instruments } from "@deepmint/db/schema";
 import { getEODPrice, getHistoricalPrices } from "@deepmint/shared";
+import { createNotification } from "@deepmint/db/queries/createNotification";
 
 /**
  * Horizon days → horizon enum value mapping
@@ -59,6 +60,7 @@ export const markoutFunction = inngest.createFunction(
       const pendingClaims = await db
         .select({
           id: claims.id,
+          entityId: claims.entityId,
           instrumentId: claims.instrumentId,
           direction: claims.direction,
           horizonDays: claims.horizonDays,
@@ -203,6 +205,17 @@ export const markoutFunction = inngest.createFunction(
             returnBps,
             directionCorrect,
             targetHit,
+          });
+
+          // Notify entity that their claim has been resolved
+          await createNotification({
+            entityId: claim.entityId,
+            type: "outcome_matured",
+            title: `Your ${claim.direction} claim on ${ticker} has been resolved`,
+            body: `Return: ${returnBps > 0 ? "+" : ""}${(returnBps / 100).toFixed(1)}% — ${directionCorrect ? "direction correct" : "direction incorrect"}`,
+            metadata: { claimId: claim.id, returnBps, directionCorrect, targetHit, ticker },
+          }).catch((err) => {
+            console.warn(`[markout] Failed to send notification for claim ${claim.id}:`, err);
           });
 
           computed++;

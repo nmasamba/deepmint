@@ -4,25 +4,28 @@ import { db, desc, sql } from "@deepmint/db";
 import { scores } from "@deepmint/db/schema";
 import { detectRegime } from "@deepmint/scoring";
 import type { MarketRegime } from "@deepmint/scoring";
+import { getRegimeIndicators } from "@deepmint/shared";
 
 export const regimeRouter = router({
-  /** Get the current detected market regime. */
+  /** Get the current detected market regime from live market data. */
   current: publicProcedure.query(async () => {
-    // Placeholder indicators — will be replaced with live VIX/S&P data in Sprint 6
-    const regime = detectRegime({
-      sp500Return30d: 0.01,
-      vixLevel: 18,
-      sectorDispersion: 0.08,
-    });
+    let indicators;
+    try {
+      indicators = await getRegimeIndicators();
+    } catch {
+      indicators = {
+        sp500Return30d: 0.01,
+        vixLevel: 18,
+        sectorDispersion: 0.08,
+      };
+    }
+
+    const regime = detectRegime(indicators);
 
     return {
       regime,
       detectedAt: new Date().toISOString(),
-      indicators: {
-        sp500Return30d: 0.01,
-        vixLevel: 18,
-        sectorDispersion: 0.08,
-      },
+      indicators,
     };
   }),
 

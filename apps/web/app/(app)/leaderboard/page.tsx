@@ -65,7 +65,7 @@ export default function LeaderboardPage() {
       <BestInRegime />
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-4">
+      <div className="space-y-3">
         {/* Entity type filter */}
         <Tabs
           value={entityType ?? "all"}
@@ -95,15 +95,15 @@ export default function LeaderboardPage() {
           </TabsList>
         </Tabs>
 
-        {/* Metric filter */}
-        <div className="flex gap-2">
+        {/* Metric filter — horizontal scroll on mobile */}
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap">
           {METRICS.map((m) => {
             const Icon = m.icon;
             return (
               <button
                 key={m.value}
                 onClick={() => setMetric(m.value)}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors ${
                   metric === m.value
                     ? "bg-accent/10 text-accent border border-accent/30"
                     : "bg-bg-secondary text-text-secondary border border-border hover:bg-bg-tertiary"
@@ -116,13 +116,13 @@ export default function LeaderboardPage() {
           })}
         </div>
 
-        {/* Regime filter */}
-        <div className="flex gap-2">
+        {/* Regime filter — horizontal scroll on mobile */}
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap">
           {REGIME_FILTERS.map((r) => (
             <button
               key={r.value}
               onClick={() => setRegimeFilter(r.value)}
-              className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+              className={`rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors ${
                 regimeFilter === r.value
                   ? "bg-accent/10 text-accent border border-accent/30"
                   : "bg-bg-secondary text-text-secondary border border-border hover:bg-bg-tertiary"

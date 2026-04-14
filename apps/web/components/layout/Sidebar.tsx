@@ -15,6 +15,7 @@ import {
   Shield,
   Database,
   KeyRound,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,7 @@ const navItems: NavItem[] = [
     icon: Copy,
   },
   { label: "Learn", href: "/learn", icon: GraduationCap },
+  { label: "API Docs", href: "/docs/api", icon: FileText },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -156,7 +158,7 @@ export function Sidebar({ isAdmin }: SidebarProps) {
 
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-border bg-bg-secondary px-2 py-2 md:hidden">
-        {navItems.slice(0, 5).map((item) => {
+        {navItems.slice(0, 4).map((item) => {
           const isActive =
             pathname === item.href ||
             pathname.startsWith(item.href + "/");

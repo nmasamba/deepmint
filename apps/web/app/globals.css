@@ -58,3 +58,60 @@ body {
 .cl-rootBox [class*="cl-internal"][class*="badge" i] {
   color: var(--color-text-primary) !important;
 }
+
+/* Swagger UI dark theme overrides — scoped to .swagger-wrapper */
+.swagger-wrapper .swagger-ui {
+  color: var(--color-text-primary);
+}
+.swagger-wrapper .swagger-ui .opblock-tag,
+.swagger-wrapper .swagger-ui .opblock-summary-description,
+.swagger-wrapper .swagger-ui .parameter__name,
+.swagger-wrapper .swagger-ui .parameter__type,
+.swagger-wrapper .swagger-ui .response-col_status,
+.swagger-wrapper .swagger-ui .response-col_description,
+.swagger-wrapper .swagger-ui table thead tr th,
+.swagger-wrapper .swagger-ui table thead tr td,
+.swagger-wrapper .swagger-ui .model-title,
+.swagger-wrapper .swagger-ui .model,
+.swagger-wrapper .swagger-ui p,
+.swagger-wrapper .swagger-ui h4,
+.swagger-wrapper .swagger-ui h5,
+.swagger-wrapper .swagger-ui label,
+.swagger-wrapper .swagger-ui .info .title,
+.swagger-wrapper .swagger-ui .info .description p {
+  color: var(--color-text-primary) !important;
+}
+.swagger-wrapper .swagger-ui .info .title small pre {
+  color: var(--color-text-secondary) !important;
+}
+.swagger-wrapper .swagger-ui .scheme-container,
+.swagger-wrapper .swagger-ui .opblock .opblock-section-header {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-border);
+}
+.swagger-wrapper .swagger-ui section.models,
+.swagger-wrapper .swagger-ui section.models .model-container {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-border);
+}
+.swagger-wrapper .swagger-ui .opblock {
+  border-color: var(--color-border);
+  background: var(--color-bg-secondary);
+}
+.swagger-wrapper .swagger-ui .opblock .opblock-summary {
+  border-color: var(--color-border);
+}
+.swagger-wrapper .swagger-ui select,
+.swagger-wrapper .swagger-ui input[type="text"],
+.swagger-wrapper .swagger-ui textarea {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+.swagger-wrapper .swagger-ui .btn {
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+.swagger-wrapper .swagger-ui .topbar {
+  display: none;
+}
