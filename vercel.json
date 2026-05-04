@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pnpm --filter @deepmint/web build",
-  "outputDirectory": "apps/web/.next",
+  "buildCommand": "cd ../.. && pnpm --filter @deepmint/web build",
+  "outputDirectory": ".next",
   "framework": "nextjs",
-  "installCommand": "pnpm install"
+  "installCommand": "cd ../.. && pnpm install"
 }
