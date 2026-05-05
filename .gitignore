@@ -36,3 +36,5 @@ data_model.md
 prompts.md
 /.claude
 /.claude
+.vercel
+.env*.local
