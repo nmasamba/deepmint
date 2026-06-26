@@ -9,6 +9,7 @@ const VALID_SCOPES = [
   "scores:read",
   "consensus:read",
   "leaderboard:read",
+  "claims:write",
 ] as const;
 
 export const apiKeysRouter = router({

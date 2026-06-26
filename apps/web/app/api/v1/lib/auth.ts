@@ -9,6 +9,8 @@ export interface AuthenticatedKey {
   name: string;
   scopes: string[];
   rateLimit: number;
+  /** Owning entity (api_keys.created_by) — required for write tools. */
+  createdBy: string | null;
 }
 
 export interface AuthResult {
@@ -35,7 +37,11 @@ export interface AuthFailure {
  */
 export async function authenticateRequest(
   req: Request,
-  requiredScope: "scores:read" | "consensus:read" | "leaderboard:read",
+  requiredScope:
+    | "scores:read"
+    | "consensus:read"
+    | "leaderboard:read"
+    | "claims:write",
 ): Promise<AuthResult | AuthFailure> {
   const header = req.headers.get("authorization");
   if (!header || !header.toLowerCase().startsWith("bearer ")) {
@@ -117,6 +123,7 @@ export async function authenticateRequest(
       name: row.name,
       scopes,
       rateLimit: row.rateLimit,
+      createdBy: row.createdBy ?? null,
     },
     rateLimit: meta,
   };

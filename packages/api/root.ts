@@ -1,4 +1,4 @@
-import { router } from "./trpc";
+import { router, createCallerFactory } from "./trpc";
 import { entityRouter } from "./routers/entities";
 import { instrumentRouter } from "./routers/instruments";
 import { claimRouter } from "./routers/claims";
@@ -34,3 +34,6 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
+
+/** Server-side caller factory — invoke procedures directly (e.g. MCP tools). */
+export const createCaller = createCallerFactory(appRouter);

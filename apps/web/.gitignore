@@ -3,3 +3,7 @@
 /.clerk/
 .vercel
 .env*.local
+
+# Serwist generated service worker (build artifact)
+public/sw.js
+public/sw.js.map

@@ -4,6 +4,24 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-05-05 — MCP Server for AI Agents (§3)
+
+Expose Deepmint to AI agents over MCP (streamable HTTP), reusing the existing
+tRPC routers and dm_live_ API-key auth. Verified: typecheck 8/8, production
+build registers `ƒ /api/mcp`, and a runtime smoke test against `next start`
+returns 401 for unauthenticated/invalid keys (auth gate works, Clerk bypass
+works, mcp-handler runs).
+
+- **`/api/mcp` route** ([route.ts](apps/web/app/api/mcp/route.ts)) via `mcp-handler` (`createMcpHandler` + `withMcpAuth`). Read tools — `get_current_regime`, `get_consensus`, `get_leaderboard`, `get_entity_track_record`, `search_instruments` — call the tRPC routers through a new `createCaller` (single source of truth). Write tools — `submit_claim`, `add_note` — let an agent participate as a first-class entity (scored/audited like a human); they require the `claims:write` scope + an owning entity.
+- **tRPC server-side caller**: added `createCallerFactory` ([trpc.ts](packages/api/trpc.ts)) and `createCaller` ([root.ts](packages/api/root.ts)), exported from the package.
+- **Auth reuse**: `authenticateRequest` now accepts the `claims:write` scope and returns the key's `createdBy` (owning entity). `VALID_SCOPES` (apiKeys router) gained `claims:write` so admins can mint agent keys. Transport-level gate requires a valid key with `consensus:read`; per-tool checks gate writes.
+- **Middleware**: added `/api/mcp(.*)` to `isPublicRoute` ([middleware.ts](apps/web/middleware.ts)) so Clerk session auth doesn't block the API-key-authenticated endpoint (parallel to `/api/v1`). *(Caught by the runtime smoke test.)*
+- Invariant #9 respected — only aggregated data is exposed; no raw influence events. Live MCP integration test added (skips without `TEST_API_KEY`, like the v1 suite).
+
+**Note:** local Next dev (Turbopack) does not load the root `.env.local`, so Clerk runs keyless and a newly-added route may 404 until a production build; the route is correct in `next build` (what Vercel runs). Agent keys must be minted with an owning entity for write tools.
+
+---
+
 ## 2026-05-05 — LLM Hardening (§1) + Data Flywheel (§2)
 
 Two workstreams off the back of the post-audit roadmap. All packages typecheck
