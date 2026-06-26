@@ -51,11 +51,11 @@ export function checkAntiGaming(stats: PlayerStats): AntiGamingResult {
     penalties.push({ reason: "Excessive turnover", multiplier: 0.8 });
   }
 
-  // Leverage mismatch
-  if (
-    stats.declaredMaxLeverage > 0 &&
-    stats.maxLeverage > stats.declaredMaxLeverage * 1.5
-  ) {
+  // Leverage mismatch. No `declaredMaxLeverage > 0` guard: a player who
+  // declares zero leverage but actually trades on margin is the worst
+  // offender and must still be penalised. A truthful cash-only player has
+  // maxLeverage 0, so 0 > 0 is false and they are not penalised.
+  if (stats.maxLeverage > stats.declaredMaxLeverage * 1.5) {
     penalties.push({ reason: "Undisclosed leverage", multiplier: 0.7 });
   }
 

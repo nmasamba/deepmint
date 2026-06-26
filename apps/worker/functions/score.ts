@@ -1,5 +1,5 @@
 import { inngest } from "../inngest";
-import { db, eq, sql } from "@deepmint/db";
+import { db, eq, sql, desc } from "@deepmint/db";
 import { entities, outcomes, scores, claims } from "@deepmint/db/schema";
 import {
   hitRate,
@@ -236,20 +236,32 @@ export const scoreFunction = inngest.createFunction(
         `[scoring] Done: ${scored} entities scored, ${skipped} skipped`
       );
 
-      // Rank change notifications: compare today's vs yesterday's eiv_overall ranks
+      // Rank change notifications: compare today's eiv_overall ranks against the
+      // most recent PRIOR scoring date (not a literal 24h ago — scoring only
+      // runs on weekdays with matured outcomes, so "yesterday" is frequently
+      // absent and would silently suppress all notifications).
       try {
-        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+        const [prevDateRow] = await db
+          .select({ asOfDate: scores.asOfDate })
+          .from(scores)
+          .where(sql`${scores.metric} = 'eiv_overall' AND ${scores.asOfDate} < ${today}`)
+          .orderBy(desc(scores.asOfDate))
+          .limit(1);
 
-        const [todayScores, yesterdayScores] = await Promise.all([
+        const prevDate = prevDateRow?.asOfDate;
+
+        const [todayScores, prevScores] = await Promise.all([
           db.select({ entityId: scores.entityId, value: scores.value })
             .from(scores)
             .where(sql`${scores.metric} = 'eiv_overall' AND ${scores.asOfDate} = ${today}`),
-          db.select({ entityId: scores.entityId, value: scores.value })
-            .from(scores)
-            .where(sql`${scores.metric} = 'eiv_overall' AND ${scores.asOfDate} = ${yesterday}`),
+          prevDate
+            ? db.select({ entityId: scores.entityId, value: scores.value })
+                .from(scores)
+                .where(sql`${scores.metric} = 'eiv_overall' AND ${scores.asOfDate} = ${prevDate}`)
+            : Promise.resolve([]),
         ]);
 
-        if (yesterdayScores.length > 0 && todayScores.length > 0) {
+        if (prevScores.length > 0 && todayScores.length > 0) {
           // Build rank maps (sorted descending by value)
           const buildRankMap = (rows: { entityId: string; value: string }[]) => {
             const sorted = [...rows].sort((a, b) => parseFloat(b.value) - parseFloat(a.value));
@@ -258,7 +270,7 @@ export const scoreFunction = inngest.createFunction(
             return map;
           };
 
-          const prevRanks = buildRankMap(yesterdayScores);
+          const prevRanks = buildRankMap(prevScores);
           const newRanks = buildRankMap(todayScores);
 
           for (const [entityId, newRank] of newRanks) {

@@ -51,6 +51,10 @@ export async function GET(req: NextRequest) {
   const conditions = [eq(scores.metric, metric)];
   if (horizon) conditions.push(eq(scores.horizon, horizon));
   if (regimeTag) conditions.push(eq(scores.regimeTag, regimeTag));
+  // Filter by entity type in SQL (before LIMIT) so the top N is the top N of
+  // the requested type, not truncated from a mixed-type set.
+  if (entityType)
+    conditions.push(eq(entities.type, entityType as "player" | "guide"));
 
   // Most-recent as_of_date for this metric
   const [latestDate] = await db
@@ -84,13 +88,9 @@ export async function GET(req: NextRequest) {
     .innerJoin(entities, eq(scores.entityId, entities.id))
     .where(and(...conditions))
     .orderBy(desc(scores.value))
-    .limit(limit * 2); // fetch extra to allow type filtering
+    .limit(limit);
 
-  const filtered = entityType
-    ? rows.filter((r) => r.type === entityType)
-    : rows;
-
-  const trimmed = filtered.slice(0, limit);
+  const trimmed = rows;
 
   return jsonSuccess(
     {

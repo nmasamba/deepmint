@@ -336,8 +336,12 @@ export const paperRouter = router({
         realizedPnlCents += Math.round(pnl);
       }
 
-      // Compute unrealized P&L from open positions
+      // Compute unrealized P&L and open position value together. Fetch each
+      // position's current price ONCE so unrealizedPnl and openPositionValue
+      // (and therefore totalEquity) stay mutually consistent, and to avoid
+      // doubling the rate-limited price lookups.
       let unrealizedPnlCents = 0;
+      let openPositionValue = 0;
       const openTrades = trades.filter(
         (t: { trade: typeof paperTrades.$inferSelect }) => t.trade.closedAt === null,
       );
@@ -351,6 +355,7 @@ export const paperRouter = router({
             ? (currentPrice - entry) * qty
             : (entry - currentPrice) * qty;
         unrealizedPnlCents += Math.round(pnl);
+        openPositionValue += Math.round(currentPrice * qty);
       }
 
       // Available cash
@@ -359,15 +364,6 @@ export const paperRouter = router({
         portfolio.id,
         portfolio.startingBalanceCents,
       );
-
-      // Total equity = cash + open position value
-      let openPositionValue = 0;
-      for (const t of openTrades) {
-        const currentPrice = await getCurrentPrice(t.ticker);
-        openPositionValue += Math.round(
-          currentPrice * Number(t.trade.quantity),
-        );
-      }
 
       const totalEquityCents = availableCash + openPositionValue;
       const totalReturnBps =

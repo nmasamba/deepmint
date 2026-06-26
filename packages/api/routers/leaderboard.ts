@@ -3,6 +3,7 @@ import { publicProcedure, router } from "../trpc";
 import { db, desc, eq, and, sql } from "@deepmint/db";
 import { scores, entities } from "@deepmint/db/schema";
 import { detectRegime } from "@deepmint/scoring";
+import { getRegimeIndicators } from "@deepmint/shared";
 
 export const leaderboardRouter = router({
   /**
@@ -27,6 +28,11 @@ export const leaderboardRouter = router({
       }
       if (input.regimeTag) {
         conditions.push(eq(scores.regimeTag, input.regimeTag));
+      }
+      // Filter by entity type in SQL (before LIMIT) so the top N is computed
+      // over the requested type, not truncated from a mixed-type top N.
+      if (input.entityType) {
+        conditions.push(eq(entities.type, input.entityType));
       }
 
       // Get latest as_of_date for this metric
@@ -60,12 +66,7 @@ export const leaderboardRouter = router({
         .orderBy(desc(scores.value))
         .limit(input.limit);
 
-      // Filter by entity type in app if specified
-      const filtered = input.entityType
-        ? rows.filter((r) => r.entityType === input.entityType)
-        : rows;
-
-      return filtered.map((row, i) => ({
+      return rows.map((row, i) => ({
         rank: i + 1,
         entity: {
           id: row.entityId,
@@ -93,7 +94,19 @@ export const leaderboardRouter = router({
     )
     .query(async ({ input }) => {
       // This requires joining through claims → outcomes → entities → scores
-      // For now, return top entities by overall hit_rate
+      // For now, return top entities by overall hit_rate.
+      // Restrict to the latest as_of_date and the "all" horizon so each entity
+      // appears once with its current value (the scores table holds one row per
+      // entity per metric per horizon per regime per date).
+      const [latestDate] = await db
+        .select({ asOfDate: scores.asOfDate })
+        .from(scores)
+        .where(and(eq(scores.metric, "hit_rate"), eq(scores.horizon, "all")))
+        .orderBy(desc(scores.asOfDate))
+        .limit(1);
+
+      if (!latestDate) return [];
+
       return db
         .select({
           entityId: scores.entityId,
@@ -104,7 +117,13 @@ export const leaderboardRouter = router({
         })
         .from(scores)
         .innerJoin(entities, eq(scores.entityId, entities.id))
-        .where(eq(scores.metric, "hit_rate"))
+        .where(
+          and(
+            eq(scores.metric, "hit_rate"),
+            eq(scores.horizon, "all"),
+            eq(scores.asOfDate, latestDate.asOfDate)
+          )
+        )
         .orderBy(desc(scores.value))
         .limit(input.limit);
     }),
@@ -121,19 +140,26 @@ export const leaderboardRouter = router({
       }),
     )
     .query(async ({ input }) => {
-      // Detect current regime (placeholder data — live in Sprint 6)
-      const currentRegime = detectRegime({
-        sp500Return30d: 0.01,
-        vixLevel: 18,
-        sectorDispersion: 0.08,
-      });
+      // Detect current regime from live market indicators, falling back to
+      // neutral defaults if the market-data fetch fails.
+      let currentRegime;
+      try {
+        currentRegime = detectRegime(await getRegimeIndicators());
+      } catch {
+        currentRegime = detectRegime({
+          sp500Return30d: 0.01,
+          vixLevel: 18,
+          sectorDispersion: 0.08,
+        });
+      }
 
       const conditions = [
         eq(scores.metric, "eiv_overall"),
         eq(scores.regimeTag, currentRegime),
       ];
 
-      // Get latest date with this regime+metric combo
+      // Get latest date with this regime+metric combo (across all types, so
+      // the as-of date is computed over the whole regime leaderboard).
       const [latestDate] = await db
         .select({ asOfDate: scores.asOfDate })
         .from(scores)
@@ -144,6 +170,12 @@ export const leaderboardRouter = router({
       if (!latestDate) return { regime: currentRegime, entities: [] };
 
       conditions.push(eq(scores.asOfDate, latestDate.asOfDate));
+      // Filter by entity type in SQL (before LIMIT) so the result is the best
+      // N of the requested type, not truncated from a mixed-type top N. Added
+      // after the latestDate subquery, which does not join entities.
+      if (input.entityType) {
+        conditions.push(eq(entities.type, input.entityType));
+      }
 
       const rows = await db
         .select({
@@ -160,13 +192,9 @@ export const leaderboardRouter = router({
         .orderBy(desc(scores.value))
         .limit(input.limit);
 
-      const filtered = input.entityType
-        ? rows.filter((r) => r.entityType === input.entityType)
-        : rows;
-
       return {
         regime: currentRegime,
-        entities: filtered.map((row, i) => ({
+        entities: rows.map((row, i) => ({
           rank: i + 1,
           entity: {
             id: row.entityId,

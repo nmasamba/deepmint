@@ -42,6 +42,22 @@ export const influenceRouter = router({
         .orderBy(desc(influenceScores.influenceEvents30d))
         .limit(input.limit);
 
+      // topInstruments is stored as instrument UUIDs — resolve to tickers
+      // (consistent with byGuide) across all rows in one query.
+      const allInstrumentIds = [
+        ...new Set(rows.flatMap((r) => (r.topInstruments ?? []) as string[])),
+      ];
+      let tickerMap = new Map<string, string>();
+      if (allInstrumentIds.length > 0) {
+        const instrumentRows = await db
+          .select({ id: instruments.id, ticker: instruments.ticker })
+          .from(instruments)
+          .where(
+            sql`${instruments.id} IN (${sql.join(allInstrumentIds.map((id) => sql`${id}`), sql`, `)})`,
+          );
+        tickerMap = new Map(instrumentRows.map((r) => [r.id, r.ticker]));
+      }
+
       return rows.map((row, i) => ({
         rank: i + 1,
         entity: {
@@ -53,7 +69,9 @@ export const influenceRouter = router({
         followerCount: row.followerCount,
         influenceEvents30d: row.influenceEvents30d,
         avgLagHours: row.avgLagHours ? parseFloat(row.avgLagHours) : null,
-        topInstruments: row.topInstruments,
+        topInstruments: ((row.topInstruments ?? []) as string[])
+          .map((id) => tickerMap.get(id))
+          .filter((t): t is string => !!t),
       }));
     }),
 
@@ -129,7 +147,9 @@ export const influenceRouter = router({
       .where(
         sql`${influenceScores.guideEntityId} IN (${sql.join(guideIds.map(id => sql`${id}`), sql`, `)})`,
       )
-      .orderBy(desc(influenceScores.influenceEvents30d));
+      // Order by date so the first row seen per guide (after dedup) is the
+      // most recent score, not the all-time peak influenceEvents30d.
+      .orderBy(desc(influenceScores.asOfDate));
 
     // Deduplicate to latest per guide
     const seen = new Set<string>();
@@ -148,6 +168,8 @@ export const influenceRouter = router({
         },
         influenceEvents30d: row.influenceEvents30d,
         avgLagHours: row.avgLagHours ? parseFloat(row.avgLagHours) : null,
-      }));
+      }))
+      // Present most-influential first for display.
+      .sort((a, b) => b.influenceEvents30d - a.influenceEvents30d);
   }),
 });

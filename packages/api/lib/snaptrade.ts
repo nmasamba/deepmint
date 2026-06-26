@@ -188,7 +188,10 @@ export async function getAccountActivities(
       return {
         symbol: ticker,
         action: (e.type ?? "").toUpperCase(),
-        quantity: Number(e.units ?? 0),
+        // SnapTrade `units` is signed (negative for sells). Direction is
+        // captured separately via `action`/`side`, so store the unsigned
+        // magnitude to avoid double-encoding direction and sign-inverted P&L.
+        quantity: Math.abs(Number(e.units ?? 0)),
         priceDollars: Number(e.price ?? 0),
         executedAt: dateStr ? new Date(dateStr) : new Date(),
         currency: e.currency?.code ?? "USD",

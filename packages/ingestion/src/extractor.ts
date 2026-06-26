@@ -22,6 +22,21 @@ function getLLMClient(): OpenAI {
 
 const DEFAULT_MODEL = "google/gemma-4-31B-it:fastest";
 
+/**
+ * Strip markdown code fences from an LLM response so the inner JSON can be
+ * parsed. Trims first so the closing fence is anchored correctly even with a
+ * trailing newline, and accepts bare ``` fences (no language tag), which open
+ * models commonly emit. Returns the content unchanged if it is not fenced.
+ */
+export function stripJsonFences(content: string): string {
+  const trimmed = content.trim();
+  if (!trimmed.startsWith("```")) return trimmed;
+  return trimmed
+    .replace(/^```[a-zA-Z]*\n?/, "")
+    .replace(/\n?```$/, "")
+    .trim();
+}
+
 const EXTRACTION_PROMPT = `You are a financial claim extractor. Given raw text from an analyst or trader, extract structured predictions.
 
 For each prediction found, return JSON:
@@ -92,19 +107,25 @@ export async function extractClaims(
   // Parse JSON — handle potential markdown wrapping
   let parsed: Record<string, unknown>;
   try {
-    // Strip markdown code blocks if present
-    const cleaned = content.replace(/```json?\n?/g, "").replace(/```$/g, "").trim();
-    parsed = JSON.parse(cleaned);
+    parsed = JSON.parse(stripJsonFences(content));
   } catch {
     console.error("Failed to parse LLM response:", content);
     return { validClaims: [], invalidClaims: [], extractionConfidence: 0 };
   }
 
   const rawClaims = Array.isArray(parsed.claims) ? parsed.claims : [];
-  const extractionConfidence =
-    typeof parsed.extraction_confidence === "number"
+  // extraction_confidence is documented on a 0-1 scale and gates active vs
+  // pending_review routing (>= 0.8). Clamp into [0,1]; if a model returns a
+  // 0-100-scaled value, rescale it so the threshold stays meaningful.
+  const rawExtractionConfidence =
+    typeof parsed.extraction_confidence === "number" &&
+    Number.isFinite(parsed.extraction_confidence)
       ? parsed.extraction_confidence
       : 0;
+  const extractionConfidence =
+    rawExtractionConfidence > 1
+      ? Math.min(1, rawExtractionConfidence / 100)
+      : Math.max(0, rawExtractionConfidence);
 
   const validClaims: ExtractedClaim[] = [];
   const invalidClaims: Array<{ raw: Record<string, unknown>; reason: string }> = [];
@@ -141,10 +162,21 @@ export async function extractClaims(
     validClaims.push({
       instrumentTicker: ticker,
       direction: direction as "long" | "short" | "neutral",
-      targetPrice: typeof raw.target_price === "number" ? raw.target_price : null,
+      // Only accept a finite, strictly positive target price (a money field).
+      targetPrice:
+        typeof raw.target_price === "number" &&
+        Number.isFinite(raw.target_price) &&
+        raw.target_price > 0
+          ? raw.target_price
+          : null,
       horizonDays,
+      // Clamp confidence into the 0-100 scale used by the confidence column
+      // and the consensus weight boost.
       confidenceScore:
-        typeof raw.confidence_score === "number" ? raw.confidence_score : null,
+        typeof raw.confidence_score === "number" &&
+        Number.isFinite(raw.confidence_score)
+          ? Math.max(0, Math.min(100, raw.confidence_score))
+          : null,
       rationaleSummary: String(raw.rationale_summary ?? ""),
       rationaleTags: Array.isArray(raw.rationale_tags)
         ? raw.rationale_tags.filter((t: unknown): t is string => typeof t === "string")
@@ -187,10 +219,10 @@ export async function processExtraction(
       // Non-fatal — continue with null price
     }
 
-    // Convert target price from dollars to cents
-    const targetPriceCents = claim.targetPrice
-      ? Math.round(claim.targetPrice * 100)
-      : null;
+    // Convert target price from dollars to cents. Explicit null check (not a
+    // truthiness test) — targetPrice is already validated > 0 at extraction.
+    const targetPriceCents =
+      claim.targetPrice != null ? Math.round(claim.targetPrice * 100) : null;
 
     // Route by extraction confidence
     const status =

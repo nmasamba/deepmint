@@ -79,21 +79,25 @@ export const signalSimulateFunction = inngest.createFunction(
           .from(paperTrades)
           .where(eq(paperTrades.portfolioId, sim.paperPortfolioId));
 
-        let cash = portfolio.startingBalanceCents;
+        // Available buying power = starting balance − capital tied up in OPEN
+        // positions + realized P&L from CLOSED positions. An open short ties up
+        // its notional as collateral (like a long); crediting short proceeds as
+        // spendable cash would let the simulator over-allocate the portfolio.
+        let committed = 0;
+        let realized = 0;
         for (const t of trades) {
           const qty = Number(t.quantity);
-          if (t.side === "buy") {
-            cash -= Math.round(t.entryPriceCents * qty);
-            if (t.closedAt && t.exitPriceCents) {
-              cash += Math.round(t.exitPriceCents * qty);
-            }
+          const isClosed = !!(t.closedAt && t.exitPriceCents);
+          if (isClosed) {
+            realized +=
+              t.side === "buy"
+                ? Math.round((t.exitPriceCents! - t.entryPriceCents) * qty)
+                : Math.round((t.entryPriceCents - t.exitPriceCents!) * qty);
           } else {
-            cash += Math.round(t.entryPriceCents * qty);
-            if (t.closedAt && t.exitPriceCents) {
-              cash -= Math.round(t.exitPriceCents * qty);
-            }
+            committed += Math.round(t.entryPriceCents * qty);
           }
         }
+        const cash = portfolio.startingBalanceCents - committed + realized;
 
         // 1% allocation per signal trade
         const allocationCents = Math.round(portfolio.startingBalanceCents * 0.01);

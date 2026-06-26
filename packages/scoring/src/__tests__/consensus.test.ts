@@ -85,6 +85,27 @@ describe("computeConsensusSignal", () => {
     expect(result.direction).toBe("bearish");
   });
 
+  it("reports neutral for an exact bullish/bearish tie", () => {
+    // Two mirror-image claims with identical weights → a deadlocked market
+    // must not default to bullish (regression: non-strict >= comparisons used
+    // to always pick bullish on a tie).
+    const base = {
+      entityType: "player" as const,
+      entityScore: 5,
+      hasBrokerVerification: false,
+      confidence: null,
+      horizonDays: 30,
+      ageHours: 0,
+    };
+    const result = computeConsensusSignal([
+      { ...base, direction: "long" },
+      { ...base, direction: "short" },
+    ]);
+    expect(result.bullishScore).toBeCloseTo(0.5, 6);
+    expect(result.bearishScore).toBeCloseTo(0.5, 6);
+    expect(result.direction).toBe("neutral");
+  });
+
   it("applies recency decay", () => {
     const recent: ClaimWithWeight = {
       direction: "long",

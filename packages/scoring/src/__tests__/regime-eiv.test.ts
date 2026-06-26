@@ -98,6 +98,36 @@ describe("computeRegimeAwareEIV", () => {
     expect(withRegime).toBeGreaterThan(withoutRegime);
   });
 
+  it("returns 0 when average return is negative despite a positive hit rate", () => {
+    // Directionally right >50% but net money-losing → not a profitable edge.
+    // (regression: Math.abs(avgReturn) used to reward a negative average.)
+    const result = computeRegimeAwareEIV(
+      { hitRate: 0.65, avgReturnBps: -400, brierScore: 0.2, totalClaims: 100 },
+      [
+        {
+          regime: "bull",
+          hitRate: 0.65,
+          avgReturnBps: -400,
+          sampleSize: 50,
+          brierScore: 0.2,
+        },
+      ],
+      "bull",
+    );
+    expect(result).toBe(0);
+  });
+
+  it("produces a non-zero fallback EIV from overall scores when no regime data", () => {
+    // The 0.4x shrinkage fallback must actually use the overall sample size,
+    // not 0 (regression: n=0 forced the fallback EIV to exactly 0).
+    const result = computeRegimeAwareEIV(
+      { hitRate: 0.7, avgReturnBps: 300, brierScore: 0.1, totalClaims: 500 },
+      [],
+      "bull",
+    );
+    expect(result).toBeGreaterThan(0);
+  });
+
   it("caps at 100", () => {
     const result = computeRegimeAwareEIV(
       { hitRate: 0.99, avgReturnBps: 10000, brierScore: 0, totalClaims: 1000 },

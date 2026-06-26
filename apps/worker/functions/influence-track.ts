@@ -111,9 +111,19 @@ export const influenceTrackFunction = inngest.createFunction(
                 AND ${claims.id} != ${claimId}`
           );
 
+        // Use the player claim's stored createdAt — NOT wall-clock now() —
+        // so lag is measured between the two claims, not inflated by the
+        // (variable) delay between claim creation and this worker running.
+        const [playerClaim] = await db
+          .select({ createdAt: claims.createdAt })
+          .from(claims)
+          .where(eq(claims.id, claimId))
+          .limit(1);
+        if (!playerClaim) return { eventsCreated: 0 };
+        const playerClaimTime = new Date(playerClaim.createdAt);
+
         for (const gc of guideClaims) {
           // Player acted after guide's claim
-          const playerClaimTime = new Date(); // claim was just created
           const lagMs = playerClaimTime.getTime() - new Date(gc.createdAt).getTime();
           if (lagMs <= 0) continue;
           const lagHours = lagMs / (1000 * 3600);

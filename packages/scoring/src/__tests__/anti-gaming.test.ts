@@ -53,6 +53,31 @@ describe("checkAntiGaming", () => {
     expect(result.penalties[0]?.reason).toBe("Undisclosed leverage");
   });
 
+  it("penalises undisclosed leverage when the player declared zero", () => {
+    // Declared cash-only (0) but actually used 4x — the worst offender must
+    // still be flagged (regression: a `declaredMaxLeverage > 0` guard used to
+    // let this case bypass the check entirely).
+    const result = checkAntiGaming({
+      ...validStats,
+      maxLeverage: 4,
+      declaredMaxLeverage: 0,
+    });
+    expect(result.isEligible).toBe(true);
+    expect(result.penalties.some((p) => p.reason === "Undisclosed leverage")).toBe(
+      true,
+    );
+  });
+
+  it("does not penalise a truthful cash-only player", () => {
+    const result = checkAntiGaming({
+      ...validStats,
+      maxLeverage: 0,
+      declaredMaxLeverage: 0,
+    });
+    expect(result.isEligible).toBe(true);
+    expect(result.penalties).toHaveLength(0);
+  });
+
   it("accumulates multiple penalties", () => {
     const result = checkAntiGaming({
       ...validStats,

@@ -81,13 +81,34 @@ export const brokerSyncFunction = inngest.createFunction(
               if (!instrument) continue;
 
               const side = act.action === "BUY" ? "buy" : "sell";
+              const entryPriceCents = Math.round(act.priceDollars * 100);
+              const quantity = act.quantity.toString();
+
+              // Idempotency: SnapTrade returns overlapping date windows on
+              // each run, so skip activities already imported (matched on the
+              // stable natural key) to avoid duplicating verified trades.
+              const [dup] = await db
+                .select({ id: playerTrades.id })
+                .from(playerTrades)
+                .where(
+                  and(
+                    eq(playerTrades.entityId, link.entityId),
+                    eq(playerTrades.instrumentId, instrument.id),
+                    eq(playerTrades.side, side),
+                    eq(playerTrades.openedAt, act.executedAt),
+                    eq(playerTrades.entryPriceCents, entryPriceCents),
+                    eq(playerTrades.quantity, quantity),
+                  ),
+                )
+                .limit(1);
+              if (dup) continue;
 
               await db.insert(playerTrades).values({
                 entityId: link.entityId,
                 instrumentId: instrument.id,
                 side,
-                entryPriceCents: Math.round(act.priceDollars * 100),
-                quantity: act.quantity.toString(),
+                entryPriceCents,
+                quantity,
                 openedAt: act.executedAt,
                 isVerified: true,
               });

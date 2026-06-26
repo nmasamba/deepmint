@@ -74,9 +74,11 @@ export const socialRouter = router({
         followedId: input.targetEntityId,
       });
 
-      // Increment Redis counter
+      // Invalidate the cached counter so the next followerCount read recomputes
+      // from the DB. Blindly incr-ing a possibly-unseeded key would diverge
+      // permanently from the true count.
       if (redis) {
-        await redis.incr(FOLLOWER_COUNT_KEY(input.targetEntityId));
+        await redis.del(FOLLOWER_COUNT_KEY(input.targetEntityId));
       }
 
       // Emit event for notification worker
@@ -107,9 +109,10 @@ export const socialRouter = router({
         )
         .returning({ id: follows.id });
 
-      // Decrement Redis counter if a row was actually deleted
+      // Invalidate the cached counter (recomputed from DB on next read) if a
+      // row was actually deleted.
       if (redis && deleted.length > 0) {
-        await redis.decr(FOLLOWER_COUNT_KEY(input.targetEntityId));
+        await redis.del(FOLLOWER_COUNT_KEY(input.targetEntityId));
       }
 
       return { unfollowed: deleted.length > 0 };

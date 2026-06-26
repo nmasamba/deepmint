@@ -5,7 +5,9 @@ import { computeClaimLeafHash, buildMerkleTree } from "@deepmint/shared";
 
 /**
  * Merkle Audit worker: runs daily at 22:00 UTC.
- * Computes a Merkle root of all claims created today for immutability proof.
+ * Computes a Merkle root of all claims created during the previous (completed)
+ * UTC day for immutability proof. Auditing the in-progress current day would
+ * permanently miss claims created after this run fires (e.g. 22:00–24:00 UTC).
  */
 export const auditFunction = inngest.createFunction(
   {
@@ -16,10 +18,12 @@ export const auditFunction = inngest.createFunction(
   async ({ step }) => {
     const result = await step.run("compute-merkle-root", async () => {
       const now = new Date();
-      const dayStart = new Date(
+      // Window = the previous, fully-completed UTC day [yesterday 00:00, today 00:00).
+      const todayStart = new Date(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
       );
-      const dayEnd = new Date(dayStart.getTime() + 86400000);
+      const dayStart = new Date(todayStart.getTime() - 86400000);
+      const dayEnd = todayStart;
 
       const todayClaims = await db
         .select()
@@ -33,7 +37,7 @@ export const auditFunction = inngest.createFunction(
         .orderBy(claims.createdAt);
 
       if (todayClaims.length === 0) {
-        console.log("No claims today — skipping Merkle root computation.");
+        console.log("No claims in the audit window — skipping Merkle root computation.");
         return { skipped: true, claimCount: 0 };
       }
 

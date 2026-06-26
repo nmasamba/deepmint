@@ -4,6 +4,48 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-05-05 — Logic-Error Audit
+
+Multi-agent audit (find → adversarial-verify) of the scoring, ingestion, worker,
+API-router, and shared layers. 33 candidate findings → 25 confirmed logic errors
+fixed; 3 low-severity items deferred as calibration/design decisions. All
+packages typecheck clean; scoring suite expanded 79→84 (new regression tests);
+shared (16) and api (5) pass; ingestion's live-LLM multi-claim tests are flaky
+(HuggingFace latency) but the parsing fix is now covered by a deterministic unit
+test.
+
+### High severity
+- **Anti-gaming leverage bypass** (`packages/scoring/src/anti-gaming.ts`): removed the `declaredMaxLeverage > 0` guard that let a trader who declared zero leverage but used margin escape the undisclosed-leverage penalty.
+- **Short-direction P&L sign** (`apps/worker/functions/markout.ts`): `returnBps` now stores position P&L (negated for shorts), so a profitable short is a positive return. Fixes wrong-signed `avg_return_bps`, Sharpe/Calmar/CVaR (consumed in `score.ts`), notification copy, and `ClaimCard` colouring for all short claims.
+- **Markdown fence parsing** (`packages/ingestion/src/extractor.ts`): extracted `stripJsonFences()` — trims first and accepts bare ```` ``` ```` fences + trailing newlines, fixing silent total loss of extracted claims on common LLM output.
+- **Leaderboard type filter after LIMIT** (`leaderboard.ts` `top`/`bestInCurrentConditions`/`byTicker` + `api/v1/leaderboard/route.ts`): entityType pushed into SQL `WHERE` before `LIMIT`; `byTicker` now pins to the latest as-of-date + `all` horizon.
+- **Merkle audit window** (`apps/worker/functions/audit.ts`): audits the completed prior UTC day, not the in-progress day — no more permanently-dropped 22:00–24:00 UTC claims.
+- **Broker duplicate trades** (`broker-sync.ts` + `broker.ts` `syncTrades`): natural-key existence check before insert + narrower sync window, so re-syncs no longer duplicate verified `player_trades`.
+
+### Medium severity
+- **EIV** (`eiv.ts`): fallback now uses overall `totalClaims` as the sample size (the 0.4× shrinkage path was dead); removed `Math.abs(avgReturn)` so a net-negative return pulls EIV to 0 instead of rewarding it.
+- **Polygon regime dates** (`polygon.ts`): sector-ETF and S&P 30d returns snap to completed trading days (`tradingDayOnOrBefore`), fixing weekend/holiday/intraday null legs that silently reverted to defaults.
+- **Rank-change diff** (`score.ts`): compares against the most recent prior scoring date, not a literal 24h ago (which was usually absent on Mondays/holidays).
+- **Signal-sim short cash** (`signal-simulate.ts`): open shorts now reserve notional instead of inflating buying power.
+- **Influence lag** (`influence-track.ts`): player-branch lag uses the claim's stored `createdAt`, not wall-clock `now()`.
+- **Instruments pagination** (`instruments.ts`): composite `(bucketRank, id)` keyset cursor aligned with the ORDER BY.
+- **Regime history** (`regime.ts`): orders by frequency so the dedup keeps the most-common regime per date.
+- **SnapTrade quantity** (`snaptrade.ts`): `Math.abs` on signed `units` — sells no longer stored with negative quantity.
+- **Influence reads** (`influence.ts`): `myInfluencers` returns the latest (not peak) score per guide; `topInfluencers` resolves instrument UUIDs to tickers.
+- **Follower counter** (`social.ts`): invalidate the Redis key on follow/unfollow instead of blindly incr/decr-ing a possibly-unseeded key.
+- **Paper P&L** (`paper.ts`): fetch each open position's price once so unrealized P&L and equity stay consistent.
+- **Extractor validation** (`extractor.ts`): `target_price` must be finite > 0; `confidence`/`extraction_confidence` clamped to scale.
+
+### Low severity
+- **Consensus tie** (`consensus.ts`): an exact bullish/bearish tie now resolves to neutral instead of defaulting to bullish.
+
+### Deferred (calibration / design — not clear logic errors)
+- Consensus `convictionStrength` 3-way Herfindahl reports a 50/50 directional split as ~0.31 conviction (matches build_spec + seed; changing it is a product decision).
+- `detectRegime` `rotation` threshold (0.15) vs decimal sector-dispersion scale (~0.01–0.04) — `rotation` rarely fires from live data; recalibration needs market data and would break existing threshold tests.
+- `influence-aggregate` 30-day window is non-deterministic only at the sub-second boundary on same-day re-runs (UTC-clean; negligible).
+
+---
+
 ## 2026-04-14 — Sprint 7 Complete
 
 ### Status

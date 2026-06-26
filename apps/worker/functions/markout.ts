@@ -151,23 +151,30 @@ export const markoutFunction = inngest.createFunction(
             continue;
           }
 
-          // Compute return in basis points
-          const returnBps = Math.round(
+          // Raw price movement in basis points (sign reflects price, not P&L).
+          const priceReturnBps = Math.round(
             ((exitPriceCents - claim.entryPriceCents) /
               claim.entryPriceCents) *
               10000
           );
 
-          // Determine if direction was correct
+          // Determine if direction was correct (based on price movement).
           let directionCorrect: boolean;
           if (claim.direction === "long") {
-            directionCorrect = returnBps > 0;
+            directionCorrect = priceReturnBps > 0;
           } else if (claim.direction === "short") {
-            directionCorrect = returnBps < 0;
+            directionCorrect = priceReturnBps < 0;
           } else {
             // neutral: correct if within ±2% (200 bps)
-            directionCorrect = Math.abs(returnBps) <= 200;
+            directionCorrect = Math.abs(priceReturnBps) <= 200;
           }
+
+          // Store the position P&L return: a profitable short (price fell)
+          // is a positive return. Negating for shorts keeps avg_return_bps,
+          // Sharpe/Calmar/CVaR and the resolution notification consistent with
+          // direction correctness. (neutral keeps the raw price return.)
+          const returnBps =
+            claim.direction === "short" ? -priceReturnBps : priceReturnBps;
 
           // Check target hit: did price reach target during the horizon window?
           let targetHit: boolean | null = null;

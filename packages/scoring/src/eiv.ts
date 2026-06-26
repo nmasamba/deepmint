@@ -38,7 +38,10 @@ export function computeRegimeAwareEIV(
     ? regimeData.avgReturnBps
     : overallScores.avgReturnBps;
   const brier = regimeData ? regimeData.brierScore : overallScores.brierScore;
-  const n = regimeData ? regimeData.sampleSize : 0;
+  // In the fallback branch use the overall sample size so the shrinkage path
+  // is live. Using 0 here would force sampleFactor (and thus EIV) to exactly 0,
+  // making the documented 0.4× fallback dead code.
+  const n = regimeData ? regimeData.sampleSize : overallScores.totalClaims;
 
   // Edge: how much better than coin flip
   const edge = rate - 0.5;
@@ -48,9 +51,12 @@ export function computeRegimeAwareEIV(
   const sampleFactor = n / (n + 20); // Bayesian shrinkage toward 0
   const regimePenalty = regimeData ? 1.0 : 0.4;
 
+  // Do NOT take the absolute value of the average return: a positive
+  // directional edge combined with a net-negative average return is not a
+  // profitable edge and must pull EIV down (toward 0), not up.
   const rawEIV =
-    edge * Math.abs(avgReturn / 100) * confidenceFactor * sampleFactor * regimePenalty;
-  const scaled = Math.min(100, (rawEIV / 5) * 100);
+    edge * (avgReturn / 100) * confidenceFactor * sampleFactor * regimePenalty;
+  const scaled = Math.max(0, Math.min(100, (rawEIV / 5) * 100));
 
   return Math.round(scaled * 10) / 10;
 }

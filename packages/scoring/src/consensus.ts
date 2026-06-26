@@ -96,12 +96,18 @@ export function computeConsensusSignal(
   const sNorm = bearish / total;
   const nNorm = neutral / total;
 
+  // A genuine tie (bullish weight exactly equals bearish weight) is not a
+  // directional signal — report neutral rather than always defaulting to
+  // bullish via non-strict comparisons.
+  const top = Math.max(bNorm, sNorm, nNorm);
   const direction: ConsensusDirection =
-    bNorm >= sNorm && bNorm >= nNorm
-      ? "bullish"
-      : sNorm >= bNorm && sNorm >= nNorm
-        ? "bearish"
-        : "neutral";
+    bNorm === top && sNorm === top
+      ? "neutral"
+      : bNorm === top
+        ? "bullish"
+        : sNorm === top
+          ? "bearish"
+          : "neutral";
 
   // Conviction: distance from uniform distribution (higher = more conviction)
   const conviction = Math.sqrt(bNorm ** 2 + sNorm ** 2 + nNorm ** 2);

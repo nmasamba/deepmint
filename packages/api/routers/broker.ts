@@ -322,6 +322,9 @@ export const brokerRouter = router({
       const activities = await getAccountActivities(
         creds,
         link.providerAccountId,
+        // Narrow the window to activity since the last sync (falls back to the
+        // default 30-day window on first sync) to reduce redundant re-fetching.
+        link.lastSyncAt ? new Date(link.lastSyncAt) : undefined,
       );
 
       let inserted = 0;
@@ -337,13 +340,32 @@ export const brokerRouter = router({
 
         const side = act.action === "BUY" ? "buy" : "sell";
         const entryPriceCents = Math.round(act.priceDollars * 100);
+        const quantity = act.quantity.toString();
+
+        // Idempotency: skip activities already imported (matched on the stable
+        // natural key) so repeated syncs don't duplicate verified trades.
+        const [dup] = await ctx.db
+          .select({ id: playerTrades.id })
+          .from(playerTrades)
+          .where(
+            and(
+              eq(playerTrades.entityId, ctx.entity.id),
+              eq(playerTrades.instrumentId, instrument.id),
+              eq(playerTrades.side, side),
+              eq(playerTrades.openedAt, act.executedAt),
+              eq(playerTrades.entryPriceCents, entryPriceCents),
+              eq(playerTrades.quantity, quantity),
+            ),
+          )
+          .limit(1);
+        if (dup) continue;
 
         await ctx.db.insert(playerTrades).values({
           entityId: ctx.entity.id,
           instrumentId: instrument.id,
           side,
           entryPriceCents,
-          quantity: act.quantity.toString(),
+          quantity,
           openedAt: act.executedAt,
           isVerified: true,
         });

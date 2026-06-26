@@ -304,6 +304,19 @@ export async function getIndexClose(ticker: string, date: string): Promise<numbe
 }
 
 /**
+ * Most recent weekday on or before the given date (skips Sat/Sun). Does not
+ * account for market holidays, but eliminates the dominant weekend gap so EOD
+ * lookups land on a session that actually has a bar.
+ */
+function tradingDayOnOrBefore(d: Date): Date {
+  const r = new Date(d);
+  while (r.getUTCDay() === 0 || r.getUTCDay() === 6) {
+    r.setUTCDate(r.getUTCDate() - 1);
+  }
+  return r;
+}
+
+/**
  * Compute 30-day returns for sector ETFs.
  * Returns a Map of ticker → 30d return as decimal (e.g. 0.03 = 3%).
  */
@@ -315,8 +328,14 @@ export async function getSectorETFReturns30d(): Promise<Map<string, number>> {
 
   const result = new Map<string, number>();
   const today = new Date();
-  const thirtyDaysAgo = new Date(today.getTime() - 30 * 86400000);
-  const todayStr = today.toISOString().slice(0, 10);
+  // Anchor the "current" leg to the last completed trading day — today's EOD
+  // bar does not exist intraday, on weekends, or on holidays. Anchor the "past"
+  // leg to a trading day on/before 30 days ago so it isn't a non-trading day.
+  const currentDate = tradingDayOnOrBefore(new Date(today.getTime() - 86400000));
+  const thirtyDaysAgo = tradingDayOnOrBefore(
+    new Date(today.getTime() - 30 * 86400000),
+  );
+  const todayStr = currentDate.toISOString().slice(0, 10);
   const pastStr = thirtyDaysAgo.toISOString().slice(0, 10);
 
   for (const etf of SECTOR_ETFS) {
@@ -377,7 +396,12 @@ export async function getRegimeIndicators(): Promise<RegimeIndicators> {
     let sp500Return30d = defaults.sp500Return30d;
     try {
       const today = new Date();
-      const thirtyDaysAgo = new Date(today.getTime() - 30 * 86400000);
+      // Snap to a trading day on/before 30 days ago — getIndicesOpenClose has
+      // no close on weekends/holidays, which would otherwise null the leg and
+      // silently fall back to the default.
+      const thirtyDaysAgo = tradingDayOnOrBefore(
+        new Date(today.getTime() - 30 * 86400000),
+      );
       const [current, past] = await Promise.all([
         getIndexSnapshot("I:SPX"),
         getIndexClose("I:SPX", thirtyDaysAgo.toISOString().slice(0, 10)).catch(() => null),

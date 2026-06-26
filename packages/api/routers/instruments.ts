@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, ilike, or, desc, and, lt, sql } from "@deepmint/db";
+import { eq, ilike, or, desc, asc, and, lt, sql } from "@deepmint/db";
 import {
   instruments,
   consensusSignals,
@@ -46,6 +46,17 @@ const marketCapOrder = sql`CASE
   WHEN ${instruments.marketCapBucket} = 'micro' THEN 5
   ELSE 6
 END`;
+
+// JS mirror of marketCapOrder, used to build the composite pagination cursor.
+const BUCKET_RANK: Record<string, number> = {
+  mega: 1,
+  large: 2,
+  mid: 3,
+  small: 4,
+  micro: 5,
+};
+const bucketRank = (bucket: string | null): number =>
+  (bucket && BUCKET_RANK[bucket]) || 6;
 
 export const instrumentRouter = router({
   /** Search instruments by ticker or name */
@@ -131,7 +142,8 @@ export const instrumentRouter = router({
         sector: z.string().optional(),
         exchange: z.enum(["NYSE", "NASDAQ", "AMEX"]).optional(),
         limit: z.number().min(1).max(100).default(20),
-        cursor: z.string().uuid().optional(),
+        // Composite keyset cursor: "<bucketRank>:<id>" (matches the ORDER BY).
+        cursor: z.string().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -147,22 +159,33 @@ export const instrumentRouter = router({
         conditions.push(eq(instruments.exchange, input.exchange));
       }
       if (input.cursor) {
-        conditions.push(lt(instruments.id, input.cursor));
+        // Keyset on the same (marketCapOrder, id) tuple the query is ordered
+        // by — a plain id cursor would be incoherent with a marketCap sort.
+        const sep = input.cursor.indexOf(":");
+        const cursorRank = Number(input.cursor.slice(0, sep));
+        const cursorId = input.cursor.slice(sep + 1);
+        conditions.push(
+          sql`(${marketCapOrder}, ${instruments.id}) > (${cursorRank}, ${cursorId})`,
+        );
       }
 
       const results = await ctx.db
         .select()
         .from(instruments)
         .where(and(...conditions))
-        .orderBy(marketCapOrder)
+        .orderBy(marketCapOrder, asc(instruments.id))
         .limit(input.limit + 1);
 
       const hasMore = results.length > input.limit;
       const items = hasMore ? results.slice(0, -1) : results;
+      const last = items[items.length - 1];
 
       return {
         items,
-        nextCursor: hasMore ? items[items.length - 1]?.id : null,
+        nextCursor:
+          hasMore && last
+            ? `${bucketRank(last.marketCapBucket)}:${last.id}`
+            : null,
       };
     }),
 

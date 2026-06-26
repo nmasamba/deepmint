@@ -51,9 +51,11 @@ export const regimeRouter = router({
           sql`${scores.asOfDate} >= ${cutoff} AND ${scores.regimeTag} IS NOT NULL`,
         )
         .groupBy(scores.asOfDate, scores.regimeTag)
-        .orderBy(desc(scores.asOfDate));
+        // Order by date, then by frequency within each date, so the dedup loop
+        // below keeps the most common regime per date (not an arbitrary one).
+        .orderBy(desc(scores.asOfDate), desc(sql`count(*)`));
 
-      // Deduplicate to one regime per date (take most common)
+      // Deduplicate to one regime per date (first seen = highest count)
       const dateMap = new Map<string, string>();
       for (const row of rows) {
         if (!dateMap.has(row.asOfDate)) {
