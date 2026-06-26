@@ -4,6 +4,29 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-05-05 — LLM Hardening (§1) + Data Flywheel (§2)
+
+Two workstreams off the back of the post-audit roadmap. All packages typecheck
+clean (8/8); ingestion deterministic tests 16, scoring 84, shared 16, api 5;
+the live HF extractor suite passes 29/29 when the model is responsive.
+
+### §1 — LLM extraction robustness ([extractor.ts](packages/ingestion/src/extractor.ts))
+- **JSON mode** (`response_format: json_object`) with graceful fallback to `stripJsonFences` for models that reject the param — guarantees parseable output.
+- **Timeout 120s + maxRetries 2** at client and per-call level (SDK default was 10 min); **`max_tokens: 1024`** bounds generation latency.
+- **`mentionsMag7()` pre-filter** skips the LLM call entirely for off-topic text (major volume/cost cut). Deterministic unit tests for the filter + fence stripping.
+- Fixed fake `DEFAULT_MODEL` → `Qwen/Qwen3-235B-A22B`; **extraction idempotency** so worker retries don't duplicate append-only claims.
+
+### §2 — Data-flywheel scrape + historical backfill
+- **`resolveOrCreateGuide`** ([resolver.ts](packages/ingestion/src/sources/resolver.ts)): the missing source-handle → Guide-entity resolver (keyed on sourceUrl, then slug; ingested Guides have `clerkUserId` null, `isVerified` false).
+- **`RssSourceAdapter`** ([rss.ts](packages/ingestion/src/sources/rss.ts)): first real `SourceAdapter` (fetch-based, Vercel-safe), runs the Mag-7 pre-filter before emitting captures. `ingest.ts` `getSourceAdapters()` now builds adapters from allowlisted Guides with a `sourceUrl`, falling back to the demo adapter.
+- **`computeMarkoutForClaim`** ([markoutClaim.ts](apps/worker/functions/markoutClaim.ts)): extracted the per-claim outcome math from `markout.ts` (incl. the short-sign P&L convention) for reuse; `markout.ts` now calls it.
+- **`processExtraction` backfill support**: optional `{ createdAt, entryPriceResolver }` — inserts claims with their TRUE historical date (insert-only, no UPDATE → append-only preserved) and the EOD entry price as of that date.
+- **`backfillFunction`** ([backfill.ts](apps/worker/functions/backfill.ts)): event-triggered (`backfill/requested`) worker — resolve → insert historical events (hash-deduped) → extract with historical createdAt + EOD price → mature claims against historical prices (outcomes deduped on claimId+horizon, no notifications) → trigger scoring. Registered in the worker; operator trigger via `pnpm --filter @deepmint/worker backfill <archive.json>`.
+
+**Prod blockers for §2 (flagged, not code):** `INNGEST_API_KEY` is still unset (DEVLOG risk #8) — new Inngest functions run in local dev but won't execute in prod until Inngest Cloud signing keys + the deployed `/api/inngest` endpoint are registered. Real browser scraping (Playwright) cannot run on Vercel serverless — RSS-over-fetch is fine; richer scraping must run on dedicated infra. `POLYGON_API_KEY` is required for meaningful backfill (it is set).
+
+---
+
 ## 2026-05-05 — Logic-Error Audit
 
 Multi-agent audit (find → adversarial-verify) of the scoring, ingestion, worker,

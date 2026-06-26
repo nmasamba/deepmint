@@ -12,6 +12,7 @@ import { influenceAggregateFunction } from "../functions/influence-aggregate";
 import { notifyNewFollowerFunction } from "../functions/notify-new-follower";
 import { backfillPricesFunction } from "../functions/backfill-prices";
 import { brokerSyncFunction } from "../functions/broker-sync";
+import { backfillFunction } from "../functions/backfill";
 
 // Export all Inngest functions for the serve handler
 export const inngestFunctions = [
@@ -29,6 +30,7 @@ export const inngestFunctions = [
   notifyNewFollowerFunction,
   backfillPricesFunction,
   brokerSyncFunction,
+  backfillFunction,
 ];
 
 // Re-export the Inngest client

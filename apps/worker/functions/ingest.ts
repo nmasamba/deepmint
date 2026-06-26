@@ -1,18 +1,45 @@
 import { inngest } from "../inngest";
-import { db, eq } from "@deepmint/db";
-import { events } from "@deepmint/db/schema";
+import { db, eq, and, isNotNull } from "@deepmint/db";
+import { events, entities } from "@deepmint/db/schema";
 import {
   computeContentHash,
   DemoSourceAdapter,
+  RssSourceAdapter,
   type SourceAdapter,
 } from "@deepmint/ingestion";
 
 /**
- * Get all registered source adapters.
- * For now, just the demo adapter. New sources will be added here.
+ * Build the source adapters from allowlisted Guides that expose a public feed
+ * URL (their RSS/Atom source). Falls back to the demo adapter (bound to a real
+ * guide id) when no real sources are configured — local dev / fresh DB.
  */
-function getSourceAdapters(): SourceAdapter[] {
-  return [new DemoSourceAdapter("demo-guide-id")];
+async function getSourceAdapters(): Promise<SourceAdapter[]> {
+  const allowlisted = await db
+    .select({ id: entities.id, sourceUrl: entities.sourceUrl })
+    .from(entities)
+    .where(
+      and(
+        eq(entities.type, "guide"),
+        eq(entities.isAllowlisted, true),
+        isNotNull(entities.sourceUrl),
+      ),
+    );
+
+  const feeds = allowlisted
+    .filter((g): g is { id: string; sourceUrl: string } => !!g.sourceUrl)
+    .map((g) => ({ feedUrl: g.sourceUrl, entityId: g.id }));
+
+  if (feeds.length > 0) {
+    return [new RssSourceAdapter(feeds)];
+  }
+
+  // No real sources yet — fall back to the demo adapter bound to any guide.
+  const [demoGuide] = await db
+    .select({ id: entities.id })
+    .from(entities)
+    .where(eq(entities.type, "guide"))
+    .limit(1);
+  return demoGuide ? [new DemoSourceAdapter(demoGuide.id)] : [];
 }
 
 /**
@@ -27,7 +54,7 @@ export const ingestFunction = inngest.createFunction(
     triggers: [{ cron: "30 20 * * 1-5" }],
   },
   async ({ step }) => {
-    const adapters = getSourceAdapters();
+    const adapters = await getSourceAdapters();
     const newEventIds: string[] = [];
 
     for (const adapter of adapters) {

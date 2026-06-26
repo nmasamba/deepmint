@@ -267,10 +267,26 @@ export async function extractClaims(
  * Process an extraction: extract claims from event text and insert into DB.
  * Routes to active/pending_review based on extraction confidence.
  */
+export interface ProcessExtractionOptions {
+  /**
+   * The true historical timestamp for backfilled claims. Inserted directly
+   * (never via UPDATE) so the append-only claims invariant holds. Defaults to
+   * the DB's now() for the live forward path.
+   */
+  createdAt?: Date;
+  /**
+   * Resolve the entry price (cents) for a ticker. Backfill supplies a resolver
+   * that returns the EOD price AS OF the claim's historical date; the live path
+   * defaults to getCurrentPrice (price now).
+   */
+  entryPriceResolver?: (ticker: string) => Promise<number | null>;
+}
+
 export async function processExtraction(
   eventId: string,
   rawText: string,
   entityId: string,
+  options: ProcessExtractionOptions = {},
 ): Promise<{ inserted: number; pending: number; invalid: number }> {
   // Idempotency: claims are APPEND-ONLY, so a worker retry that re-runs this
   // event would permanently duplicate them. Skip if this event already has
@@ -299,10 +315,12 @@ export async function processExtraction(
 
     if (!instrument) continue;
 
-    // Get current price
+    // Entry price: live "now" by default, or the historical EOD when backfilling.
     let entryPriceCents: number | null = null;
     try {
-      entryPriceCents = await getCurrentPrice(claim.instrumentTicker);
+      entryPriceCents = options.entryPriceResolver
+        ? await options.entryPriceResolver(claim.instrumentTicker)
+        : await getCurrentPrice(claim.instrumentTicker);
     } catch {
       // Non-fatal — continue with null price
     }
@@ -328,6 +346,8 @@ export async function processExtraction(
       rationaleTags: claim.rationaleTags,
       entryPriceCents,
       status,
+      // Explicit historical timestamp for backfill (insert-only; no UPDATE).
+      ...(options.createdAt ? { createdAt: options.createdAt } : {}),
     });
 
     if (status === "active") inserted++;

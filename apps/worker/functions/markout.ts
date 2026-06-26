@@ -1,44 +1,8 @@
 import { inngest } from "../inngest";
 import { db, eq, and, isNull, lte, sql } from "@deepmint/db";
 import { claims, outcomes, instruments } from "@deepmint/db/schema";
-import { getEODPrice, getHistoricalPrices } from "@deepmint/shared";
 import { createNotification } from "@deepmint/db/queries/createNotification";
-
-/**
- * Horizon days → horizon enum value mapping
- */
-const HORIZON_MAP: Record<number, "1d" | "1w" | "1m" | "3m" | "6m" | "1y"> = {
-  1: "1d",
-  7: "1w",
-  30: "1m",
-  90: "3m",
-  180: "6m",
-  365: "1y",
-};
-
-/**
- * Check if a date falls on a weekend (Saturday=6, Sunday=0).
- */
-function isWeekend(d: Date): boolean {
-  const day = d.getUTCDay();
-  return day === 0 || day === 6;
-}
-
-/**
- * Get the next trading day (skip weekends). Does not account for holidays
- * — missing price data is handled by retry logic.
- */
-function nextTradingDay(d: Date): Date {
-  const result = new Date(d);
-  while (isWeekend(result)) {
-    result.setUTCDate(result.getUTCDate() + 1);
-  }
-  return result;
-}
-
-function formatDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
+import { computeMarkoutForClaim, HORIZON_MAP, formatDate } from "./markoutClaim";
 
 /**
  * Markout worker: runs at 17:00 ET / 21:00 UTC on weekdays.
@@ -128,90 +92,23 @@ export const markoutFunction = inngest.createFunction(
             continue;
           }
 
-          if (claim.entryPriceCents === null) {
+          const outcome = await computeMarkoutForClaim(claim, ticker);
+          if (!outcome) {
+            // Missing entry price or exit-price data — skip, retry next run.
             skipped++;
             continue;
-          }
-
-          // Calculate exit date
-          const createdAt = new Date(claim.createdAt);
-          const exitDate = new Date(createdAt);
-          exitDate.setUTCDate(exitDate.getUTCDate() + claim.horizonDays);
-          const tradingExitDate = nextTradingDay(exitDate);
-          const exitDateStr = formatDate(tradingExitDate);
-
-          // Get exit price
-          let exitPriceCents: number;
-          try {
-            const eod = await getEODPrice(ticker, exitDateStr);
-            exitPriceCents = eod.closeCents;
-          } catch {
-            // Price data missing — skip, will retry next day
-            skipped++;
-            continue;
-          }
-
-          // Raw price movement in basis points (sign reflects price, not P&L).
-          const priceReturnBps = Math.round(
-            ((exitPriceCents - claim.entryPriceCents) /
-              claim.entryPriceCents) *
-              10000
-          );
-
-          // Determine if direction was correct (based on price movement).
-          let directionCorrect: boolean;
-          if (claim.direction === "long") {
-            directionCorrect = priceReturnBps > 0;
-          } else if (claim.direction === "short") {
-            directionCorrect = priceReturnBps < 0;
-          } else {
-            // neutral: correct if within ±2% (200 bps)
-            directionCorrect = Math.abs(priceReturnBps) <= 200;
-          }
-
-          // Store the position P&L return: a profitable short (price fell)
-          // is a positive return. Negating for shorts keeps avg_return_bps,
-          // Sharpe/Calmar/CVaR and the resolution notification consistent with
-          // direction correctness. (neutral keeps the raw price return.)
-          const returnBps =
-            claim.direction === "short" ? -priceReturnBps : priceReturnBps;
-
-          // Check target hit: did price reach target during the horizon window?
-          let targetHit: boolean | null = null;
-          if (claim.targetPriceCents !== null) {
-            try {
-              const bars = await getHistoricalPrices(
-                ticker,
-                formatDate(createdAt),
-                exitDateStr
-              );
-              if (claim.direction === "long") {
-                targetHit = bars.some(
-                  (b) => b.highCents >= claim.targetPriceCents!
-                );
-              } else if (claim.direction === "short") {
-                targetHit = bars.some(
-                  (b) => b.lowCents <= claim.targetPriceCents!
-                );
-              } else {
-                targetHit = null;
-              }
-            } catch {
-              // If historical data unavailable, leave targetHit null
-              targetHit = null;
-            }
           }
 
           // Insert outcome
           await db.insert(outcomes).values({
             claimId: claim.id,
             instrumentId: claim.instrumentId,
-            horizon: claim.horizon,
-            entryPriceCents: claim.entryPriceCents,
-            exitPriceCents,
-            returnBps,
-            directionCorrect,
-            targetHit,
+            horizon: outcome.horizon,
+            entryPriceCents: outcome.entryPriceCents,
+            exitPriceCents: outcome.exitPriceCents,
+            returnBps: outcome.returnBps,
+            directionCorrect: outcome.directionCorrect,
+            targetHit: outcome.targetHit,
           });
 
           // Notify entity that their claim has been resolved
@@ -219,8 +116,8 @@ export const markoutFunction = inngest.createFunction(
             entityId: claim.entityId,
             type: "outcome_matured",
             title: `Your ${claim.direction} claim on ${ticker} has been resolved`,
-            body: `Return: ${returnBps > 0 ? "+" : ""}${(returnBps / 100).toFixed(1)}% — ${directionCorrect ? "direction correct" : "direction incorrect"}`,
-            metadata: { claimId: claim.id, returnBps, directionCorrect, targetHit, ticker },
+            body: `Return: ${outcome.returnBps > 0 ? "+" : ""}${(outcome.returnBps / 100).toFixed(1)}% — ${outcome.directionCorrect ? "direction correct" : "direction incorrect"}`,
+            metadata: { claimId: claim.id, returnBps: outcome.returnBps, directionCorrect: outcome.directionCorrect, targetHit: outcome.targetHit, ticker },
           }).catch((err) => {
             console.warn(`[markout] Failed to send notification for claim ${claim.id}:`, err);
           });
