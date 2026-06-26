@@ -4,6 +4,38 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-05-05 — Inference Provider Benchmark + Model Switch
+
+Investigated the slow/timing-out multi-claim extraction by benchmarking the HF
+router across inference providers (harness: [bench-providers.ts](packages/ingestion/scripts/bench-providers.ts)).
+
+**Root cause:** the configured `Qwen/Qwen3-235B-A22B` is **deprecated** — Together
+and Fireworks return `410 ... deprecated and no longer supported`; default/`fastest`
+routes now fail with connection errors (the 120s+ timeouts).
+
+**Benchmark (multi-claim prompt, fastest successful run, all extracted 2/2 claims):**
+
+| Model : provider | Latency |
+|---|---|
+| `openai/gpt-oss-120b:cerebras` | **722 ms** |
+| `meta-llama/Llama-3.3-70B-Instruct:groq` | 820 ms |
+| `openai/gpt-oss-120b:groq` | 1,251 ms |
+| `Qwen/Qwen3-32B:groq` | 2,352 ms |
+| `Qwen/Qwen3-235B-A22B-Instruct-2507:together` | 2,906 ms |
+
+Cerebras/Groq (custom silicon) are ~170–250× faster than the deprecated model's
+timeout. Several combos were also deprecated/404 (Cerebras dropped Llama-3.3-70B
+and Qwen3-32B), confirming provider churn is recurring.
+
+**Decision:**
+- Default model → `openai/gpt-oss-120b:cerebras` (winner); `DEFAULT_MODEL` in [extractor.ts](packages/ingestion/src/extractor.ts) updated (the old default was the now-dead model).
+- Added a **fallback model** (`LLM_MODEL_FALLBACK`, default `meta-llama/Llama-3.3-70B-Instruct:groq`): `extractClaims` tries the primary, then the fallback on error, so a single deprecation can't break the pipeline.
+- `.env.local` / `.env.example` updated. **Vercel: update `LLM_MODEL` and add `LLM_MODEL_FALLBACK`** or prod keeps using the deprecated model.
+
+Result: the full live ingestion suite (34 tests) now passes in **3.5s** (was ~12 min with 3 timeouts).
+
+---
+
 ## 2026-05-05 — MCP Server for AI Agents (§3)
 
 Expose Deepmint to AI agents over MCP (streamable HTTP), reusing the existing

@@ -23,9 +23,15 @@ function getLLMClient(): OpenAI {
   });
 }
 
-// Fallback model when LLM_MODEL is unset. Must be a real HuggingFace
-// router-available id that supports response_format json_object.
-const DEFAULT_MODEL = "Qwen/Qwen3-235B-A22B";
+// Primary model when LLM_MODEL is unset. Benchmarked fastest reliable combo
+// for multi-claim extraction (~0.7s on Cerebras vs 120s+ timeouts on the
+// now-deprecated Qwen3-235B-A22B). Uses the HF router model:provider syntax.
+const DEFAULT_MODEL = "openai/gpt-oss-120b:cerebras";
+
+// Fallback model tried when the primary errors (e.g. a provider deprecates or
+// drops the model — observed repeatedly in practice). Different model AND
+// provider for resilience. Override via LLM_MODEL_FALLBACK; set to "" to disable.
+const DEFAULT_FALLBACK_MODEL = "meta-llama/Llama-3.3-70B-Instruct:groq";
 
 /**
  * Strip markdown code fences from an LLM response so the inner JSON can be
@@ -167,7 +173,6 @@ export async function extractClaims(
   rawText: string,
 ): Promise<ExtractionResult> {
   const client = getLLMClient();
-  const model = process.env.LLM_MODEL ?? DEFAULT_MODEL;
 
   // Skip the LLM call entirely when no Mag-7 instrument is referenced — most
   // scraped text is off-topic, so this removes the bulk of LLM volume.
@@ -175,7 +180,27 @@ export async function extractClaims(
     return { validClaims: [], invalidClaims: [], extractionConfidence: 0 };
   }
 
-  const content = await callExtractionLLM(client, model, rawText);
+  // Try the primary model, then the fallback if it errors (e.g. a provider
+  // deprecated/dropped the model). Distinct model+provider for resilience.
+  const fallback = process.env.LLM_MODEL_FALLBACK ?? DEFAULT_FALLBACK_MODEL;
+  const models = [
+    process.env.LLM_MODEL ?? DEFAULT_MODEL,
+    fallback,
+  ].filter((m, i, arr) => m && arr.indexOf(m) === i);
+
+  let content: string | null = null;
+  let lastError: unknown;
+  for (const model of models) {
+    try {
+      content = await callExtractionLLM(client, model, rawText);
+      lastError = undefined;
+      break;
+    } catch (err) {
+      lastError = err;
+      console.warn(`[extractor] Model ${model} failed, trying next:`, err instanceof Error ? err.message : err);
+    }
+  }
+  if (lastError) throw lastError; // all models failed — let the worker retry
   if (!content) {
     return { validClaims: [], invalidClaims: [], extractionConfidence: 0 };
   }
