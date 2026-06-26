@@ -10,8 +10,13 @@ import { extractClaims } from "../extractor";
 
 const HAS_API_KEY = !!process.env.HF_API_KEY;
 
+// Live LLM calls (120s timeout + up to 2 retries) need headroom over the raw
+// per-request timeout, so give each live test a generous budget. These hit a
+// real model on the HF router and are inherently latency-bound.
+const LIVE_TIMEOUT = 420000;
+
 describe.skipIf(!HAS_API_KEY)("extractClaims (live LLM)", () => {
-  it("extracts a clear bullish AAPL prediction", { timeout: 180000 }, async () => {
+  it("extracts a clear bullish AAPL prediction", { timeout: LIVE_TIMEOUT }, async () => {
     const text = `
       After reviewing Apple's latest earnings, I'm highly bullish on AAPL.
       The iPhone 17 cycle looks extremely strong and services revenue continues
@@ -32,7 +37,7 @@ describe.skipIf(!HAS_API_KEY)("extractClaims (live LLM)", () => {
     expect(claim.rationaleSummary.length).toBeGreaterThan(0);
   });
 
-  it("extracts a bearish TSLA prediction", { timeout: 180000 }, async () => {
+  it("extracts a bearish TSLA prediction", { timeout: LIVE_TIMEOUT }, async () => {
     const text = `
       Tesla is overvalued at current levels. With competition increasing
       from Chinese EVs and margins under pressure, I expect TSLA to decline
@@ -48,7 +53,7 @@ describe.skipIf(!HAS_API_KEY)("extractClaims (live LLM)", () => {
     expect(claim.direction).toBe("short");
   });
 
-  it("handles text with multiple predictions", { timeout: 180000 }, async () => {
+  it("handles text with multiple predictions", { timeout: LIVE_TIMEOUT }, async () => {
     const text = `
       Market outlook for Q2 2026:
       - NVDA: Strongly bullish, AI demand continuing to surge. Target $1100 in 90 days.
@@ -65,7 +70,7 @@ describe.skipIf(!HAS_API_KEY)("extractClaims (live LLM)", () => {
     expect(tickers).toContain("META");
   });
 
-  it("rejects non-Mag7 tickers as invalid", { timeout: 180000 }, async () => {
+  it("rejects non-Mag7 tickers as invalid", { timeout: LIVE_TIMEOUT }, async () => {
     const text = `
       I'm very bullish on AMD. Target price $200 within 30 days.
       Also long on AAPL targeting $260 in 90 days.
@@ -87,7 +92,7 @@ describe.skipIf(!HAS_API_KEY)("extractClaims (live LLM)", () => {
     expect(validTickers).toContain("AAPL");
   });
 
-  it("returns empty claims for text with no predictions", { timeout: 180000 }, async () => {
+  it("returns empty claims for text with no predictions", { timeout: LIVE_TIMEOUT }, async () => {
     const text = `
       Today's weather in San Francisco is sunny and mild.
       The Golden Gate Bridge is a beautiful landmark.

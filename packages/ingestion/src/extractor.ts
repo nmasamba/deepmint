@@ -17,10 +17,15 @@ function getLLMClient(): OpenAI {
   return new OpenAI({
     baseURL: "https://router.huggingface.co/v1",
     apiKey,
+    // Cap worst-case wall time — the SDK default is 10 minutes per attempt.
+    timeout: LLM_TIMEOUT_MS,
+    maxRetries: LLM_MAX_RETRIES,
   });
 }
 
-const DEFAULT_MODEL = "google/gemma-4-31B-it:fastest";
+// Fallback model when LLM_MODEL is unset. Must be a real HuggingFace
+// router-available id that supports response_format json_object.
+const DEFAULT_MODEL = "Qwen/Qwen3-235B-A22B";
 
 /**
  * Strip markdown code fences from an LLM response so the inner JSON can be
@@ -84,22 +89,93 @@ export interface ExtractionResult {
 /**
  * Extract structured claims from raw text using LLM.
  */
+// Per-call request controls: bound wall time (the SDK default is 10 minutes
+// per attempt) so the Inngest worker can retry the step cleanly instead of
+// hanging, and cap output size. 120s accommodates a large model's cold-start +
+// generation latency on the HF router while still failing far short of 10min.
+const LLM_TIMEOUT_MS = 120_000;
+const LLM_MAX_RETRIES = 2;
+const LLM_MAX_OUTPUT_TOKENS = 1024;
+
+// High-recall pre-filter patterns: ticker symbols + $cashtags + company names
+// for each Mag-7 instrument. We only track Mag-7, so a text that references
+// none of these cannot contain a trackable prediction.
+const MAG7_MENTION_PATTERNS: RegExp[] = [
+  /\baapl\b|\bapple\b/i,
+  /\bmsft\b|\bmicrosoft\b/i,
+  /\bgoogl?\b|\bgoogle\b|\balphabet\b/i,
+  /\bamzn\b|\bamazon\b/i,
+  /\bnvda\b|\bnvidia\b/i,
+  /\bmeta\b|\bfacebook\b|\binstagram\b/i,
+  /\btsla\b|\btesla\b/i,
+];
+
+/**
+ * High-recall pre-filter: true if the text plausibly references a Mag-7
+ * instrument (ticker, $cashtag, or company name). Used to skip the slow, paid
+ * LLM extraction call on text that cannot contain a trackable Mag-7 prediction.
+ * Intentionally conservative — errs toward letting text through rather than
+ * dropping a real prediction.
+ */
+export function mentionsMag7(text: string): boolean {
+  return MAG7_MENTION_PATTERNS.some((re) => re.test(text));
+}
+
+/**
+ * Call the extraction model. Requests JSON mode (response_format) so the output
+ * is guaranteed parseable; if the routed model rejects that parameter, retries
+ * once without it (stripJsonFences handles any markdown wrapping). Applies a
+ * per-call timeout, bounded retries, and an output cap.
+ */
+async function callExtractionLLM(
+  client: OpenAI,
+  model: string,
+  rawText: string,
+): Promise<string | null> {
+  const base = {
+    model,
+    messages: [
+      { role: "system" as const, content: EXTRACTION_PROMPT },
+      { role: "user" as const, content: rawText },
+    ],
+    temperature: 0.1,
+    max_tokens: LLM_MAX_OUTPUT_TOKENS,
+  };
+  const options = { timeout: LLM_TIMEOUT_MS, maxRetries: LLM_MAX_RETRIES };
+
+  try {
+    const r = await client.chat.completions.create(
+      { ...base, response_format: { type: "json_object" } },
+      options,
+    );
+    return r.choices[0]?.message?.content ?? null;
+  } catch (err) {
+    // Some HuggingFace-routed models reject response_format. Fall back to a
+    // plain call ONLY for a parameter-support error — rethrow genuine
+    // timeouts/network failures so the worker retries the whole step.
+    const status = (err as { status?: number })?.status;
+    const msg = err instanceof Error ? err.message.toLowerCase() : "";
+    const paramUnsupported =
+      status === 400 || msg.includes("response_format") || msg.includes("json");
+    if (!paramUnsupported) throw err;
+    const r = await client.chat.completions.create(base, options);
+    return r.choices[0]?.message?.content ?? null;
+  }
+}
+
 export async function extractClaims(
   rawText: string,
 ): Promise<ExtractionResult> {
   const client = getLLMClient();
   const model = process.env.LLM_MODEL ?? DEFAULT_MODEL;
 
-  const response = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: EXTRACTION_PROMPT },
-      { role: "user", content: rawText },
-    ],
-    temperature: 0.1,
-  });
+  // Skip the LLM call entirely when no Mag-7 instrument is referenced — most
+  // scraped text is off-topic, so this removes the bulk of LLM volume.
+  if (!mentionsMag7(rawText)) {
+    return { validClaims: [], invalidClaims: [], extractionConfidence: 0 };
+  }
 
-  const content = response.choices[0]?.message?.content;
+  const content = await callExtractionLLM(client, model, rawText);
   if (!content) {
     return { validClaims: [], invalidClaims: [], extractionConfidence: 0 };
   }
@@ -196,6 +272,18 @@ export async function processExtraction(
   rawText: string,
   entityId: string,
 ): Promise<{ inserted: number; pending: number; invalid: number }> {
+  // Idempotency: claims are APPEND-ONLY, so a worker retry that re-runs this
+  // event would permanently duplicate them. Skip if this event already has
+  // claims (and avoid a redundant LLM call).
+  const [existingClaim] = await db
+    .select({ id: claims.id })
+    .from(claims)
+    .where(eq(claims.eventId, eventId))
+    .limit(1);
+  if (existingClaim) {
+    return { inserted: 0, pending: 0, invalid: 0 };
+  }
+
   const result = await extractClaims(rawText);
 
   let inserted = 0;
