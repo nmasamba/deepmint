@@ -10,6 +10,8 @@ const isPublicRoute = createRouteMatcher([
   "/api/v1(.*)",
   // MCP server for AI agents — authenticated via Bearer API key, not Clerk
   "/api/mcp(.*)",
+  // Inngest endpoint — invoked by Inngest Cloud, authenticated via signing key
+  "/api/inngest(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
