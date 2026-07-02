@@ -4,6 +4,25 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-05-05 — Full E2E Smoke Test + Inngest Production Wiring
+
+Ran a full end-to-end smoke test across three dimensions (build+tests, live LLM
+extraction, production endpoints). **All green after fixes.**
+
+**Passing:** typecheck 8/8; scoring 84, shared 16, api 5, ingestion 34 (live LLM
+incl. multi-claim), web 18 skipped; live extraction `openai/gpt-oss-120b:cerebras`
+2/2 claims @ 842 ms; prod homepage 200, `/api/mcp` 401, `/api/v1/*` 401, openapi 200.
+
+**Two production-only bugs the smoke test caught** (invisible to local tests +
+typecheck — both about the Inngest endpoint the Vercel<>Inngest integration
+depends on):
+- **`/api/inngest` was Clerk-blocked (404)** → added `/api/inngest(.*)` to `isPublicRoute` in [middleware.ts](apps/web/middleware.ts). Inngest Cloud authenticates via the signing key, not a Clerk session (same pattern as `/api/v1`, `/api/mcp`).
+- **Signing key not detected (500 "no signing key found")** → the integration provisions `INNGEST_WORKFLOW_`-prefixed keys, and the env-var mapping ran *after* `inngest/next` was imported (ES imports are hoisted in source order). Moved the mapping into a dedicated side-effect module ([inngest-env.ts](apps/web/app/api/inngest/inngest-env.ts)) imported first in the route.
+
+**Result:** `GET /api/inngest` → 200 `{has_event_key:true, has_signing_key:true, function_count:15, mode:"cloud"}`. The background pipeline is wired for production; remaining human step is confirming the app is synced in the Inngest dashboard (the Vercel integration auto-syncs on deploy).
+
+---
+
 ## 2026-05-05 — Inference Provider Benchmark + Model Switch
 
 Investigated the slow/timing-out multi-claim extraction by benchmarking the HF
