@@ -16,10 +16,7 @@ export const markoutFunction = inngest.createFunction(
   },
   async ({ step }) => {
     const result = await step.run("compute-markouts", async () => {
-      const today = new Date();
-      const todayStr = formatDate(today);
-
-      // Find active claims where createdAt + horizonDays <= today
+      // Find active claims where createdAt + horizonDays <= now
       // and no outcome exists for that claim+horizon combo
       const pendingClaims = await db
         .select({
@@ -37,11 +34,10 @@ export const markoutFunction = inngest.createFunction(
         .where(
           and(
             eq(claims.status, "active"),
-            // horizon has expired: createdAt + horizonDays <= now
-            lte(
-              sql`${claims.createdAt} + (${claims.horizonDays} || ' days')::interval`,
-              today
-            )
+            // horizon has expired: createdAt + horizonDays <= now. Compare in
+            // SQL (now()) rather than binding a JS Date — a Date param against a
+            // raw SQL expression isn't type-mapped and breaks the pg serializer.
+            sql`${claims.createdAt} + (${claims.horizonDays} || ' days')::interval <= now()`
           )
         );
 
