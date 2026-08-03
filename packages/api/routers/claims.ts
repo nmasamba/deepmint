@@ -107,6 +107,7 @@ export const claimRouter = router({
           rationaleTags: input.rationaleTags ?? [],
           entryPriceCents,
           status: "active",
+          sourceKind: "self_logged",
           // eventId is null for Player self-logged claims
         })
         .returning();

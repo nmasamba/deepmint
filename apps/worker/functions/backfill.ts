@@ -112,6 +112,9 @@ export const backfillFunction = inngest.createFunction(
               .returning({ id: events.id });
 
             await processExtraction(ev!.id, item.rawText, entityId, {
+              // Historical archive of a Guide's own published views — the
+              // resolved entity IS the author, so attribution is inherent.
+              sourceKind: "analyst_feed",
               createdAt: publishedAt,
               entryPriceResolver: async (ticker) => {
                 try {

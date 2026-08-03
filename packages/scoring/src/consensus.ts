@@ -27,6 +27,33 @@ export interface ConsensusResult {
 }
 
 /**
+ * Weight multiplier for a claim's self-reported confidence.
+ *
+ * An UNSTATED confidence is the NEUTRAL MIDPOINT (1.0) — identical to stating
+ * 50 — never the maximum. Under the previous form (0.5 + c/200) the maximum
+ * over all stated values was 1.0, which merely TIED null: every honest value
+ * below 100 was a strict penalty and saying nothing was weakly dominant.
+ * Ingested third-party ratings carry a null confidence, so institutions
+ * collected the maximum for free while a user who honestly moved the slider
+ * to 40 was weighted 0.70× relative to them.
+ *
+ * Range [0.75, 1.25], symmetric about 1.0 and deliberately narrower than the
+ * Guide (×1.2) and broker-verified (×1.5) multipliers it sits alongside:
+ * confidence is caller-supplied and unverifiable, so it must not be able to
+ * outweigh broker verification.
+ *
+ * The clamp is load-bearing, not defensive: claims.confidence is a bare
+ * integer column with no CHECK constraint and is writable through the tRPC
+ * and MCP claim APIs, so an out-of-range value would otherwise buy unbounded
+ * weight (confidence 10000 => 50.75× under the old form).
+ */
+export function confidenceMultiplier(confidence: number | null): number {
+  if (confidence === null) return 1.0;
+  const c = Math.max(0, Math.min(100, confidence));
+  return 0.75 + c / 200;
+}
+
+/**
  * Compute weighted consensus signal from a set of claims.
  *
  * Weights:
@@ -34,7 +61,8 @@ export interface ConsensusResult {
  * - Guide claims: ×1.2
  * - Broker-verified: ×1.5
  * - Recency decay: exp(-0.03 × ageInDays)
- * - Confidence boost: 0.5 + (confidence / 200)
+ * - Confidence adjustment: confidenceMultiplier() — centred on 1.0, with an
+ *   UNSTATED confidence at the neutral midpoint rather than the maximum.
  */
 export function computeConsensusSignal(
   claims: ClaimWithWeight[]
@@ -72,10 +100,8 @@ export function computeConsensusSignal(
     const decayFactor = Math.exp((-0.03 * c.ageHours) / 24);
     weight *= decayFactor;
 
-    // Confidence boost
-    if (c.confidence !== null) {
-      weight *= 0.5 + c.confidence / 200;
-    }
+    // Confidence adjustment (see confidenceMultiplier).
+    weight *= confidenceMultiplier(c.confidence);
 
     if (c.direction === "long") {
       bullish += weight;

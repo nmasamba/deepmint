@@ -3,7 +3,7 @@ import { db, eq, and, isNotNull } from "@deepmint/db";
 import { events, entities } from "@deepmint/db/schema";
 import {
   computeContentHash,
-  DemoSourceAdapter,
+  PolygonNewsSourceAdapter,
   RssSourceAdapter,
   type SourceAdapter,
 } from "@deepmint/ingestion";
@@ -29,17 +29,24 @@ async function getSourceAdapters(): Promise<SourceAdapter[]> {
     .filter((g): g is { id: string; sourceUrl: string } => !!g.sourceUrl)
     .map((g) => ({ feedUrl: g.sourceUrl, entityId: g.id }));
 
+  const adapters: SourceAdapter[] = [];
+
   if (feeds.length > 0) {
-    return [new RssSourceAdapter(feeds)];
+    adapters.push(new RssSourceAdapter(feeds));
   }
 
-  // No real sources yet — fall back to the demo adapter bound to any guide.
-  const [demoGuide] = await db
-    .select({ id: entities.id })
-    .from(entities)
-    .where(eq(entities.type, "guide"))
-    .limit(1);
-  return demoGuide ? [new DemoSourceAdapter(demoGuide.id)] : [];
+  // Wall Street ratings lane. Explicit opt-in rather than keying off
+  // POLYGON_API_KEY, which is already set for price lookups — otherwise merely
+  // deploying would switch on a news lane that (measured against the current
+  // plan) yields no attributable ratings, only review-queue noise.
+  if (process.env.INGEST_POLYGON_NEWS === "1") {
+    adapters.push(new PolygonNewsSourceAdapter());
+  }
+
+  // NOTE: deliberately NO demo/fallback adapter. Claims are APPEND-ONLY, so a
+  // fabricated capture becomes an undeletable claim. An unconfigured
+  // environment must produce a no-op run, never synthetic data.
+  return adapters;
 }
 
 /**
@@ -96,6 +103,10 @@ export const ingestFunction = inngest.createFunction(
                 contentHash,
                 snapshotPath: null,
                 capturedAt,
+                // Distinguishes the ingestion lane downstream: a publisher means
+                // this text came from the Wall Street ratings lane (third-party
+                // news), whereas null means a Guide's own feed.
+                publisher: capture.publisher ?? null,
               })
               .returning({ id: events.id });
 

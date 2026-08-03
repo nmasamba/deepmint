@@ -76,7 +76,13 @@ function getFallbackPrice(ticker: string): number {
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL_MS = 12_500; // ~5 req/min = one every 12s
 
-async function rateLimit(): Promise<void> {
+/**
+ * Process-wide client-side throttle for EVERY Polygon/Massive request — prices
+ * AND news. They draw on the same account quota, so all callers must pass
+ * through this single limiter; a second independent limiter would let the
+ * combined request rate exceed the plan limit (observed as HTTP 429).
+ */
+export async function polygonRateLimit(): Promise<void> {
   const now = Date.now();
   const elapsed = now - lastRequestTime;
   if (elapsed < MIN_REQUEST_INTERVAL_MS) {
@@ -100,7 +106,7 @@ export async function getCurrentPrice(ticker: string): Promise<number> {
   if (!client) return getFallbackPrice(ticker);
 
   try {
-    await rateLimit();
+    await polygonRateLimit();
     const resp = await client.getStocksSnapshotTicker({
       stocksTicker: ticker.toUpperCase(),
     });
@@ -112,7 +118,7 @@ export async function getCurrentPrice(ticker: string): Promise<number> {
 
   // Fallback: previous day aggregate
   try {
-    await rateLimit();
+    await polygonRateLimit();
     const resp = await client.getPreviousStocksAggregates({
       stocksTicker: ticker.toUpperCase(),
     });
@@ -147,7 +153,7 @@ export async function getEODPrice(
     };
   }
 
-  await rateLimit();
+  await polygonRateLimit();
   const resp = await client.getStocksOpenClose({
     stocksTicker: ticker.toUpperCase(),
     date,
@@ -193,7 +199,7 @@ export async function getHistoricalPrices(
     return [];
   }
 
-  await rateLimit();
+  await polygonRateLimit();
   const resp = await client.getStocksAggregates({
     stocksTicker: ticker.toUpperCase(),
     multiplier: 1,
@@ -254,7 +260,7 @@ export async function getIndexSnapshot(ticker: string): Promise<number> {
   }
 
   try {
-    await rateLimit();
+    await polygonRateLimit();
     const resp = await client.getIndicesSnapshot({ tickerAnyOf: ticker });
     const results = (resp as { results?: Array<{ value?: number; session?: { close?: number } }> }).results;
     if (results && results.length > 0) {
@@ -269,7 +275,7 @@ export async function getIndexSnapshot(ticker: string): Promise<number> {
 
   // Fallback: previous day open/close
   try {
-    await rateLimit();
+    await polygonRateLimit();
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     const resp = await client.getIndicesOpenClose({ indicesTicker: ticker, date: yesterday });
     const data = resp as { close?: number };
@@ -294,7 +300,7 @@ export async function getIndexClose(ticker: string, date: string): Promise<numbe
     throw new Error(`No fallback for index ticker: ${ticker}`);
   }
 
-  await rateLimit();
+  await polygonRateLimit();
   const resp = await client.getIndicesOpenClose({ indicesTicker: ticker, date });
   const data = resp as { close?: number };
   if (typeof data.close !== "number") {
@@ -308,7 +314,7 @@ export async function getIndexClose(ticker: string, date: string): Promise<numbe
  * account for market holidays, but eliminates the dominant weekend gap so EOD
  * lookups land on a session that actually has a bar.
  */
-function tradingDayOnOrBefore(d: Date): Date {
+export function tradingDayOnOrBefore(d: Date): Date {
   const r = new Date(d);
   while (r.getUTCDay() === 0 || r.getUTCDay() === 6) {
     r.setUTCDate(r.getUTCDate() - 1);

@@ -78,7 +78,13 @@ function OverviewTab({
   }
 
   const getScore = (metric: string): number | null => {
-    const score = scoresData?.find((s) => s.metric === metric);
+    // Pin to the pooled "all" horizon. hit_rate is written per-horizon as well
+    // as pooled, so an unfiltered find() returned whichever row happened to
+    // come back first — the card could show a 1-day hit rate labelled as the
+    // overall one, and change between loads.
+    const score = scoresData?.find(
+      (s) => s.metric === metric && s.horizon === "all",
+    );
     return score ? parseFloat(score.value) : null;
   };
 

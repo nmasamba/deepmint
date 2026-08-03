@@ -4,6 +4,87 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-08-03 — Rating Attribution Lane + Scoring Fairness Fixes
+
+Set out to wire external keys (Tier 1 Upstash), pivoted to "start scraping analyst
+ratings", and ended up finding that the scoring engine made the product's core
+thesis mathematically impossible. Schema migration `0006` is applied to Supabase
+and local; all code below is verified but **the ingestion lanes are parked** —
+see Blocked.
+
+### Rating attribution (§1)
+
+Claims are now credited to the **firm that issued** a rating, not the publication
+that carried it — otherwise the leaderboard ranks Yahoo Finance. `events.entity_id`
+keeps provenance (the carrier); `claims.entity_id` is the resolved issuer via the
+existing `resolveOrCreateGuide`.
+
+- **Migration [0006_cultured_junta.sql](../packages/db/drizzle/0006_cultured_junta.sql)** — `claims.source_kind` / `rating_grade` / `rating_action` / `analyst_name`, `events.publisher`. All nullable, **no defaults**, so existing rows are untouched (invariant #1). Single ledger, discriminated by `source_kind`: separating Wall Street ratings into their own table would force `markout`/`score`/`consensus`/`/api/v1`/MCP to union two sources and would break the one-leaderboard thesis.
+- **[polygonNews.ts](../packages/ingestion/src/sources/polygonNews.ts)** — new adapter on the existing Polygon key. `capturedAt` comes from the article's own publish time, never `now()`: the demo adapter's wall-clock `capturedAt` made every content hash unique and defeated dedupe entirely.
+- **[extractor.ts](../packages/ingestion/src/extractor.ts)** — attribution fields, a publication denylist (`isValidAnalystFirm`) so a publication can never mint a Guide, `parseRatingDate` (rejects calendar-overflow dates like `2026-02-31`), backdating to the rating date with EOD entry pricing, and **cross-publication dedupe** on `(entity, instrument, direction, horizon, date)` — without it one upgrade reported by three outlets counted three times.
+- **Demo adapter fallback REMOVED** ([ingest.ts](../apps/worker/functions/ingest.ts)) — an unconfigured environment now no-ops instead of writing fabricated claims into an append-only ledger.
+- `polygonRateLimit` exported from [polygon.ts](../packages/shared/src/polygon.ts): news and prices share one account quota and must share one limiter (separate limiters caused the observed 429s).
+
+### Source evaluation — both lanes parked
+
+- **Free per-ticker RSS: dead.** 237 unique articles across Yahoo/Nasdaq/Seeking Alpha → **45 sent to the LLM → 0 claims**. RSS carries teasers, not articles (median body: Yahoo 140 chars, Nasdaq 110, **Seeking Alpha 0 — title only**). Only 3 of 237 named both a firm and a rating.
+- **Polygon news: works, but yields nothing usable.** 8.8% of articles carry firm+rating signal vs RSS's 1.3%, but a live run over 210 articles produced **0 attributed ratings** — only editorial headlines ("Should You Buy Apple Stock Before July 30?" → `AAPL short, conf 0.9`). The attribution gate correctly routed all of them to `pending_review`. Parked behind `INGEST_POLYGON_NEWS=1` so a deploy can't silently enable it.
+- **Finnhub: blocked, and not by money.** `/stock/upgrade-downgrade` is the only firm-attributed endpoint and is **premium**. More seriously, their ToS bars redistributing data *or derived results* to third parties, bars business use on personal plans, and requires deleting stored data when a subscription ends — which directly contradicts invariant #1. No engineering workaround.
+- **Best remaining option: Benzinga via Massive/Polygon** ($99/mo, stable `benzinga_firm_id`, split-adjusted targets, history to 2011). Every provider's cheap tier is individual-use-only, so this is a commercial conversation, not a config flag.
+
+### Scoring fairness (§2) — partially fixed
+
+Adversarial review asked whether ingesting ratings at scale would produce a *fair*
+board. It would not, and the cause is pre-existing:
+
+- **`targetPrecision` had three defects**, one severe and live today: `Math.abs` on *both* the target move and the actual move meant a long from 100 with a 120 target closing at 80 — a 20% loss on a call for a 20% gain — scored a **perfect 1.000**. Now a signed ratio, returns `null` (not 0) when no target was published, and excludes trivially small targets.
+- **`confidenceMultiplier`** ([consensus.ts](../packages/scoring/src/consensus.ts)) — was `0.5 + c/200` applied only when non-null, so *stating* any confidence was a penalty and saying nothing was the maximum. Now centred on 1.0, range [0.75, 1.25], **clamped** (`claims.confidence` has no CHECK constraint and is writable via tRPC/MCP: confidence 10000 bought 50.75× under the old form).
+- **Read layer** — `deletedAt` was filtered in **zero** queries (soft-deleted entities ranked publicly); `leaderboard.top` had no horizon default so entities appeared up to 7× each; `ticker.topGuides`/`topPlayers` had no `asOfDate` filter so one guide appeared once per scoring date; `addScore` now rejects non-finite values (`NaN.toFixed(6)` is the string `'NaN'`, which Postgres accepts and orders **greater than all numerics** — one degenerate entity would have taken rank #1 everywhere).
+- **`bestInCurrentConditions` had never returned a row.** It filtered `regime_tag = currentRegime` against `eiv_overall`, which is written with `regimeTag` null; `NULL = 'bull'` is never true. Repointed at the regime-tagged `eiv` row.
+
+**NOT fixed — the structural bias remains.** `computeRegimeAwareEIV` multiplies a
+probability by a mean return whose units are "per horizon window", with no
+normalisation. Reproduced against the real function: identical hit rate and sample
+size, **EIV 9.9 at 1-year vs 0.8 at 30-day — a 12× gap from the measurement window
+alone**. A firm at a ~58% hit rate on 1-year Mag-7 longs (worse than buy-and-hold)
+outranks a *perfect* 36-call 30-day analyst. Design work is done (horizon-neutral,
+benchmark-subtracted, empirical-Bayes shrunk — a lower confidence bound is wrong as
+a ranking key because it rewards variance for cohorts above ~10) but deliberately
+deferred: it needs an `instrument_baselines` table, a base-rate worker, and a
+read-only dry run before anything writes.
+
+Also noted: `regimePenalty` is permanently 0.4 (`regimeHistory` is passed as a
+literal `[]`), and `checkAntiGaming` is **dead code** — never called, so there is no
+minimum-sample gate for anyone.
+
+### Corrections
+
+- **`.env.local`'s `DATABASE_URL` points at local Docker (`localhost:5433`), not Supabase.** Earlier findings in this session labelled "production" were local dev data. Production is reachable only via the Vercel env var, which `vercel env pull` returns as `[SENSITIVE]`.
+- Consequently "no Inngest cron has ever fired in production" is **unproven**. With production empty, every cron correctly no-ops, so "never ran" and "ran and did nothing" are indistinguishable from data. Only the Inngest dashboard can settle it.
+
+### Production state (verified 2026-08-03)
+
+Schema `0006` applied and confirmed. **Every table is empty** — `entities`, `claims`,
+`events`, `outcomes`, `scores`, `audit_roots`, `api_keys` all 0.
+
+This reframes Tier 1: `docs/EXTERNAL_KEYS.md` calls Upstash urgent because `/api/v1`
+and the MCP write tools are an "unprotected write path", but with **0 api_keys**
+every request 401s at `authenticateRequest` *before* `checkRateLimit` is reached —
+and the limiter keys on the authenticated key id, so it cannot throttle
+unauthenticated traffic either. Upstash matters **before the first `dm_live_` key is
+issued**, not now.
+
+### Blocked on dashboard configuration (both external, neither is code)
+
+1. **Inngest** — endpoint healthy (`has_signing_key:true`, 15 functions, `mode:"cloud"`) but whether Inngest Cloud actually invokes the crons is unconfirmed.
+2. **Clerk webhook** — the operator has signed in to production yet `entities = 0`. The route is deployed and reachable (`POST /api/webhooks/clerk` → `400 Missing svix headers`) and `/api/webhooks(.*)` is in `isPublicRoute`, so the failure is dashboard-side: either the endpoint is not registered in Clerk, or the account predates it. Note the route handles **only `user.created`** — an existing user never gets an entity retroactively, so this needs a webhook replay or a manual entity insert.
+
+Verification: typecheck 8/8 · scoring 87 · ingestion 44 (incl. live LLM) · shared 16
+· api 5 · web 18 skipped (needs `TEST_API_KEY`). All four modified read-layer queries
+executed against a real database to prove the SQL is valid.
+
+---
+
 ## 2026-05-05 — Full E2E Smoke Test + Inngest Production Wiring
 
 Ran a full end-to-end smoke test across three dimensions (build+tests, live LLM

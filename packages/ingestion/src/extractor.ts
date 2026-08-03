@@ -1,7 +1,14 @@
 import OpenAI from "openai";
-import { db, eq } from "@deepmint/db";
+import { db, eq, and, sql } from "@deepmint/db";
 import { instruments, claims } from "@deepmint/db/schema";
-import { MAG7_TICKERS, VALID_HORIZONS, getCurrentPrice } from "@deepmint/shared";
+import {
+  MAG7_TICKERS,
+  VALID_HORIZONS,
+  getCurrentPrice,
+  getEODPrice,
+  tradingDayOnOrBefore,
+} from "@deepmint/shared";
+import { resolveOrCreateGuide } from "./sources/resolver";
 
 /**
  * LLM extraction using HuggingFace Inference (OpenAI API-compatible).
@@ -48,7 +55,7 @@ export function stripJsonFences(content: string): string {
     .trim();
 }
 
-const EXTRACTION_PROMPT = `You are a financial claim extractor. Given raw text from an analyst or trader, extract structured predictions.
+const EXTRACTION_PROMPT = `You are a financial claim extractor. Given raw text from an analyst, trader, or financial news article, extract structured predictions.
 
 For each prediction found, return JSON:
 {
@@ -58,23 +65,85 @@ For each prediction found, return JSON:
       "direction": "long" | "short" | "neutral",
       "target_price": 250.00 | null,
       "horizon_description": "12 months" | "by Q3 2026" | "near term",
-      "horizon_days": 365 | 180 | 90 | 30,
+      "horizon_days": 365 | 180 | 90 | 30 | 7 | 1,
       "confidence_description": "high conviction" | "speculative" | null,
       "confidence_score": 85 | 50 | null,
       "rationale_summary": "Strong iPhone cycle + services growth",
-      "rationale_tags": ["earnings", "technical", "macro", "sector", "catalyst", "valuation", "momentum", "contrarian", "insider", "regulatory"]
+      "rationale_tags": ["earnings", "technical", "macro", "sector", "catalyst", "valuation", "momentum", "contrarian", "insider", "regulatory"],
+      "analyst_firm": "Morgan Stanley" | null,
+      "analyst_name": "Katy Huberty" | null,
+      "rating_grade": "strong_buy" | "buy" | "hold" | "sell" | "strong_sell" | null,
+      "rating_action": "initiate" | "upgrade" | "downgrade" | "maintain" | "reiterate" | null,
+      "rating_date": "2026-07-28" | null
     }
   ],
   "extraction_confidence": 0.95
 }
 
+ATTRIBUTION RULES (critical):
+- "analyst_firm" is the institution that ISSUED the rating (e.g. "Morgan Stanley", "Wedbush", "Goldman Sachs").
+- It is NOT the publication reporting it. Yahoo Finance, Nasdaq, Seeking Alpha, The Motley Fool, Zacks,
+  Benzinga, Reuters, Bloomberg, CNBC, MarketWatch and Barron's are PUBLICATIONS — never return one as analyst_firm.
+- If the issuing firm is not EXPLICITLY named in the text, set "analyst_firm" to null. NEVER guess or infer it.
+- "analyst_name": the individual analyst, only if explicitly named, else null.
+- "rating_date": ISO YYYY-MM-DD the rating was issued, only if stated in the text, else null.
+
 Rules:
 - Only extract EXPLICIT predictions with a directional view
-- Do NOT infer predictions that aren't clearly stated
+- Do NOT infer predictions that aren't clearly stated, and do NOT treat general market commentary as a prediction
+- horizon_days must be one of 1, 7, 30, 90, 180, 365
 - If horizon is vague, use the most conservative interpretation
 - Set extraction_confidence to reflect your certainty about the extraction quality
 - Return empty claims array if no predictions found
 - IMPORTANT: Return ONLY valid JSON, no markdown formatting or code blocks`;
+
+export const RATING_GRADES = [
+  "strong_buy", "buy", "hold", "sell", "strong_sell",
+] as const;
+export type RatingGrade = (typeof RATING_GRADES)[number];
+
+export const RATING_ACTIONS = [
+  "initiate", "upgrade", "downgrade", "maintain", "reiterate",
+] as const;
+export type RatingAction = (typeof RATING_ACTIONS)[number];
+
+/**
+ * Publications that carry ratings but never issue them. Models reliably obey
+ * the prompt's attribution rule, but a leaked publication would mint a bogus
+ * "Guide" entity that then ranks on the leaderboard — an unrecoverable error
+ * against an append-only ledger, so it is enforced in code as well.
+ */
+const PUBLICATION_PATTERN =
+  /\b(yahoo|nasdaq|seeking\s*alpha|motley\s*fool|the\s*fool|zacks|benzinga|reuters|bloomberg|cnbc|marketwatch|barron'?s?|globenewswire|business\s*wire|pr\s*newswire|thestreet|the\s*street|insider\s*monkey|simply\s*wall\s*st|investing\.com|forbes|wall\s*street\s*journal|wsj|financial\s*times|investor'?s\s*business\s*daily|associated\s*press|business\s*insider)\b/i;
+
+/** Reject a firm that is really a publication, a stub, or boilerplate. */
+export function isValidAnalystFirm(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const firm = value.trim();
+  if (firm.length < 2 || firm.length > 200) return false;
+  if (/^(n\/?a|none|null|unknown|analyst|analysts)$/i.test(firm)) return false;
+  return !PUBLICATION_PATTERN.test(firm);
+}
+
+/**
+ * Accept an ISO YYYY-MM-DD rating date that is real and plausible. A bad date
+ * would backdate a claim and price its entry against the wrong day, so an
+ * out-of-range value is dropped rather than coerced.
+ */
+export function parseRatingDate(value: unknown, now: Date = new Date()): string | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const parsed = new Date(`${raw}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  // Round-trip guards against overflow dates like 2026-02-31.
+  if (parsed.toISOString().slice(0, 10) !== raw) return null;
+  // Allow a day of clock skew ahead; reject anything further out or very stale.
+  const maxAhead = now.getTime() + 86_400_000;
+  const maxBehind = now.getTime() - 5 * 365 * 86_400_000;
+  if (parsed.getTime() > maxAhead || parsed.getTime() < maxBehind) return null;
+  return raw;
+}
 
 export interface ExtractedClaim {
   instrumentTicker: string;
@@ -84,6 +153,13 @@ export interface ExtractedClaim {
   confidenceScore: number | null;
   rationaleSummary: string;
   rationaleTags: string[];
+  /** Issuing institution, when explicitly named and not a publication. */
+  analystFirm: string | null;
+  analystName: string | null;
+  ratingGrade: RatingGrade | null;
+  ratingAction: RatingAction | null;
+  /** ISO YYYY-MM-DD the rating was issued, when stated. */
+  ratingDate: string | null;
 }
 
 export interface ExtractionResult {
@@ -282,6 +358,27 @@ export async function extractClaims(
       rationaleTags: Array.isArray(raw.rationale_tags)
         ? raw.rationale_tags.filter((t: unknown): t is string => typeof t === "string")
         : [],
+      // Attribution. Anything that fails validation degrades to null rather
+      // than rejecting the claim — an unattributed claim is still useful (it
+      // routes to review), whereas a wrongly attributed one is not.
+      analystFirm: isValidAnalystFirm(raw.analyst_firm)
+        ? raw.analyst_firm.trim()
+        : null,
+      analystName:
+        typeof raw.analyst_name === "string" && raw.analyst_name.trim().length > 0
+          ? raw.analyst_name.trim().slice(0, 200)
+          : null,
+      ratingGrade: (RATING_GRADES as readonly string[]).includes(
+        String(raw.rating_grade),
+      )
+        ? (String(raw.rating_grade) as RatingGrade)
+        : null,
+      ratingAction: (RATING_ACTIONS as readonly string[]).includes(
+        String(raw.rating_action),
+      )
+        ? (String(raw.rating_action) as RatingAction)
+        : null,
+      ratingDate: parseRatingDate(raw.rating_date),
     });
   }
 
@@ -292,11 +389,15 @@ export async function extractClaims(
  * Process an extraction: extract claims from event text and insert into DB.
  * Routes to active/pending_review based on extraction confidence.
  */
+/** Which ingestion lane produced a claim; mirrors the DB `source_kind` enum. */
+export type SourceKind = "wall_street_rating" | "analyst_feed" | "self_logged";
+
 export interface ProcessExtractionOptions {
   /**
    * The true historical timestamp for backfilled claims. Inserted directly
    * (never via UPDATE) so the append-only claims invariant holds. Defaults to
-   * the DB's now() for the live forward path.
+   * the DB's now() for the live forward path. An extracted rating_date takes
+   * precedence, since it is the date the call was actually made.
    */
   createdAt?: Date;
   /**
@@ -305,6 +406,16 @@ export interface ProcessExtractionOptions {
    * defaults to getCurrentPrice (price now).
    */
   entryPriceResolver?: (ticker: string) => Promise<number | null>;
+  /**
+   * Lane that produced these claims. Wall Street ratings additionally require a
+   * resolved issuing firm before a claim may go active.
+   */
+  sourceKind?: SourceKind;
+}
+
+/** UTC calendar date (YYYY-MM-DD) for a timestamp. */
+function toISODate(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
 export async function processExtraction(
@@ -312,7 +423,12 @@ export async function processExtraction(
   rawText: string,
   entityId: string,
   options: ProcessExtractionOptions = {},
-): Promise<{ inserted: number; pending: number; invalid: number }> {
+): Promise<{
+  inserted: number;
+  pending: number;
+  invalid: number;
+  duplicates: number;
+}> {
   // Idempotency: claims are APPEND-ONLY, so a worker retry that re-runs this
   // event would permanently duplicate them. Skip if this event already has
   // claims (and avoid a redundant LLM call).
@@ -322,13 +438,14 @@ export async function processExtraction(
     .where(eq(claims.eventId, eventId))
     .limit(1);
   if (existingClaim) {
-    return { inserted: 0, pending: 0, invalid: 0 };
+    return { inserted: 0, pending: 0, invalid: 0, duplicates: 0 };
   }
 
   const result = await extractClaims(rawText);
 
   let inserted = 0;
   let pending = 0;
+  let duplicates = 0;
 
   for (const claim of result.validClaims) {
     // Look up instrument by ticker
@@ -340,12 +457,50 @@ export async function processExtraction(
 
     if (!instrument) continue;
 
-    // Entry price: live "now" by default, or the historical EOD when backfilling.
+    // --- Attribution -------------------------------------------------------
+    // Credit the claim to the institution that ISSUED it, not to whoever
+    // carried the text. Without this the leaderboard ranks publications.
+    // `entityId` (the carrier) remains the provenance owner on the event.
+    let attributedEntityId = entityId;
+    let attributed = false;
+    if (claim.analystFirm) {
+      try {
+        // No sourceUrl: a firm is identified by name, and passing the carrier's
+        // feed URL here would collide distinct firms onto one entity.
+        attributedEntityId = await resolveOrCreateGuide({
+          handle: claim.analystFirm,
+          displayName: claim.analystFirm,
+          allowlisted: false,
+        });
+        attributed = true;
+      } catch {
+        attributedEntityId = entityId; // fall back to the carrier
+      }
+    }
+
+    // --- Claim timestamp ---------------------------------------------------
+    // A rating is dated when it was ISSUED, which may predate the article
+    // reporting it. Insert-only, so the append-only invariant holds.
+    const claimCreatedAt = claim.ratingDate
+      ? new Date(`${claim.ratingDate}T00:00:00Z`)
+      : (options.createdAt ?? null);
+
+    // --- Entry price -------------------------------------------------------
     let entryPriceCents: number | null = null;
     try {
-      entryPriceCents = options.entryPriceResolver
-        ? await options.entryPriceResolver(claim.instrumentTicker)
-        : await getCurrentPrice(claim.instrumentTicker);
+      if (claim.ratingDate) {
+        // Price as of the rating date, snapped back to a session that has a
+        // bar (a weekend-dated rating would otherwise return no price).
+        const asOf = tradingDayOnOrBefore(
+          new Date(`${claim.ratingDate}T00:00:00Z`),
+        );
+        const eod = await getEODPrice(claim.instrumentTicker, toISODate(asOf));
+        entryPriceCents = eod.closeCents;
+      } else if (options.entryPriceResolver) {
+        entryPriceCents = await options.entryPriceResolver(claim.instrumentTicker);
+      } else {
+        entryPriceCents = await getCurrentPrice(claim.instrumentTicker);
+      }
     } catch {
       // Non-fatal — continue with null price
     }
@@ -355,13 +510,44 @@ export async function processExtraction(
     const targetPriceCents =
       claim.targetPrice != null ? Math.round(claim.targetPrice * 100) : null;
 
-    // Route by extraction confidence
+    // Route by extraction confidence. A third-party rating whose issuing firm
+    // could not be identified must never score, so it goes to human review
+    // instead of being credited to the publication that carried it.
+    const needsAttribution =
+      options.sourceKind === "wall_street_rating" && !attributed;
     const status =
-      result.extractionConfidence >= 0.8 ? "active" : "pending_review";
+      result.extractionConfidence >= 0.8 && !needsAttribution
+        ? "active"
+        : "pending_review";
+
+    // --- Cross-source de-duplication ---------------------------------------
+    // One rating is reported by many publications, producing one event each.
+    // Without this the same call is counted several times for the same firm
+    // and its leaderboard weight is inflated. Compared as a bound date string,
+    // never a JS Date against a raw SQL expression (breaks the pg serializer).
+    const dedupeDate = toISODate(claimCreatedAt ?? new Date());
+    const [duplicate] = await db
+      .select({ id: claims.id })
+      .from(claims)
+      .where(
+        and(
+          eq(claims.entityId, attributedEntityId),
+          eq(claims.instrumentId, instrument.id),
+          eq(claims.direction, claim.direction),
+          eq(claims.horizonDays, claim.horizonDays),
+          sql`${claims.createdAt}::date = ${dedupeDate}::date`,
+        ),
+      )
+      .limit(1);
+
+    if (duplicate) {
+      duplicates++;
+      continue;
+    }
 
     await db.insert(claims).values({
       eventId,
-      entityId,
+      entityId: attributedEntityId,
       instrumentId: instrument.id,
       direction: claim.direction,
       targetPriceCents,
@@ -371,8 +557,12 @@ export async function processExtraction(
       rationaleTags: claim.rationaleTags,
       entryPriceCents,
       status,
-      // Explicit historical timestamp for backfill (insert-only; no UPDATE).
-      ...(options.createdAt ? { createdAt: options.createdAt } : {}),
+      sourceKind: options.sourceKind ?? null,
+      ratingGrade: claim.ratingGrade,
+      ratingAction: claim.ratingAction,
+      analystName: claim.analystName,
+      // Explicit historical timestamp (insert-only; no UPDATE).
+      ...(claimCreatedAt ? { createdAt: claimCreatedAt } : {}),
     });
 
     if (status === "active") inserted++;
@@ -383,5 +573,6 @@ export async function processExtraction(
     inserted,
     pending,
     invalid: result.invalidClaims.length,
+    duplicates,
   };
 }

@@ -66,25 +66,62 @@ export function brierScore(
 }
 
 /**
- * Target precision: how close actual price got to the target.
- * Returns 0-1 (1 = hit or exceeded target).
+ * Fraction of outcomes that carry a usable published price target.
+ * Reported separately so a Guide who publishes targets on 3 of 100 calls is
+ * distinguishable from one who publishes them on all 100.
+ */
+export function targetCoverage(
+  outcomes: { targetPriceCents: number | null }[]
+): number {
+  if (outcomes.length === 0) return 0;
+  return (
+    outcomes.filter((o) => o.targetPriceCents !== null).length / outcomes.length
+  );
+}
+
+/**
+ * Target precision: signed progress from entry toward the published target.
+ * Returns 0-1, or null when no usable target exists.
+ *
+ * Two defects fixed here.
+ *
+ * 1. NULL vs 0. "Never published a price target" and "published targets and
+ *    missed every one" are different observations; the old `return 0` made
+ *    them identical, so a Guide supplying no targets scored exactly 0.000 and
+ *    was indistinguishable on a leaderboard. Callers must not write a score
+ *    row when this returns null.
+ *
+ * 2. DIRECTION BLINDNESS. The old body took Math.abs of BOTH the target move
+ *    and the actual move, so it could not tell a hit from its mirror image: a
+ *    long from 100 with a 120 target that closed at 80 — a -20% move on a
+ *    +20% call — scored a PERFECT 1.000, as did the short mirror. The signed
+ *    ratio reproduces the correct cases exactly (exit 120 -> 1.0, exit 110 ->
+ *    0.5) and returns 0 for a wrong-way move.
+ *
+ * `minMoveFrac` is the smallest |target/entry - 1| that counts as a real
+ * target. Without it a 1-cent target on a $100 stock scores a trivial 1.000.
+ * Outcomes below the floor are EXCLUDED (there is no target worth scoring)
+ * rather than scored 0.
  */
 export function targetPrecision(
   outcomes: {
     targetPriceCents: number | null;
     exitPriceCents: number;
     entryPriceCents: number;
+    minMoveFrac?: number;
   }[]
-): number {
-  const withTargets = outcomes.filter((o) => o.targetPriceCents !== null);
-  if (withTargets.length === 0) return 0;
-
-  const precisions = withTargets.map((o) => {
-    const targetMove = Math.abs(o.targetPriceCents! - o.entryPriceCents);
-    const actualMove = Math.abs(o.exitPriceCents - o.entryPriceCents);
-    if (targetMove === 0) return 0;
-    return Math.min(1, actualMove / targetMove);
-  });
+): number | null {
+  const precisions: number[] = [];
+  for (const o of outcomes) {
+    if (o.targetPriceCents === null) continue;
+    if (o.entryPriceCents === 0) continue;
+    const targetMove = o.targetPriceCents - o.entryPriceCents; // SIGNED
+    const floor = (o.minMoveFrac ?? 0) * Math.abs(o.entryPriceCents);
+    if (Math.abs(targetMove) <= floor) continue; // degenerate / trivial target
+    const actualMove = o.exitPriceCents - o.entryPriceCents; // SIGNED
+    precisions.push(Math.max(0, Math.min(1, actualMove / targetMove)));
+  }
+  if (precisions.length === 0) return null;
   return avg(precisions);
 }
 
