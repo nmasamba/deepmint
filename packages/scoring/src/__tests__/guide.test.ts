@@ -103,11 +103,52 @@ describe("brierScore", () => {
 });
 
 describe("targetPrecision", () => {
-  it("returns 0 for no targets", () => {
+  it("returns null (not 0) when no target was ever published", () => {
+    // "Never published a target" must stay distinguishable from "published
+    // targets and missed every one" — a 0 would conflate the two and make a
+    // Guide who publishes no targets look identical to one who is always wrong.
     const outcomes = [
       { targetPriceCents: null, exitPriceCents: 110, entryPriceCents: 100 },
     ];
-    expect(targetPrecision(outcomes)).toBe(0);
+    expect(targetPrecision(outcomes)).toBeNull();
+  });
+
+  it("scores a wrong-way move at 0, not a perfect 1.0", () => {
+    // Regression: the old body took Math.abs of both the target move and the
+    // actual move, so a long from 100 with a 120 target closing at 80 — a 20%
+    // loss on a call for a 20% gain — scored a PERFECT 1.0.
+    const longGoneWrong = [
+      { targetPriceCents: 120, exitPriceCents: 80, entryPriceCents: 100 },
+    ];
+    expect(targetPrecision(longGoneWrong)).toBe(0);
+
+    // The short mirror: target 80 (predicting a fall), price rises to 120.
+    const shortGoneWrong = [
+      { targetPriceCents: 80, exitPriceCents: 120, entryPriceCents: 100 },
+    ];
+    expect(targetPrecision(shortGoneWrong)).toBe(0);
+  });
+
+  it("scores a correct short call toward its target", () => {
+    // Target 80 from 100 (predicting -20%); closes at 90, i.e. half way there.
+    const outcomes = [
+      { targetPriceCents: 80, exitPriceCents: 90, entryPriceCents: 100 },
+    ];
+    expect(targetPrecision(outcomes)).toBeCloseTo(0.5);
+  });
+
+  it("excludes a trivially small target rather than scoring it 1.0", () => {
+    // A 1-cent target on a $100 stock is not a forecast. With a 1% floor it is
+    // excluded, leaving no scoreable target at all.
+    const outcomes = [
+      {
+        targetPriceCents: 10001,
+        exitPriceCents: 10001,
+        entryPriceCents: 10000,
+        minMoveFrac: 0.01,
+      },
+    ];
+    expect(targetPrecision(outcomes)).toBeNull();
   });
 
   it("returns 1.0 when target exactly met", () => {

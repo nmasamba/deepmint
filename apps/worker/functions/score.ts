@@ -7,6 +7,7 @@ import {
   zTestSignificance,
   brierScore,
   targetPrecision,
+  targetCoverage,
   sharpeRatio,
   maxDrawdown,
   consistencyScore,
@@ -107,6 +108,18 @@ export const scoreFunction = inngest.createFunction(
           horizon: string | null = "all",
           regimeTag: string | null = null
         ) => {
+          // Refuse non-finite values. NaN.toFixed(6) is the STRING "NaN",
+          // which PostgreSQL's numeric type accepts — and per its documented
+          // ordering NaN compares GREATER THAN all other numerics, so a single
+          // degenerate entity would take rank #1 on every ORDER BY value DESC
+          // in the codebase. Dropping the row leaves the entity unranked for
+          // that metric, which is the honest outcome.
+          if (!Number.isFinite(value)) {
+            console.warn(
+              `[scoring] Skipping non-finite ${metric} for entity ${entity.id}: ${value}`,
+            );
+            return;
+          }
           scoresToInsert.push({
             entityId: entity.id,
             metric,
@@ -150,7 +163,13 @@ export const scoreFunction = inngest.createFunction(
                 entryPriceCents: o.entryPriceCents,
               };
             });
-          addScore("target_precision", targetPrecision(targetsData));
+          // null means this Guide never published a usable price target, which
+          // is NOT the same as publishing targets and missing them. Writing a
+          // 0 here would make the two indistinguishable on a leaderboard, so
+          // the metric is omitted entirely instead.
+          const tp = targetPrecision(targetsData);
+          if (tp !== null) addScore("target_precision", tp);
+          addScore("target_coverage", targetCoverage(targetsData));
 
           // Hit rate by horizon
           const byHorizon = new Map<string, typeof entityOutcomes>();
