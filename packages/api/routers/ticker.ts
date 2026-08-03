@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, sql } from "@deepmint/db";
+import { eq, and, desc, sql, isNull } from "@deepmint/db";
 import {
   instruments,
   consensusSignals,
@@ -71,6 +71,16 @@ export const tickerRouter = router({
               and(
                 eq(entities.type, "guide"),
                 eq(scores.metric, "eiv"),
+                // Pin to one row per entity. `scores` holds a row per entity
+                // per metric per horizon per regime per DATE, so without these
+                // a guide scored on 30 days appeared 30 times and limit(5)
+                // could return the same guide five times over.
+                eq(scores.horizon, "all"),
+                eq(
+                  scores.asOfDate,
+                  sql`(SELECT MAX(${scores.asOfDate}) FROM ${scores} WHERE ${scores.metric} = 'eiv')`,
+                ),
+                isNull(entities.deletedAt),
               ),
             )
             .orderBy(desc(scores.value))
@@ -96,6 +106,13 @@ export const tickerRouter = router({
               and(
                 eq(entities.type, "player"),
                 eq(scores.metric, "sharpe"),
+                // Same one-row-per-entity pinning as topGuides above.
+                eq(scores.horizon, "all"),
+                eq(
+                  scores.asOfDate,
+                  sql`(SELECT MAX(${scores.asOfDate}) FROM ${scores} WHERE ${scores.metric} = 'sharpe')`,
+                ),
+                isNull(entities.deletedAt),
               ),
             )
             .orderBy(desc(scores.value))

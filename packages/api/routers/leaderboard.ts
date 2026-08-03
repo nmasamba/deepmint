@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
-import { db, desc, eq, and, sql } from "@deepmint/db";
+import { db, desc, eq, and, sql, isNull } from "@deepmint/db";
 import { scores, entities } from "@deepmint/db/schema";
 import { detectRegime } from "@deepmint/scoring";
 import { getRegimeIndicators } from "@deepmint/shared";
@@ -14,18 +14,24 @@ export const leaderboardRouter = router({
       z.object({
         metric: z.string().min(1),
         entityType: z.enum(["player", "guide"]).optional(),
-        horizon: z.string().optional(),
+        // Defaults to "all". The scores table holds one row per entity per
+        // metric per horizon, so leaving this unfiltered listed an entity once
+        // per horizon it had been scored at — up to 7 duplicate rows each for
+        // hit_rate, which is written per-horizon as well as pooled.
+        horizon: z.string().default("all"),
         regimeTag: z.string().optional(),
         limit: z.number().min(1).max(100).default(25),
       })
     )
     .query(async ({ input }) => {
       // Build WHERE conditions
-      const conditions = [eq(scores.metric, input.metric)];
+      const conditions = [
+        eq(scores.metric, input.metric),
+        eq(scores.horizon, input.horizon),
+        // Soft-deleted entities must not be publicly ranked.
+        isNull(entities.deletedAt),
+      ];
 
-      if (input.horizon) {
-        conditions.push(eq(scores.horizon, input.horizon));
-      }
       if (input.regimeTag) {
         conditions.push(eq(scores.regimeTag, input.regimeTag));
       }
@@ -35,11 +41,18 @@ export const leaderboardRouter = router({
         conditions.push(eq(entities.type, input.entityType));
       }
 
-      // Get latest as_of_date for this metric
+      // Latest as_of_date for this metric AT THIS HORIZON. Probing on the
+      // metric alone could select a date that has rows at some other horizon
+      // but none at the requested one, yielding an empty board.
       const [latestDate] = await db
         .select({ asOfDate: scores.asOfDate })
         .from(scores)
-        .where(eq(scores.metric, input.metric))
+        .where(
+          and(
+            eq(scores.metric, input.metric),
+            eq(scores.horizon, input.horizon),
+          ),
+        )
         .orderBy(desc(scores.asOfDate))
         .limit(1);
 
@@ -79,6 +92,9 @@ export const leaderboardRouter = router({
         score: parseFloat(row.value),
         horizon: row.horizon,
         regimeTag: row.regimeTag,
+        // Surfaced so a caller can tell whether it is looking at a current
+        // board or a stale one from a previous scoring run.
+        asOfDate: row.asOfDate,
       }));
     }),
 
@@ -121,7 +137,8 @@ export const leaderboardRouter = router({
           and(
             eq(scores.metric, "hit_rate"),
             eq(scores.horizon, "all"),
-            eq(scores.asOfDate, latestDate.asOfDate)
+            eq(scores.asOfDate, latestDate.asOfDate),
+            isNull(entities.deletedAt)
           )
         )
         .orderBy(desc(scores.value))
@@ -153,8 +170,17 @@ export const leaderboardRouter = router({
         });
       }
 
+      // Query the regime-tagged "eiv" row, NOT "eiv_overall".
+      //
+      // score.ts writes eiv_overall with regimeTag null and writes "eiv" with
+      // horizon "all" plus the regime tag. Filtering eiv_overall on
+      // regime_tag = currentRegime therefore compared NULL to a string, which
+      // is never true in SQL — and because the latestDate probe below shares
+      // these conditions, this endpoint returned an empty list unconditionally
+      // and had never surfaced a single row.
       const conditions = [
-        eq(scores.metric, "eiv_overall"),
+        eq(scores.metric, "eiv"),
+        eq(scores.horizon, "all"),
         eq(scores.regimeTag, currentRegime),
       ];
 
@@ -170,9 +196,11 @@ export const leaderboardRouter = router({
       if (!latestDate) return { regime: currentRegime, entities: [] };
 
       conditions.push(eq(scores.asOfDate, latestDate.asOfDate));
-      // Filter by entity type in SQL (before LIMIT) so the result is the best
-      // N of the requested type, not truncated from a mixed-type top N. Added
-      // after the latestDate subquery, which does not join entities.
+      // Entity-table predicates are added only AFTER the latestDate probe
+      // above, which selects from `scores` alone and would produce invalid SQL
+      // if it referenced `entities`. Both are applied before LIMIT so the
+      // result is the best N of the requested type, not a truncated mixed set.
+      conditions.push(isNull(entities.deletedAt));
       if (input.entityType) {
         conditions.push(eq(entities.type, input.entityType));
       }
