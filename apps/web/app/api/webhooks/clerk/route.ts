@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { Webhook } from "svix";
-import { db, eq } from "@deepmint/db";
-import { entities } from "@deepmint/db/schema";
+import { ensureEntityForClerkUser } from "@deepmint/db/queries/ensureEntityForClerkUser";
 import { slugify } from "@deepmint/shared";
 
 interface ClerkWebhookEvent {
@@ -59,34 +58,27 @@ export async function POST(req: Request) {
   }
 
   if (event.type === "user.created") {
-    const { id, first_name, last_name, email_addresses, external_accounts } =
-      event.data;
+    const { id, first_name, last_name } = event.data;
 
     const displayName =
       [first_name, last_name].filter(Boolean).join(" ") || "User";
-    let slug = slugify(displayName);
 
-    // Handle slug collisions by appending random suffix
-    const [existing] = await db
-      .select()
-      .from(entities)
-      .where(eq(entities.slug, slug))
-      .limit(1);
-
-    if (existing) {
-      slug = `${slug}-${Math.random().toString(36).slice(2, 7)}`;
-    }
-
-    await db.insert(entities).values({
+    // Idempotent: clerk_user_id is UNIQUE, so the previous bare insert threw a
+    // duplicate-key error on any Clerk retry or manual Replay. That surfaced as
+    // a 500, which Clerk retried, looping. Returning the existing row makes a
+    // redelivery a no-op 200.
+    const entity = await ensureEntityForClerkUser({
       clerkUserId: id,
-      type: "player",
       displayName,
-      slug,
+      slug: slugify(displayName),
       avatarUrl: event.data.image_url,
     });
 
     // eslint-disable-next-line no-console
-    console.log("[clerk webhook] entity created", { clerkUserId: id, slug });
+    console.log("[clerk webhook] entity ensured", {
+      clerkUserId: id,
+      slug: entity.slug,
+    });
   }
 
   return new Response("OK", { status: 200 });
