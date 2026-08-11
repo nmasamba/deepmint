@@ -143,7 +143,7 @@ export const instrumentRouter = router({
         exchange: z.enum(["NYSE", "NASDAQ", "AMEX"]).optional(),
         limit: z.number().min(1).max(100).default(20),
         // Composite keyset cursor: "<bucketRank>:<id>" (matches the ORDER BY).
-        cursor: z.string().optional(),
+        cursor: z.string().nullish(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -238,7 +238,7 @@ export const instrumentRouter = router({
       z.object({
         includeInactive: z.boolean().default(true),
         limit: z.number().min(1).max(200).default(50),
-        cursor: z.string().uuid().optional(),
+        cursor: z.string().uuid().nullish(),
       }),
     )
     .query(async ({ ctx, input }) => {

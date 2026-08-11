@@ -6,6 +6,12 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
+  // tRPC — auth is enforced per-procedure (protectedProcedure checks the
+  // session in context). Without this, clerkMiddleware's auth.protect()
+  // returns 404 for any signed-out request, so every publicProcedure the
+  // landing page calls (e.g. entity.stats) silently failed for visitors —
+  // and the edge cached the 404s.
+  "/api/trpc(.*)",
   // B2B REST API — authenticated via Bearer API key, not Clerk session
   "/api/v1(.*)",
   // MCP server for AI agents — authenticated via Bearer API key, not Clerk

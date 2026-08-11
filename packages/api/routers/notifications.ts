@@ -8,7 +8,7 @@ export const notificationsRouter = router({
   list: protectedProcedure
     .input(
       z.object({
-        cursor: z.string().optional(), // ISO timestamp
+        cursor: z.string().nullish(), // ISO timestamp
         limit: z.number().min(1).max(50).default(20),
         unreadOnly: z.boolean().optional(),
       }),
