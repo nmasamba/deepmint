@@ -138,7 +138,7 @@ export const claimRouter = router({
         instrumentId: z.string().uuid().optional(),
         direction: z.enum(["long", "short", "neutral"]).optional(),
         horizonDays: z.number().optional(),
-        cursor: z.string().optional(), // ISO timestamp of last item
+        cursor: z.string().nullish(), // ISO timestamp of last item
         limit: z.number().min(1).max(100).default(20),
       }),
     )
@@ -303,7 +303,7 @@ export const claimRouter = router({
   pendingReview: adminProcedure
     .input(
       z.object({
-        cursor: z.string().optional(),
+        cursor: z.string().nullish(),
         limit: z.number().min(1).max(100).default(20),
       }),
     )

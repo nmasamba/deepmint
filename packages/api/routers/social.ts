@@ -141,7 +141,7 @@ export const socialRouter = router({
     .input(
       z.object({
         entityId: z.string().uuid(),
-        cursor: z.string().optional(),
+        cursor: z.string().nullish(),
         limit: z.number().min(1).max(100).default(20),
       }),
     )
@@ -185,7 +185,7 @@ export const socialRouter = router({
     .input(
       z.object({
         entityId: z.string().uuid(),
-        cursor: z.string().optional(),
+        cursor: z.string().nullish(),
         limit: z.number().min(1).max(100).default(20),
       }),
     )
@@ -258,7 +258,7 @@ export const socialRouter = router({
   feed: protectedProcedure
     .input(
       z.object({
-        cursor: z.string().optional(),
+        cursor: z.string().nullish(),
         limit: z.number().min(1).max(100).default(20),
       }),
     )
