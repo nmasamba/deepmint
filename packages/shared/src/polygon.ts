@@ -99,24 +99,27 @@ export async function polygonRateLimit(): Promise<void> {
 
 /**
  * Get the current (previous close) price for a ticker in cents.
- * Uses snapshot endpoint; falls back to previous close agg, then dev fallback.
+ *
+ * Tries the previous-day aggregate FIRST: it is entitled on the current plan,
+ * whereas the snapshot endpoint returns 403 NOT_AUTHORIZED — and because both
+ * calls sit behind the shared 12.5s throttle, snapshot-first burned a wasted
+ * request plus a full throttle interval on every single price lookup (13s
+ * claim submissions, measured). Snapshot is kept as redundancy only; it never
+ * offered more than prevDay.c, the same datum prev-agg returns.
+ *
+ * When a key IS configured and both endpoints fail, this THROWS. It previously
+ * returned DEV_FALLBACK_PRICES — and the first real production claim recorded
+ * NVDA at the fallback $950.00 against a real price of $217.50, permanently,
+ * into an append-only table. A fabricated price in the claims ledger is
+ * strictly worse than a failed request: callers either surface the error to
+ * the user (tRPC) or catch-and-retry on the next run (workers).
+ * The dev fallback remains only for the no-key case (local dev).
  */
 export async function getCurrentPrice(ticker: string): Promise<number> {
   const client = getClient();
   if (!client) return getFallbackPrice(ticker);
 
-  try {
-    await polygonRateLimit();
-    const resp = await client.getStocksSnapshotTicker({
-      stocksTicker: ticker.toUpperCase(),
-    });
-    const close = resp.ticker?.prevDay?.c;
-    if (typeof close === "number") return dollarsToCents(close);
-  } catch {
-    // fall through
-  }
-
-  // Fallback: previous day aggregate
+  let prevAggError: unknown;
   try {
     await polygonRateLimit();
     const resp = await client.getPreviousStocksAggregates({
@@ -126,11 +129,31 @@ export async function getCurrentPrice(ticker: string): Promise<number> {
     if (results && results.length > 0 && typeof results[0].c === "number") {
       return dollarsToCents(results[0].c);
     }
-  } catch {
-    // fall through
+    prevAggError = new Error("prev-agg returned no usable bar");
+  } catch (err) {
+    prevAggError = err;
+    console.warn(`[polygon] prev-agg failed for ${ticker}:`, err instanceof Error ? err.message : err);
   }
 
-  return getFallbackPrice(ticker);
+  let snapshotError: unknown;
+  try {
+    await polygonRateLimit();
+    const resp = await client.getStocksSnapshotTicker({
+      stocksTicker: ticker.toUpperCase(),
+    });
+    const close = resp.ticker?.prevDay?.c;
+    if (typeof close === "number") return dollarsToCents(close);
+    snapshotError = new Error("snapshot returned no prevDay close");
+  } catch (err) {
+    snapshotError = err;
+    console.warn(`[polygon] snapshot failed for ${ticker}:`, err instanceof Error ? err.message : err);
+  }
+
+  throw new Error(
+    `Polygon price lookup failed for ${ticker} ` +
+      `(prev-agg: ${prevAggError instanceof Error ? prevAggError.message : prevAggError}; ` +
+      `snapshot: ${snapshotError instanceof Error ? snapshotError.message : snapshotError})`,
+  );
 }
 
 /**
