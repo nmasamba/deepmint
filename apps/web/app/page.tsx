@@ -2,7 +2,6 @@ import { LandingNavbar } from "@/components/landing/LandingNavbar";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { ChoosePath } from "@/components/landing/ChoosePath";
-import { SocialProof } from "@/components/landing/SocialProof";
 import { Footer } from "@/components/landing/Footer";
 
 export default function HomePage() {
@@ -12,7 +11,10 @@ export default function HomePage() {
       <HeroSection />
       <HowItWorks />
       <ChoosePath />
-      <SocialProof />
+      {/* SocialProof (live platform stats) is hidden pre-launch: with a
+          near-empty ledger the numbers undermine rather than build trust.
+          Re-enable by restoring the import + element once there is real
+          volume to show. */}
       <Footer />
     </main>
   );
