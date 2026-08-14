@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, ilike, asc, sql } from "@deepmint/db";
+import { eq, ilike, asc, sql, isNull } from "@deepmint/db";
 import { entities, claims, outcomes } from "@deepmint/db/schema";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 
@@ -92,15 +92,23 @@ export const entityRouter = router({
   stats: publicProcedure.query(async ({ ctx }) => {
     const [[claimsResult], [outcomesResult], [entitiesResult]] =
       await Promise.all([
+        // Only ACTIVE claims are "predictions tracked". A rejected claim is
+        // excluded from the feed, markout and scoring — advertising it in the
+        // headline count would overstate the ledger (a bare count(*) here
+        // showed 2 while the feed correctly showed 1).
         ctx.db
           .select({ count: sql<number>`count(*)::int` })
-          .from(claims),
+          .from(claims)
+          .where(eq(claims.status, "active")),
         ctx.db
           .select({ count: sql<number>`count(*)::int` })
           .from(outcomes),
+        // Soft-deleted entities are excluded everywhere else (leaderboard,
+        // consensus); the public headcount must match.
         ctx.db
           .select({ count: sql<number>`count(*)::int` })
-          .from(entities),
+          .from(entities)
+          .where(isNull(entities.deletedAt)),
       ]);
 
     return {
