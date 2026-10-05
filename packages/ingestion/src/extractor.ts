@@ -279,6 +279,11 @@ export interface ExtractionResult {
   validClaims: ExtractedClaim[];
   invalidClaims: Array<{ raw: Record<string, unknown>; reason: string }>;
   extractionConfidence: number;
+  /**
+   * The model that answered and the provider the router picked for it, e.g.
+   * "openai/gpt-oss-120b:fastest (cerebras)". Null when no model was called.
+   */
+  model: string | null;
 }
 
 /**
@@ -327,12 +332,15 @@ export function mentionsMag7(text: string): boolean {
  * Throws on a truncated, empty or unparseable response. Returning "no claims"
  * instead would silently drop every call in the post; throwing hands it to the
  * fallback model and then to the worker's retries.
+ *
+ * Also returns the provider that served the call, which the HF router reports
+ * in the x-inference-provider header (":fastest" picks it per request).
  */
 async function callExtractionLLM(
   client: OpenAI,
   model: string,
   rawText: string,
-): Promise<Record<string, unknown>> {
+): Promise<{ parsed: Record<string, unknown>; provider: string | null }> {
   const base = {
     model,
     messages: [
@@ -344,12 +352,11 @@ async function callExtractionLLM(
   };
   const options = { timeout: LLM_TIMEOUT_MS, maxRetries: LLM_MAX_RETRIES };
 
-  let r: OpenAI.Chat.ChatCompletion;
+  let res: { data: OpenAI.Chat.ChatCompletion; response: Response };
   try {
-    r = await client.chat.completions.create(
-      { ...base, response_format: { type: "json_object" } },
-      options,
-    );
+    res = await client.chat.completions
+      .create({ ...base, response_format: { type: "json_object" } }, options)
+      .withResponse();
   } catch (err) {
     // Some HuggingFace-routed models reject response_format. Fall back to a
     // plain call ONLY for a parameter-support error — rethrow genuine
@@ -359,10 +366,10 @@ async function callExtractionLLM(
     const paramUnsupported =
       status === 400 || msg.includes("response_format") || msg.includes("json");
     if (!paramUnsupported) throw err;
-    r = await client.chat.completions.create(base, options);
+    res = await client.chat.completions.create(base, options).withResponse();
   }
 
-  const choice = r.choices[0];
+  const choice = res.data.choices[0];
   if (choice?.finish_reason === "length") {
     throw new Error(`Model ${model} hit the ${LLM_MAX_OUTPUT_TOKENS}-token output cap (truncated)`);
   }
@@ -377,7 +384,10 @@ async function callExtractionLLM(
   if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { claims?: unknown }).claims)) {
     throw new Error(`Model ${model} returned JSON without a claims array: ${content.slice(0, 200)}`);
   }
-  return parsed as Record<string, unknown>;
+  return {
+    parsed: parsed as Record<string, unknown>,
+    provider: res.response.headers.get("x-inference-provider"),
+  };
 }
 
 export async function extractClaims(
@@ -388,22 +398,28 @@ export async function extractClaims(
   // Skip the LLM call entirely when no Mag-7 instrument is referenced — most
   // scraped text is off-topic, so this removes the bulk of LLM volume.
   if (!mentionsMag7(rawText)) {
-    return { validClaims: [], invalidClaims: [], extractionConfidence: 0 };
+    return { validClaims: [], invalidClaims: [], extractionConfidence: 0, model: null };
   }
 
   // Try the primary model, then the fallback if it errors (e.g. a provider
   // deprecated/dropped the model). Distinct model+provider for resilience.
   const fallback = process.env.LLM_MODEL_FALLBACK ?? DEFAULT_FALLBACK_MODEL;
   const models = [
-    process.env.LLM_MODEL ?? DEFAULT_MODEL,
+    // `||`, not `??`: an empty LLM_MODEL means "use the default", whereas an
+    // empty LLM_MODEL_FALLBACK deliberately disables the fallback.
+    process.env.LLM_MODEL || DEFAULT_MODEL,
     fallback,
   ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
   let parsed: Record<string, unknown> | undefined;
+  let usedModel: string | null = null;
   let lastError: unknown;
   for (const model of models) {
     try {
-      parsed = await callExtractionLLM(client, model, rawText);
+      const reply = await callExtractionLLM(client, model, rawText);
+      parsed = reply.parsed;
+      usedModel = `${model} (${reply.provider ?? "provider not reported"})`;
+      console.log(`[extractor] Answered by ${usedModel}`);
       break;
     } catch (err) {
       lastError = err;
@@ -507,7 +523,7 @@ export async function extractClaims(
     });
   }
 
-  return { validClaims, invalidClaims, extractionConfidence };
+  return { validClaims, invalidClaims, extractionConfidence, model: usedModel };
 }
 
 /**
@@ -554,6 +570,8 @@ export async function processExtraction(
   pending: number;
   invalid: number;
   duplicates: number;
+  /** Which model and provider extracted this event; null if none was called. */
+  model: string | null;
 }> {
   // Idempotency: claims are APPEND-ONLY, so a worker retry that re-runs this
   // event would permanently duplicate them. Skip if this event already has
@@ -564,7 +582,7 @@ export async function processExtraction(
     .where(eq(claims.eventId, eventId))
     .limit(1);
   if (existingClaim) {
-    return { inserted: 0, pending: 0, invalid: 0, duplicates: 0 };
+    return { inserted: 0, pending: 0, invalid: 0, duplicates: 0, model: null };
   }
 
   const result = await extractClaims(rawText);
@@ -708,5 +726,6 @@ export async function processExtraction(
     pending,
     invalid: result.invalidClaims.length,
     duplicates,
+    model: result.model,
   };
 }

@@ -60,7 +60,8 @@ export const extractFunction = inngest.createFunction(
             `${extractionResult.inserted} active, ` +
             `${extractionResult.pending} pending review, ` +
             `${extractionResult.invalid} invalid, ` +
-            `${extractionResult.duplicates} duplicate`,
+            `${extractionResult.duplicates} duplicate` +
+            (extractionResult.model ? ` via ${extractionResult.model}` : ""),
           );
 
           return extractionResult;

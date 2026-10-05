@@ -96,6 +96,8 @@ describe.skipIf(!HAS_API_KEY)("extractClaims (live LLM)", () => {
 
     const tickers = new Set(result.validClaims.map((c) => c.instrumentTicker));
     expect(tickers.size).toBeGreaterThanOrEqual(5);
+    // Reports which model answered and the provider the router picked for it.
+    expect(result.model).toMatch(/^\S+ \((?!provider not reported)[^)]+\)$/);
 
     // Every horizon here is stated outright inside the call's own sentence, so
     // most claims should clear processExtraction's evidence gate.
