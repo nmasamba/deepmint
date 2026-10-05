@@ -3,6 +3,7 @@ import { db, eq, and } from "@deepmint/db";
 import { events, claims, outcomes, instruments } from "@deepmint/db/schema";
 import {
   computeContentHash,
+  mentionsMag7,
   processExtraction,
   resolveOrCreateGuide,
 } from "@deepmint/ingestion";
@@ -54,6 +55,8 @@ interface BackfillEventData {
  * Invariants preserved: events/claims are inserted once (append-only, never
  * UPDATEd) with explicit historical timestamps; outcomes are deduped on
  * (claimId, horizon). No resolution notifications are sent for backfill.
+ * Only `active` claims are matured; claims held for review score only once
+ * approved, via the daily markout.
  */
 export const backfillFunction = inngest.createFunction(
   {
@@ -66,8 +69,10 @@ export const backfillFunction = inngest.createFunction(
 
     let eventsInserted = 0;
     let claimsInserted = 0;
+    let claimsPending = 0;
     let outcomesInserted = 0;
     const newClaimIds: string[] = [];
+    const failedEventIds: string[] = [];
 
     for (const analyst of analysts ?? []) {
       const entityId = await step.run(`resolve-${analyst.handle}`, () =>
@@ -81,10 +86,17 @@ export const backfillFunction = inngest.createFunction(
       );
 
       for (const item of analyst.items ?? []) {
-        const result = await step.run(
-          `ingest-${entityId}-${item.url ?? item.publishedAt}`,
+        const publishedAt = new Date(item.publishedAt);
+
+        // Insert the event in its own step, so that when extraction throws and
+        // Inngest retries, only the extraction re-runs. In one step, the retry
+        // found the event it had just inserted and returned early, losing the
+        // post's claims for good.
+        // (A new step ID: a run in flight at deploy must not replay the old
+        // step's memoised result, which had a different shape.)
+        const ingested = await step.run(
+          `ingest-event-${entityId}-${item.url ?? item.publishedAt}`,
           async () => {
-            const publishedAt = new Date(item.publishedAt);
             const sourceUrl = item.url ?? analyst.sourceUrl ?? analyst.handle;
             const contentHash = computeContentHash(
               sourceUrl,
@@ -97,7 +109,7 @@ export const backfillFunction = inngest.createFunction(
               .from(events)
               .where(eq(events.contentHash, contentHash))
               .limit(1);
-            if (existing) return { inserted: false, claimIds: [] as string[] };
+            if (existing) return { inserted: false, eventId: existing.id };
 
             const [ev] = await db
               .insert(events)
@@ -110,8 +122,22 @@ export const backfillFunction = inngest.createFunction(
                 capturedAt: publishedAt,
               })
               .returning({ id: events.id });
+            return { inserted: true, eventId: ev!.id };
+          },
+        );
+        if (!ingested.inserted) continue;
+        eventsInserted += 1;
+        // Text naming no Mag-7 instrument cannot yield a claim; skipping it
+        // keeps the run well under Inngest's per-run step limit.
+        if (!mentionsMag7(item.rawText)) continue;
 
-            await processExtraction(ev!.id, item.rawText, entityId, {
+        // processExtraction skips an event that already has claims, so a
+        // retry cannot duplicate them. Once the step's own retries are spent,
+        // skip the post rather than fail the rest of the backfill.
+        const extracted = await step.run(
+          `extract-${ingested.eventId}`,
+          async () => {
+            await processExtraction(ingested.eventId, item.rawText, entityId, {
               // Historical archive of a Guide's own published views — the
               // resolved entity IS the author, so attribution is inherent.
               sourceKind: "analyst_feed",
@@ -126,17 +152,33 @@ export const backfillFunction = inngest.createFunction(
               },
             });
 
-            const inserted = await db
-              .select({ id: claims.id })
+            // Only active claims may be matured and scored here. A claim held
+            // for review must not earn an outcome before anyone approves it.
+            // Counted from the table, so a retry after a partial run is exact.
+            const rows = await db
+              .select({ id: claims.id, status: claims.status })
               .from(claims)
-              .where(eq(claims.eventId, ev!.id));
-            return { inserted: true, claimIds: inserted.map((c) => c.id) };
+              .where(eq(claims.eventId, ingested.eventId));
+            return {
+              claimIds: rows.filter((c) => c.status === "active").map((c) => c.id),
+              pending: rows.filter((c) => c.status === "pending_review").length,
+            };
           },
-        );
+        ).catch((err: unknown) => {
+          console.error(
+            `[backfill] Extraction failed for event ${ingested.eventId}:`,
+            err instanceof Error ? err.message : err,
+          );
+          return null;
+        });
+        if (!extracted) {
+          failedEventIds.push(ingested.eventId);
+          continue;
+        }
 
-        if (result.inserted) eventsInserted += 1;
-        claimsInserted += result.claimIds.length;
-        newClaimIds.push(...result.claimIds);
+        claimsInserted += extracted.claimIds.length;
+        claimsPending += extracted.pending;
+        newClaimIds.push(...extracted.claimIds);
       }
     }
 
@@ -202,8 +244,16 @@ export const backfillFunction = inngest.createFunction(
     }
 
     console.log(
-      `[backfill] ${eventsInserted} events, ${claimsInserted} claims, ${outcomesInserted} outcomes`,
+      `[backfill] ${eventsInserted} events, ${claimsInserted} active claims, ` +
+        `${claimsPending} pending review, ${outcomesInserted} outcomes, ` +
+        `${failedEventIds.length} extraction failures`,
     );
-    return { eventsInserted, claimsInserted, outcomesInserted };
+    return {
+      eventsInserted,
+      claimsInserted,
+      claimsPending,
+      outcomesInserted,
+      failedEventIds,
+    };
   },
 );
