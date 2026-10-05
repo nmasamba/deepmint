@@ -4,6 +4,17 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-10-05 — Claim Inserts: Integer Confidence, All-or-Nothing Writes
+
+Two defects in `processExtraction`'s write path ([extractor.ts](../packages/ingestion/src/extractor.ts)):
+
+- **A fractional confidence crashed the insert.** `confidence_score` was clamped to 0-100 but never rounded, and `claims.confidence` is an integer column, so a model answering `0.85` or `72.5` failed the whole insert ("invalid input syntax for type integer"). The new `parseConfidenceScore` rounds and clamps, and reads values in (0, 1] as fractions (0.85 → 85), mirroring how `extraction_confidence` is rescaled.
+- **A post's claims are written all-or-nothing.** They used to be inserted one at a time with no transaction. A failure partway through left the earlier claims in place, and on retry the existing-claims guard skipped the event, so the rest were lost. Every claim is now resolved first and written in one multi-row insert. Cross-source dedupe gains an in-batch check, because its query cannot see claims from the same post before they are written.
+
+Verified live on local Postgres: a two-row insert with one bad row wrote neither. A real extraction mixing a dated rating (backdated `created_at`) and an undated call (database default) inserted both correctly. On the backfill lane, a retry recovers the whole post only together with [#7](https://github.com/nmasamba/deepmint/pull/7)'s separate extraction step.
+
+---
+
 ## 2026-10-05 — Extractor Integrity: Truncation, Stated Horizons, Verified Quotes
 
 Whatever extraction writes as `active` becomes a permanent published score, so
