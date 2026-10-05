@@ -4,6 +4,29 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-10-05 — Backfill: Active Claims Only, Retries That Recover
+
+Two bugs in the [backfill worker](../apps/worker/functions/backfill.ts), both reproduced live on `main` by running the real handler against local Postgres, the HF LLM and Polygon, with an Inngest-like memoise-and-retry step runner:
+
+- **Pending claims were scored.** Backfill matured every claim of a post, so `pending_review` claims earned outcomes, and `score.ts` (which joins outcomes on entity only) counted them. On `main` one vague post's 4 pending claims all got outcomes. Backfill now matures only `active` claims. Claims held for review are matured by the daily markout once approved.
+- **A retried extraction lost the post.** One step inserted the event and extracted. When extraction threw, the retry found the event it had just inserted and returned early, so the post kept 0 claims. Insert and extraction are now separate steps, so a retry re-runs only the extraction.
+
+An adversarial review then found that the split introduced new failure modes, now fixed:
+- A post whose extraction fails on every attempt would have failed the whole run. It is now skipped and listed in `failedEventIds`.
+- The extra step per post pushed large archives toward Inngest's 1,000-steps-per-run limit. Posts naming no Mag-7 instrument now skip the extract step.
+- The ingest step has a new ID, so a run in flight at deploy does not replay the old step's result shape.
+- The active and pending counts are read from the table, so they stay exact across retries.
+
+Verified live: a post failing once recovered all 7 claims, each with an outcome. A vague post kept 4 `pending_review` claims with 0 outcomes. A post failing every attempt was skipped while the run finished.
+With #8's all-or-nothing claim insert, a retried extraction now recovers the whole post, not just the claims written before a failure.
+
+**Defence in depth: only active claims' outcomes count anywhere.** `score.ts`, the daily digest's "resolved outcomes" and the landing page's outcome count (`entities.stats`) now join outcomes to `active` claims only. Production had outcomes on active claims only (checked 2026-10-05), so no published history changes. Live on local data with 4 outcomes left on pending claims by the old backfill: `main`'s scoring gave that firm 6 score rows and a perfect hit rate of 1.000 from claims nobody had approved; the new code gives it none, and the landing count drops from 22 to 18.
+
+### Not fixed
+- A post whose extraction exhausts its retries is skipped. Re-sending the archive also skips it, because its event exists. Recovering it needs a manual `processExtraction` call.
+
+---
+
 ## 2026-10-05 — Claim Inserts: Integer Confidence, All-or-Nothing Writes
 
 Two defects in `processExtraction`'s write path ([extractor.ts](../packages/ingestion/src/extractor.ts)):

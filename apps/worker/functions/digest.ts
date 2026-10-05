@@ -119,6 +119,7 @@ export const digestFunction = inngest.createFunction(
           .where(
             and(
               inArray(claims.entityId, followedIds),
+              eq(claims.status, "active"),
               gte(outcomes.computedAt, since),
             ),
           )

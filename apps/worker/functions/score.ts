@@ -1,5 +1,5 @@
 import { inngest } from "../inngest";
-import { db, eq, sql, desc } from "@deepmint/db";
+import { db, eq, and, sql, desc } from "@deepmint/db";
 import { entities, outcomes, scores, claims } from "@deepmint/db/schema";
 import {
   hitRate,
@@ -60,7 +60,9 @@ export const scoreFunction = inngest.createFunction(
       let skipped = 0;
 
       for (const entity of entityRows) {
-        // Get all outcomes for this entity
+        // Get all outcomes for this entity's ACTIVE claims. A claim held for
+        // review or rejected must never count toward a published score, even
+        // if an outcome was written for it.
         const entityOutcomes = await db
           .select({
             claimId: outcomes.claimId,
@@ -73,7 +75,7 @@ export const scoreFunction = inngest.createFunction(
           })
           .from(outcomes)
           .innerJoin(claims, eq(outcomes.claimId, claims.id))
-          .where(eq(claims.entityId, entity.id));
+          .where(and(eq(claims.entityId, entity.id), eq(claims.status, "active")));
 
         if (entityOutcomes.length === 0) {
           skipped++;
