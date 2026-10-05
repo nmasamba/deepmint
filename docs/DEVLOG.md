@@ -18,12 +18,45 @@ An adversarial review then found that the split introduced new failure modes, no
 - The active and pending counts are read from the table, so they stay exact across retries.
 
 Verified live: a post failing once recovered all 7 claims, each with an outcome. A vague post kept 4 `pending_review` claims with 0 outcomes. A post failing every attempt was skipped while the run finished.
+With #8's all-or-nothing claim insert, a retried extraction now recovers the whole post, not just the claims written before a failure.
 
 **Defence in depth: only active claims' outcomes count anywhere.** `score.ts`, the daily digest's "resolved outcomes" and the landing page's outcome count (`entities.stats`) now join outcomes to `active` claims only. Production had outcomes on active claims only (checked 2026-10-05), so no published history changes. Live on local data with 4 outcomes left on pending claims by the old backfill: `main`'s scoring gave that firm 6 score rows and a perfect hit rate of 1.000 from claims nobody had approved; the new code gives it none, and the landing count drops from 22 to 18.
 
 ### Not fixed
 - A post whose extraction exhausts its retries is skipped. Re-sending the archive also skips it, because its event exists. Recovering it needs a manual `processExtraction` call.
-- `processExtraction` inserts claims one at a time without a transaction, so a retry after a partial insert keeps only the claims already written.
+
+---
+
+## 2026-10-05 — Claim Inserts: Integer Confidence, All-or-Nothing Writes
+
+Two defects in `processExtraction`'s write path ([extractor.ts](../packages/ingestion/src/extractor.ts)):
+
+- **A fractional confidence crashed the insert.** `confidence_score` was clamped to 0-100 but never rounded, and `claims.confidence` is an integer column, so a model answering `0.85` or `72.5` failed the whole insert ("invalid input syntax for type integer"). The new `parseConfidenceScore` rounds and clamps, and reads values in (0, 1] as fractions (0.85 → 85), mirroring how `extraction_confidence` is rescaled.
+- **A post's claims are written all-or-nothing.** They used to be inserted one at a time with no transaction. A failure partway through left the earlier claims in place, and on retry the existing-claims guard skipped the event, so the rest were lost. Every claim is now resolved first and written in one multi-row insert. Cross-source dedupe gains an in-batch check, because its query cannot see claims from the same post before they are written.
+
+Verified live on local Postgres: a two-row insert with one bad row wrote neither. A real extraction mixing a dated rating (backdated `created_at`) and an undated call (database default) inserted both correctly. On the backfill lane, a retry recovers the whole post only together with [#7](https://github.com/nmasamba/deepmint/pull/7)'s separate extraction step.
+
+---
+
+## 2026-10-05 — Extractor Integrity: Truncation, Stated Horizons, Verified Quotes
+
+Whatever extraction writes as `active` becomes a permanent published score, so
+three silent failure modes in [extractor.ts](../packages/ingestion/src/extractor.ts)
+now fail loudly or fall back to review.
+
+- **Truncation no longer reads as "no claims".** `LLM_MAX_OUTPUT_TOKENS` 1024 → 4096 (19% of real posts overflowed 1024; none at 4096). `callExtractionLLM` now throws on `finish_reason: "length"`, empty content, unparseable JSON or a missing `claims` array, so the fallback model and then Inngest retries handle it. A seven-call Mag-7 post measured 2,842 output tokens with the new prompt and truncates at 1024 under both old and new prompts; it is now a live test. Only the Mag-7 pre-filter returns a genuine empty result.
+- **[extract.ts](../apps/worker/functions/extract.ts) isolates failures per event.** Once a step's retries are spent, the failure is logged and returned in `failedEventIds`, and the loop continues. Without this, one post that fails every time (e.g. >4096 tokens) would stop the rest of the day's batch.
+- **Horizons are no longer invented.** The prompt asks for the author's exact horizon words or null (`horizon_stated`), kept only if found verbatim in the source. `isExplicitHorizon` accepts only a whole phrase naming the same grid duration ("within 90 days", "12-month price target"). Vague ("near term", "long term"), ranged ("next 3-5 years"), calendar-dated ("by 2028"), approximate ("4 weeks", "a quarter") and bare spelled-out units ("one day" means *someday*, "a year" is often a rate) are never explicit.
+- **Every claim carries a verifiable quote.** `source_excerpt` is stored only if `verifyVerbatim` finds it in the input after decoding HTML entities (`&#8220;`) and collapsing whitespace, on token boundaries (so "$30" does not verify inside "$300", nor "3 months" inside "13 months"). NUL entities are never decoded (Postgres text rejects them).
+- **Routing.** `active` only if confidence ≥ 0.8, attribution passes, a verified quote exists, and the horizon words *inside that quote* explicitly name `horizon_days`. Otherwise `pending_review`, with both fields stored and shown in the [admin review queue](../apps/web/app/(app)/admin/review/page.tsx). `claims.pendingReview` already selects every claim column.
+- **Migration [0007_cool_mercury.sql](../packages/db/drizzle/0007_cool_mercury.sql):** `claims.horizon_stated`, `claims.source_excerpt`, both `text`, nullable, no default, no row updates. Applied locally; **must be applied to Supabase before the PR merges.**
+- **Models are no longer pinned to a provider.** The fallback `meta-llama/Llama-3.3-70B-Instruct:groq` returned 404 because Groq stopped serving that model on the HF router. Both defaults now use the router's `:fastest` policy (`openai/gpt-oss-120b:fastest`, `meta-llama/Llama-3.3-70B-Instruct:fastest`), so the router picks a live provider at request time and a provider dropping a model fails over without a config change. Benchmarked through the real `extractClaims` path with the fallback disabled: primary 17/18 (median 0.67s; the one miss was a quote that failed verification, so it failed closed), fallback 18/18 (median 3.9s). With a broken primary, the fallback returned all 7 claims. **`LLM_MODEL` and `LLM_MODEL_FALLBACK` should be deleted** from `.env.local` and Vercel: an explicit value overrides the default, and a pinned provider disables the failover. They remain as emergency overrides; an empty `LLM_MODEL` now also means "use the default".
+- **Which model answered is visible.** The router names the provider it picked in an `x-inference-provider` header. `extractClaims` and `processExtraction` now return `model`, e.g. `openai/gpt-oss-120b:fastest (cerebras)`. Every extraction logs `[extractor] Answered by …`, and the extract worker's per-event log line and step output in the Inngest dashboard include it.
+
+### Known limits / follow-ups
+- Headroom: seven calls with quotes use ~70% of 4096. A post with ~10+ calls can still overflow. It now fails loudly per event instead of vanishing.
+- A model that drops words from a phrase it is told to copy ("12 months" out of "6 to 12 months", "over the past 12 months") can still pass if the shortened words sit inside the quote.
+- Pre-existing, out of scope: backfill matures and scores `pending_review` claims (no status filter in [backfill.ts](../apps/worker/functions/backfill.ts) or the `score.ts` join), and a retried backfill step skips extraction. Cross-source dedupe can also keep an unevidenced pending copy over a later evidenced one.
 
 ---
 
