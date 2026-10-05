@@ -4,7 +4,7 @@
 > pipeline running, `/api/v1` + `/api/mcp` exposed), not feature-completeness.
 
 ## Already configured ✅
-`DATABASE_URL` (Supabase) · Clerk (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET`) · `POLYGON_API_KEY` · `HF_API_KEY` · `LLM_MODEL` (`openai/gpt-oss-120b:cerebras`) + `LLM_MODEL_FALLBACK` · Inngest (`INNGEST_WORKFLOW_INNGEST_EVENT_KEY` / `_SIGNING_KEY` via the Vercel integration).
+`DATABASE_URL` (Supabase) · Clerk (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET`) · `POLYGON_API_KEY` · `HF_API_KEY` (`LLM_MODEL` / `LLM_MODEL_FALLBACK` are optional overrides; leave unset) · Inngest (`INNGEST_WORKFLOW_INNGEST_EVENT_KEY` / `_SIGNING_KEY` via the Vercel integration).
 
 ## Still empty — prioritised
 

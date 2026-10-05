@@ -31,17 +31,21 @@ function getLLMClient(): OpenAI {
   });
 }
 
-// Primary model when LLM_MODEL is unset. Benchmarked fastest reliable combo
-// for multi-claim extraction (~0.7s on Cerebras vs 120s+ timeouts on the
-// now-deprecated Qwen3-235B-A22B). Uses the HF router model:provider syntax.
-const DEFAULT_MODEL = "openai/gpt-oss-120b:cerebras";
+// Models are not pinned to a provider. The HF router's ":fastest" policy picks
+// the quickest provider serving the model at request time, so a provider
+// dropping it fails over with no config change (a pinned
+// "meta-llama/Llama-3.3-70B-Instruct:groq" started returning 404 on
+// 2026-10-05). Pinning a provider ("model:provider") brings that failure back.
 
-// Fallback model tried when the primary errors (e.g. a provider deprecates or
-// drops the model — observed repeatedly in practice). Different model AND
-// provider for resilience. Override via LLM_MODEL_FALLBACK; set to "" to disable.
-// Groq stopped serving Llama 3.3 on the HF router (404, 2026-10-05); Together
-// passed 18/18 extraction benchmarks, median 4s.
-const DEFAULT_FALLBACK_MODEL = "meta-llama/Llama-3.3-70B-Instruct:together";
+// Primary model when LLM_MODEL is unset. Benchmarked fastest reliable model
+// for multi-claim extraction (~1s vs 120s+ timeouts on the now-deprecated
+// Qwen3-235B-A22B).
+const DEFAULT_MODEL = "openai/gpt-oss-120b:fastest";
+
+// Fallback model tried when the primary errors. A different model, so one
+// model being withdrawn cannot take out both. Override via LLM_MODEL_FALLBACK;
+// set to "" to disable.
+const DEFAULT_FALLBACK_MODEL = "meta-llama/Llama-3.3-70B-Instruct:fastest";
 
 /**
  * Strip markdown code fences from an LLM response so the inner JSON can be
