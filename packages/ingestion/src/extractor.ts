@@ -39,7 +39,9 @@ const DEFAULT_MODEL = "openai/gpt-oss-120b:cerebras";
 // Fallback model tried when the primary errors (e.g. a provider deprecates or
 // drops the model — observed repeatedly in practice). Different model AND
 // provider for resilience. Override via LLM_MODEL_FALLBACK; set to "" to disable.
-const DEFAULT_FALLBACK_MODEL = "meta-llama/Llama-3.3-70B-Instruct:groq";
+// Groq stopped serving Llama 3.3 on the HF router (404, 2026-10-05); Together
+// passed 18/18 extraction benchmarks, median 4s.
+const DEFAULT_FALLBACK_MODEL = "meta-llama/Llama-3.3-70B-Instruct:together";
 
 /**
  * Strip markdown code fences from an LLM response so the inner JSON can be
