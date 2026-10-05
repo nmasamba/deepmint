@@ -45,6 +45,9 @@ export const claims = pgTable('claims', {
   ratingGrade: ratingGradeEnum('rating_grade'),                       // Buy/Hold/Sell, when stated
   ratingAction: ratingActionEnum('rating_action'),                    // upgrade/downgrade/initiate...
   analystName: varchar('analyst_name', { length: 200 }),              // individual analyst, when named
+  // Extraction evidence — nullable, NO default (append-only invariant).
+  horizonStated: text('horizon_stated'),                              // author's own horizon words, when stated
+  sourceExcerpt: text('source_excerpt'),                              // quote verified verbatim against the event text
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   // NO updatedAt — immutable
 });

@@ -118,6 +118,34 @@ export default function AdminReviewPage() {
                 </div>
               )}
 
+              {/* Extraction evidence: why an extracted claim was held for review */}
+              {item.claim.eventId && (
+                <div className="rounded border border-border/50 bg-bg-primary p-3 space-y-2">
+                  <div>
+                    <p className="text-xs font-medium text-text-secondary mb-1">
+                      Stated Horizon:
+                    </p>
+                    <p className="text-sm text-text-primary">
+                      {item.claim.horizonStated ?? (
+                        <span className="text-warning">Not recorded</span>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-text-secondary mb-1">
+                      Verified Quote:
+                    </p>
+                    <p className="text-sm text-text-primary">
+                      {item.claim.sourceExcerpt ? (
+                        <>&ldquo;{item.claim.sourceExcerpt}&rdquo;</>
+                      ) : (
+                        <span className="text-warning">No verified quote</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Source event text */}
               {item.eventText && (
                 <div className="rounded border border-border/50 bg-bg-primary p-3">

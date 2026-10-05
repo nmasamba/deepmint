@@ -4,6 +4,28 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-10-05 — Extractor Integrity: Truncation, Stated Horizons, Verified Quotes
+
+Whatever extraction writes as `active` becomes a permanent published score, so
+three silent failure modes in [extractor.ts](../packages/ingestion/src/extractor.ts)
+now fail loudly or fall back to review.
+
+- **Truncation no longer reads as "no claims".** `LLM_MAX_OUTPUT_TOKENS` 1024 → 4096 (19% of real posts overflowed 1024; none at 4096). `callExtractionLLM` now throws on `finish_reason: "length"`, empty content, unparseable JSON or a missing `claims` array, so the fallback model and then Inngest retries handle it. A seven-call Mag-7 post measured 2,842 output tokens with the new prompt and truncates at 1024 under both old and new prompts; it is now a live test. Only the Mag-7 pre-filter returns a genuine empty result.
+- **[extract.ts](../apps/worker/functions/extract.ts) isolates failures per event.** Once a step's retries are spent, the failure is logged and returned in `failedEventIds`, and the loop continues. Without this, one post that fails every time (e.g. >4096 tokens) would stop the rest of the day's batch.
+- **Horizons are no longer invented.** The prompt asks for the author's exact horizon words or null (`horizon_stated`), kept only if found verbatim in the source. `isExplicitHorizon` accepts only a whole phrase naming the same grid duration ("within 90 days", "12-month price target"). Vague ("near term", "long term"), ranged ("next 3-5 years"), calendar-dated ("by 2028"), approximate ("4 weeks", "a quarter") and bare spelled-out units ("one day" means *someday*, "a year" is often a rate) are never explicit.
+- **Every claim carries a verifiable quote.** `source_excerpt` is stored only if `verifyVerbatim` finds it in the input after decoding HTML entities (`&#8220;`) and collapsing whitespace, on token boundaries (so "$30" does not verify inside "$300", nor "3 months" inside "13 months"). NUL entities are never decoded (Postgres text rejects them).
+- **Routing.** `active` only if confidence ≥ 0.8, attribution passes, a verified quote exists, and the horizon words *inside that quote* explicitly name `horizon_days`. Otherwise `pending_review`, with both fields stored and shown in the [admin review queue](../apps/web/app/(app)/admin/review/page.tsx). `claims.pendingReview` already selects every claim column.
+- **Migration [0007_cool_mercury.sql](../packages/db/drizzle/0007_cool_mercury.sql):** `claims.horizon_stated`, `claims.source_excerpt`, both `text`, nullable, no default, no row updates. Applied locally; **must be applied to Supabase before the PR merges.**
+- **Models are no longer pinned to a provider.** The fallback `meta-llama/Llama-3.3-70B-Instruct:groq` returned 404 because Groq stopped serving that model on the HF router. Both defaults now use the router's `:fastest` policy (`openai/gpt-oss-120b:fastest`, `meta-llama/Llama-3.3-70B-Instruct:fastest`), so the router picks a live provider at request time and a provider dropping a model fails over without a config change. Benchmarked through the real `extractClaims` path with the fallback disabled: primary 17/18 (median 0.67s; the one miss was a quote that failed verification, so it failed closed), fallback 18/18 (median 3.9s). With a broken primary, the fallback returned all 7 claims. **`LLM_MODEL` and `LLM_MODEL_FALLBACK` should be deleted** from `.env.local` and Vercel: an explicit value overrides the default, and a pinned provider disables the failover. They remain as emergency overrides; an empty `LLM_MODEL` now also means "use the default".
+- **Which model answered is visible.** The router names the provider it picked in an `x-inference-provider` header. `extractClaims` and `processExtraction` now return `model`, e.g. `openai/gpt-oss-120b:fastest (cerebras)`. Every extraction logs `[extractor] Answered by …`, and the extract worker's per-event log line and step output in the Inngest dashboard include it.
+
+### Known limits / follow-ups
+- Headroom: seven calls with quotes use ~70% of 4096. A post with ~10+ calls can still overflow. It now fails loudly per event instead of vanishing.
+- A model that drops words from a phrase it is told to copy ("12 months" out of "6 to 12 months", "over the past 12 months") can still pass if the shortened words sit inside the quote.
+- Pre-existing, out of scope: backfill matures and scores `pending_review` claims (no status filter in [backfill.ts](../apps/worker/functions/backfill.ts) or the `score.ts` join), and a retried backfill step skips extraction. Cross-source dedupe can also keep an unevidenced pending copy over a later evidenced one.
+
+---
+
 ## 2026-08-03 — Rating Attribution Lane + Scoring Fairness Fixes
 
 Set out to wire external keys (Tier 1 Upstash), pivoted to "start scraping analyst
