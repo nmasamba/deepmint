@@ -19,10 +19,11 @@ An adversarial review then found that the split introduced new failure modes, no
 
 Verified live: a post failing once recovered all 7 claims, each with an outcome. A vague post kept 4 `pending_review` claims with 0 outcomes. A post failing every attempt was skipped while the run finished.
 
+**Defence in depth: only active claims' outcomes count anywhere.** `score.ts`, the daily digest's "resolved outcomes" and the landing page's outcome count (`entities.stats`) now join outcomes to `active` claims only. Production had outcomes on active claims only (checked 2026-10-05), so no published history changes. Live on local data with 4 outcomes left on pending claims by the old backfill: `main`'s scoring gave that firm 6 score rows and a perfect hit rate of 1.000 from claims nobody had approved; the new code gives it none, and the landing count drops from 22 to 18.
+
 ### Not fixed
 - A post whose extraction exhausts its retries is skipped. Re-sending the archive also skips it, because its event exists. Recovering it needs a manual `processExtraction` call.
 - `processExtraction` inserts claims one at a time without a transaction, so a retry after a partial insert keeps only the claims already written.
-- **Decision pending:** `score.ts` (also `digest.ts` and the entity stats outcome count) still count outcomes regardless of claim status. That matters only for outcomes already written on non-active claims.
 
 ---
 

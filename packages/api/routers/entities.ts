@@ -100,9 +100,12 @@ export const entityRouter = router({
           .select({ count: sql<number>`count(*)::int` })
           .from(claims)
           .where(eq(claims.status, "active")),
+        // Likewise only outcomes of active claims count as resolved predictions.
         ctx.db
           .select({ count: sql<number>`count(*)::int` })
-          .from(outcomes),
+          .from(outcomes)
+          .innerJoin(claims, eq(outcomes.claimId, claims.id))
+          .where(eq(claims.status, "active")),
         // Soft-deleted entities are excluded everywhere else (leaderboard,
         // consensus); the public headcount must match.
         ctx.db
