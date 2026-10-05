@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractClaims } from "../extractor";
+import { extractClaims, isExplicitHorizon, verifyVerbatim } from "../extractor";
 
 /**
  * Live LLM extraction tests using HuggingFace Inference API.
@@ -70,6 +70,41 @@ describe.skipIf(!HAS_API_KEY)("extractClaims (live LLM)", () => {
     expect(tickers).toContain("META");
   });
 
+  it("returns every call from a post that overflowed the old 1,024-token cap", { timeout: LIVE_TIMEOUT }, async () => {
+    // Measured on the router: ~2,800 output tokens. At the old 1,024 cap this
+    // was cut off mid-array and came back as an empty result, indistinguishable
+    // from "no claims"; a truncation now throws instead.
+    const text = `
+      Our Mag 7 playbook after earnings season.
+
+      Apple (AAPL): We are buyers. Services margin expansion and the iPhone 17 upgrade cycle support our $275 price target over the next 12 months. High conviction.
+
+      Microsoft (MSFT): Overweight. Azure growth re-accelerated and Copilot seat adds are inflecting, so we see MSFT reaching $600 within 12 months.
+
+      Alphabet (GOOGL): Buy. Search share fears are overdone and Cloud is now solidly profitable. Our 12-month target is $230.
+
+      Amazon (AMZN): Buy. AWS backlog and retail operating margins point to upside; we target $260 over the next 6 months.
+
+      Nvidia (NVDA): We remain long. Blackwell demand exceeds supply, and we expect NVDA to reach $220 within 6 months.
+
+      Meta (META): We turn cautious. Reality Labs losses are swamping ad strength, and we expect the stock to slide to $600 over the next 3 months.
+
+      Tesla (TSLA): Sell. Auto gross margins keep compressing and robotaxi timelines keep slipping; we expect TSLA to fall to $250 over the next 3 months.
+    `;
+
+    const result = await extractClaims(text);
+
+    const tickers = new Set(result.validClaims.map((c) => c.instrumentTicker));
+    expect(tickers.size).toBeGreaterThanOrEqual(5);
+
+    // Every horizon here is stated outright inside the call's own sentence, so
+    // most claims should clear processExtraction's evidence gate.
+    const evidenced = result.validClaims.filter((c) =>
+      isExplicitHorizon(verifyVerbatim(c.horizonStated, c.sourceExcerpt ?? ""), c.horizonDays),
+    );
+    expect(evidenced.length).toBeGreaterThanOrEqual(5);
+  });
+
   it("rejects non-Mag7 tickers as invalid", { timeout: LIVE_TIMEOUT }, async () => {
     const text = `
       I'm very bullish on AMD. Target price $200 within 30 days.
@@ -92,6 +127,8 @@ describe.skipIf(!HAS_API_KEY)("extractClaims (live LLM)", () => {
     expect(validTickers).toContain("AAPL");
   });
 
+  // No Mag-7 mention, so the pre-filter returns a genuine empty result without
+  // calling the model. Model failures throw rather than returning empty.
   it("returns empty claims for text with no predictions", { timeout: LIVE_TIMEOUT }, async () => {
     const text = `
       Today's weather in San Francisco is sunny and mild.

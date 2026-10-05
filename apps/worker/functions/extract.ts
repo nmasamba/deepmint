@@ -20,8 +20,12 @@ export const extractFunction = inngest.createFunction(
     let totalPending = 0;
     let totalInvalid = 0;
     let totalDuplicates = 0;
+    const failedEventIds: string[] = [];
 
     for (const eventId of eventIds) {
+      // Extraction throws on a truncated or unparseable model reply. Once the
+      // step's own retries are spent, record the failure and move on, so one
+      // bad post cannot stop the rest of the batch from being extracted.
       const result = await step.run(
         `extract-${eventId}`,
         async () => {
@@ -61,7 +65,17 @@ export const extractFunction = inngest.createFunction(
 
           return extractionResult;
         },
-      );
+      ).catch((err: unknown) => {
+        console.error(
+          `Extraction failed for event ${eventId}:`,
+          err instanceof Error ? err.message : err,
+        );
+        return null;
+      });
+      if (!result) {
+        failedEventIds.push(eventId);
+        continue;
+      }
 
       totalInserted += result.inserted;
       totalPending += result.pending;
@@ -75,6 +89,7 @@ export const extractFunction = inngest.createFunction(
       claimsPendingReview: totalPending,
       invalidExtractions: totalInvalid,
       duplicatesSkipped: totalDuplicates,
+      failedEventIds,
     };
   },
 );
