@@ -13,9 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No `version` input: the action reads the exact pnpm pin from the
+      # packageManager field in package.json, and refuses to run if both are set.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
