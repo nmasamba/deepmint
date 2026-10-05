@@ -162,6 +162,18 @@ export function parseRatingDate(value: unknown, now: Date = new Date()): string 
 }
 
 /**
+ * Normalise a claim's confidence onto the integer 0-100 scale of
+ * claims.confidence. Models sometimes answer on a 0-1 scale (0.85) or with a
+ * fraction (72.5), and either fails the integer insert. Values above 0 and up
+ * to 1 are read as fractions, mirroring how extraction_confidence is rescaled.
+ */
+export function parseConfidenceScore(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const scaled = value > 0 && value <= 1 ? value * 100 : value;
+  return Math.round(Math.max(0, Math.min(100, scaled)));
+}
+
+/**
  * Grid durations an author can name outright, keyed by "<count> <unit>".
  * Approximations (4 weeks, 52 weeks, "a quarter") are deliberately absent.
  */
@@ -486,13 +498,9 @@ export async function extractClaims(
           ? raw.target_price
           : null,
       horizonDays,
-      // Clamp confidence into the 0-100 scale used by the confidence column
-      // and the consensus weight boost.
-      confidenceScore:
-        typeof raw.confidence_score === "number" &&
-        Number.isFinite(raw.confidence_score)
-          ? Math.max(0, Math.min(100, raw.confidence_score))
-          : null,
+      // Integer 0-100, the scale of the confidence column and the consensus
+      // weight boost.
+      confidenceScore: parseConfidenceScore(raw.confidence_score),
       rationaleSummary: String(raw.rationale_summary ?? ""),
       rationaleTags: Array.isArray(raw.rationale_tags)
         ? raw.rationale_tags.filter((t: unknown): t is string => typeof t === "string")
@@ -590,6 +598,12 @@ export async function processExtraction(
   let inserted = 0;
   let pending = 0;
   let duplicates = 0;
+  // Every claim is resolved first and then written in ONE statement, so a
+  // post's claims land together or not at all. Written one at a time, a
+  // failure mid-post left some claims in place, and on retry the guard above
+  // skipped the event, losing the rest for good.
+  const rows: (typeof claims.$inferInsert)[] = [];
+  const batchKeys = new Set<string>();
 
   for (const claim of result.validClaims) {
     // Look up instrument by ticker
@@ -690,12 +704,18 @@ export async function processExtraction(
       )
       .limit(1);
 
-    if (duplicate) {
+    // The same call listed twice in one post is also a duplicate: the query
+    // above cannot see claims from this post, as none are written yet.
+    const batchKey = [
+      attributedEntityId, instrument.id, claim.direction, claim.horizonDays, dedupeDate,
+    ].join("|");
+    if (duplicate || batchKeys.has(batchKey)) {
       duplicates++;
       continue;
     }
+    batchKeys.add(batchKey);
 
-    await db.insert(claims).values({
+    rows.push({
       eventId,
       entityId: attributedEntityId,
       instrumentId: instrument.id,
@@ -720,6 +740,8 @@ export async function processExtraction(
     if (status === "active") inserted++;
     else pending++;
   }
+
+  if (rows.length > 0) await db.insert(claims).values(rows);
 
   return {
     inserted,
