@@ -4,6 +4,49 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-10-05 — Docs Coherence Audit
+
+The tracked docs had drifted from the code. The README's setup could not work as written, `docs/NEXT_SESSION_PROMPT.md` named a model pin the code no longer has, `SPRINT_LOG.md` still gave Qwen as the default, and the README promised Facebook and X sign-in. This pass rewrote the docs against the code at `cd63901` (= `origin/main`, after PRs #6–#9). No application code changed: only Markdown docs and `.env.example`.
+
+### How the audit was done
+1. **Code map.** Six readers each mapped one area (product, server interfaces, workers, ingestion, scoring and data model, infrastructure) and cited `path:line` for every fact. A seventh, critic pass spot-checked them and corrected their errors (e.g. the S&P expansion is 50 tickers, not ~43; the Polygon throttle does not queue concurrent calls).
+2. **Findings.** The seven reports raised 198 raw incoherences, many of them duplicates. They were merged into 109 distinct issues, and each issue went to a verifier told to refute it from the code, rewrite it where it overstated, and re-judge severity. **None was refuted: 31 were confirmed as stated and 78 rewritten. Final severities: 3 high, 30 medium, 76 low.**
+3. **Facts sheet.** One shared sheet of verified facts (claim lifecycle, schedules, interfaces, env vars, setup, operations) fixed the wording every doc writer had to follow, so the docs agree with each other as well as with the code. Facts the code cannot show (production keys, the Clerk instance, the Supabase migration procedure) came from the maintainer.
+
+Baseline measured with no `.env.local`: scoring 87, shared 16, api 5, ingestion 56 passed + 6 skipped (live LLM), web 18 skipped; `pnpm check` passes in all 7 packages.
+
+### Docs rewritten or created
+- **[README.md](../README.md), rewritten** for new users first, then developers. Its setup failed as written: `cp .env.example .env` creates a root `.env` that no tool reads, `.env.example` pointed `DATABASE_URL` at port 5432 while compose publishes 5433, and it ran `db:generate` (only needed after a schema edit) as a setup step. It also listed "Cache: Redis 7", which no code uses (all Redis access is Upstash REST).
+- **[docs/KNOWN_ISSUES.md](KNOWN_ISSUES.md), new.** The register of the verified issues, with evidence: 103 open (3 high, 29 medium, 71 low). The other 7 of the 109 were docs drift fixed by this pass and are listed there under "Fixed by this docs update". The 103rd, `markout-holiday-exit-never-priced` (a claim whose end date is a market holiday never gets an outcome), was found by the final cross-document review and verified against the code. Remove an entry when its fix merges, citing the PR.
+- **[docs/EXTERNAL_KEYS.md](EXTERNAL_KEYS.md), rewritten** to cover every env var the code reads. It claimed Upstash would stop every price lookup hitting Polygon (only regime indicators are cached; prices never are), that `X-RateLimit-*` headers prove Upstash works (they are sent either way), and that Sentry is disabled until the DSN is set (nothing loads the Sentry configs, so the DSN alone does nothing).
+- **[docs/CHANGELOG.md](CHANGELOG.md), brought up to date.** It stopped at [0.7.0] (2026-04-14), so nothing after that (May–October) was recorded.
+- **[docs/NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md), rewritten.** It said extraction was pinned to `openai/gpt-oss-120b:cerebras` and listed `LLM_MODEL(+FALLBACK)` as configured. The code now defaults to `:fastest` models, and both variables were deleted from Vercel and `.env.local` today.
+- **[SPRINT_LOG.md](../SPRINT_LOG.md), rewritten** as an index of all phases. It covered only Sprints 1–2.
+- **[.env.example](../.env.example), updated** to list every variable the code reads, with the file to copy it to. It used port 5432, omitted variables the code reads (`INGEST_POLYGON_NEWS`, `NEXT_PUBLIC_APP_URL`, `CLOUDFLARE_R2_PUBLIC_URL`, `INNGEST_DEV`) and did not say that some listed ones are read by nothing (`REDIS_URL`, `SENTRY_AUTH_TOKEN`, `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` / `_UP_URL`).
+
+### Most important verified code issues (none fixed here)
+Full list with evidence: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+- **Self-logged claims can bank a move the user already saw (high).** [`claims.submit`](../packages/api/routers/claims.ts) records [`getCurrentPrice()`](../packages/shared/src/polygon.ts), which is the previous session's close, and markout exits at the close on `created_at + horizon`. A 1D claim submitted at 15:00 ET spans two sessions, most of the first already visible. The outcomes are append-only.
+- **MCP answers 404 at its own route (high).** [route.ts](../apps/web/app/api/mcp/route.ts) calls `createMcpHandler` with no config, and mcp-handler@1.1.0 then serves only `/mcp`. Every authenticated request to `/api/mcp` gets 404; only the 401 auth gate works. The smoke tests logged below under 2026-05-05 checked only the 401.
+- **The leaderboard page waits about 2.5–3 minutes (high).** `regime.current` and `leaderboard.bestInCurrentConditions` each run `getRegimeIndicators`: ~25 Polygon calls behind the 12.5 s throttle, cached for 1 h only with Upstash (last recorded as unset in production). `httpBatchLink` batches them with `leaderboard.top`, so the whole table shows skeleton rows until both finish.
+- **Leaderboards have no minimum sample.** Every board sorts `value DESC` with no outcome-count gate, so 1 correct call out of 1 shows 100% hit rate above long records. The regime chips and "Most Influential" always come back empty: only `eiv` rows carry a regime tag, and `influence_events_30d` lives in `influence_scores`, not `scores`.
+- **Mirroring a Guide never logs a trade.** Only `claims.submit` emits `claims/created`; ingested, backfilled and admin-approved claims emit nothing. Guides are created only by ingestion or the seed, never by sign-up, so a `Mirror: <Guide>` portfolio stays empty.
+- **Consensus refreshes only on days a claim matures.** Consensus and the influence aggregate run on `scoring/completed`, which follows `markouts/completed`, which [markout.ts](../apps/worker/functions/markout.ts) sends only when it writes an outcome (backfill likewise). New claims do not move consensus until then, and the UI shows no as-of date.
+- **Production bundles a stale compiled Inngest client.** `apps/worker/inngest.js` (committed 2026-04-02) sits beside `inngest.ts`, and Next's webpack resolves `.js` first, so production loads the old file without the `INNGEST_WORKFLOW_` key mapping while `tsx` scripts load the `.ts`. It works today only because `/api/inngest` imports `inngest-env.ts` first. A future change to `inngest.ts` would silently not ship.
+- **A failed entry-price lookup leaves a claim that never scores.** [extractor.ts](../packages/ingestion/src/extractor.ts) and the backfill's entry-price resolver swallow the error and insert `entry_price_cents` null. Markout skips the claim on every run, counting it only in its "skipped" total; nothing repairs it or names it.
+
+### Could not verify
+- Production env vars could not be re-listed (Vercel CLI token expired; the connector lacks env-list permission). The docs give `docs/EXTERNAL_KEYS.md`'s 2026-07-02 status as "last recorded".
+- If production has only the `INNGEST_WORKFLOW_`-prefixed Inngest keys, the API routers' own clients (`claims.ts`, `social.ts`, `instruments.ts`) may never see a key, depending on module load order: `claims/created` and `social/followed` sends would fail silently, and admin instrument creates would throw after inserting. An unprefixed `INNGEST_EVENT_KEY` in Vercel would settle it.
+
+### Scope notes
+- The gitignored local specs (`CLAUDE.md`, `AGENTS.md`, `architecture.md`, `build_spec.md`, `data_model.md`, `prompts.md`) were deliberately out of scope: not read, not edited. Tracked code comments still cite them (e.g. `build_spec §2.x` in seven `packages/scoring/src` files, `CLAUDE.md §6` in `packages/api/lib/snaptrade.ts`), and a clone cannot follow those references.
+- Earlier entries in this log are left as written, superseded statements included (the `:cerebras` default, the demo-adapter fallback, `INNGEST_API_KEY`). The only change is that repo links in the 2026-05-05 entries now resolve from `docs/`. The newest entry on a topic wins.
+- The five entries headed 2026-05-05 were committed on 2026-06-26 (four) and 2026-07-02 (the E2E smoke test); their headings are unchanged.
+- **Instrument scope (maintainer decision).** Mag-7 only is deliberate until the core product has matured; expansion is planned for after that. The docs describe the Sprint 6 S&P tooling as dormant groundwork, and the KNOWN_ISSUES entries it would trigger as latent until then.
+
+---
+
 ## 2026-10-05 — Backfill: Active Claims Only, Retries That Recover
 
 Two bugs in the [backfill worker](../apps/worker/functions/backfill.ts), both reproduced live on `main` by running the real handler against local Postgres, the HF LLM and Polygon, with an Inngest-like memoise-and-retry step runner:
@@ -153,8 +196,8 @@ incl. multi-claim), web 18 skipped; live extraction `openai/gpt-oss-120b:cerebra
 **Two production-only bugs the smoke test caught** (invisible to local tests +
 typecheck — both about the Inngest endpoint the Vercel<>Inngest integration
 depends on):
-- **`/api/inngest` was Clerk-blocked (404)** → added `/api/inngest(.*)` to `isPublicRoute` in [middleware.ts](apps/web/middleware.ts). Inngest Cloud authenticates via the signing key, not a Clerk session (same pattern as `/api/v1`, `/api/mcp`).
-- **Signing key not detected (500 "no signing key found")** → the integration provisions `INNGEST_WORKFLOW_`-prefixed keys, and the env-var mapping ran *after* `inngest/next` was imported (ES imports are hoisted in source order). Moved the mapping into a dedicated side-effect module ([inngest-env.ts](apps/web/app/api/inngest/inngest-env.ts)) imported first in the route.
+- **`/api/inngest` was Clerk-blocked (404)** → added `/api/inngest(.*)` to `isPublicRoute` in [middleware.ts](../apps/web/middleware.ts). Inngest Cloud authenticates via the signing key, not a Clerk session (same pattern as `/api/v1`, `/api/mcp`).
+- **Signing key not detected (500 "no signing key found")** → the integration provisions `INNGEST_WORKFLOW_`-prefixed keys, and the env-var mapping ran *after* `inngest/next` was imported (ES imports are hoisted in source order). Moved the mapping into a dedicated side-effect module ([inngest-env.ts](../apps/web/app/api/inngest/inngest-env.ts)) imported first in the route.
 
 **Result:** `GET /api/inngest` → 200 `{has_event_key:true, has_signing_key:true, function_count:15, mode:"cloud"}`. The background pipeline is wired for production; remaining human step is confirming the app is synced in the Inngest dashboard (the Vercel integration auto-syncs on deploy).
 
@@ -163,7 +206,7 @@ depends on):
 ## 2026-05-05 — Inference Provider Benchmark + Model Switch
 
 Investigated the slow/timing-out multi-claim extraction by benchmarking the HF
-router across inference providers (harness: [bench-providers.ts](packages/ingestion/scripts/bench-providers.ts)).
+router across inference providers (harness: [bench-providers.ts](../packages/ingestion/scripts/bench-providers.ts)).
 
 **Root cause:** the configured `Qwen/Qwen3-235B-A22B` is **deprecated** — Together
 and Fireworks return `410 ... deprecated and no longer supported`; default/`fastest`
@@ -184,7 +227,7 @@ timeout. Several combos were also deprecated/404 (Cerebras dropped Llama-3.3-70B
 and Qwen3-32B), confirming provider churn is recurring.
 
 **Decision:**
-- Default model → `openai/gpt-oss-120b:cerebras` (winner); `DEFAULT_MODEL` in [extractor.ts](packages/ingestion/src/extractor.ts) updated (the old default was the now-dead model).
+- Default model → `openai/gpt-oss-120b:cerebras` (winner); `DEFAULT_MODEL` in [extractor.ts](../packages/ingestion/src/extractor.ts) updated (the old default was the now-dead model).
 - Added a **fallback model** (`LLM_MODEL_FALLBACK`, default `meta-llama/Llama-3.3-70B-Instruct:groq`): `extractClaims` tries the primary, then the fallback on error, so a single deprecation can't break the pipeline.
 - `.env.local` / `.env.example` updated. **Vercel: update `LLM_MODEL` and add `LLM_MODEL_FALLBACK`** or prod keeps using the deprecated model.
 
@@ -200,10 +243,10 @@ build registers `ƒ /api/mcp`, and a runtime smoke test against `next start`
 returns 401 for unauthenticated/invalid keys (auth gate works, Clerk bypass
 works, mcp-handler runs).
 
-- **`/api/mcp` route** ([route.ts](apps/web/app/api/mcp/route.ts)) via `mcp-handler` (`createMcpHandler` + `withMcpAuth`). Read tools — `get_current_regime`, `get_consensus`, `get_leaderboard`, `get_entity_track_record`, `search_instruments` — call the tRPC routers through a new `createCaller` (single source of truth). Write tools — `submit_claim`, `add_note` — let an agent participate as a first-class entity (scored/audited like a human); they require the `claims:write` scope + an owning entity.
-- **tRPC server-side caller**: added `createCallerFactory` ([trpc.ts](packages/api/trpc.ts)) and `createCaller` ([root.ts](packages/api/root.ts)), exported from the package.
+- **`/api/mcp` route** ([route.ts](../apps/web/app/api/mcp/route.ts)) via `mcp-handler` (`createMcpHandler` + `withMcpAuth`). Read tools — `get_current_regime`, `get_consensus`, `get_leaderboard`, `get_entity_track_record`, `search_instruments` — call the tRPC routers through a new `createCaller` (single source of truth). Write tools — `submit_claim`, `add_note` — let an agent participate as a first-class entity (scored/audited like a human); they require the `claims:write` scope + an owning entity.
+- **tRPC server-side caller**: added `createCallerFactory` ([trpc.ts](../packages/api/trpc.ts)) and `createCaller` ([root.ts](../packages/api/root.ts)), exported from the package.
 - **Auth reuse**: `authenticateRequest` now accepts the `claims:write` scope and returns the key's `createdBy` (owning entity). `VALID_SCOPES` (apiKeys router) gained `claims:write` so admins can mint agent keys. Transport-level gate requires a valid key with `consensus:read`; per-tool checks gate writes.
-- **Middleware**: added `/api/mcp(.*)` to `isPublicRoute` ([middleware.ts](apps/web/middleware.ts)) so Clerk session auth doesn't block the API-key-authenticated endpoint (parallel to `/api/v1`). *(Caught by the runtime smoke test.)*
+- **Middleware**: added `/api/mcp(.*)` to `isPublicRoute` ([middleware.ts](../apps/web/middleware.ts)) so Clerk session auth doesn't block the API-key-authenticated endpoint (parallel to `/api/v1`). *(Caught by the runtime smoke test.)*
 - Invariant #9 respected — only aggregated data is exposed; no raw influence events. Live MCP integration test added (skips without `TEST_API_KEY`, like the v1 suite).
 
 **Note:** local Next dev (Turbopack) does not load the root `.env.local`, so Clerk runs keyless and a newly-added route may 404 until a production build; the route is correct in `next build` (what Vercel runs). Agent keys must be minted with an owning entity for write tools.
@@ -216,18 +259,18 @@ Two workstreams off the back of the post-audit roadmap. All packages typecheck
 clean (8/8); ingestion deterministic tests 16, scoring 84, shared 16, api 5;
 the live HF extractor suite passes 29/29 when the model is responsive.
 
-### §1 — LLM extraction robustness ([extractor.ts](packages/ingestion/src/extractor.ts))
+### §1 — LLM extraction robustness ([extractor.ts](../packages/ingestion/src/extractor.ts))
 - **JSON mode** (`response_format: json_object`) with graceful fallback to `stripJsonFences` for models that reject the param — guarantees parseable output.
 - **Timeout 120s + maxRetries 2** at client and per-call level (SDK default was 10 min); **`max_tokens: 1024`** bounds generation latency.
 - **`mentionsMag7()` pre-filter** skips the LLM call entirely for off-topic text (major volume/cost cut). Deterministic unit tests for the filter + fence stripping.
 - Fixed fake `DEFAULT_MODEL` → `Qwen/Qwen3-235B-A22B`; **extraction idempotency** so worker retries don't duplicate append-only claims.
 
 ### §2 — Data-flywheel scrape + historical backfill
-- **`resolveOrCreateGuide`** ([resolver.ts](packages/ingestion/src/sources/resolver.ts)): the missing source-handle → Guide-entity resolver (keyed on sourceUrl, then slug; ingested Guides have `clerkUserId` null, `isVerified` false).
-- **`RssSourceAdapter`** ([rss.ts](packages/ingestion/src/sources/rss.ts)): first real `SourceAdapter` (fetch-based, Vercel-safe), runs the Mag-7 pre-filter before emitting captures. `ingest.ts` `getSourceAdapters()` now builds adapters from allowlisted Guides with a `sourceUrl`, falling back to the demo adapter.
-- **`computeMarkoutForClaim`** ([markoutClaim.ts](apps/worker/functions/markoutClaim.ts)): extracted the per-claim outcome math from `markout.ts` (incl. the short-sign P&L convention) for reuse; `markout.ts` now calls it.
+- **`resolveOrCreateGuide`** ([resolver.ts](../packages/ingestion/src/sources/resolver.ts)): the missing source-handle → Guide-entity resolver (keyed on sourceUrl, then slug; ingested Guides have `clerkUserId` null, `isVerified` false).
+- **`RssSourceAdapter`** ([rss.ts](../packages/ingestion/src/sources/rss.ts)): first real `SourceAdapter` (fetch-based, Vercel-safe), runs the Mag-7 pre-filter before emitting captures. `ingest.ts` `getSourceAdapters()` now builds adapters from allowlisted Guides with a `sourceUrl`, falling back to the demo adapter.
+- **`computeMarkoutForClaim`** ([markoutClaim.ts](../apps/worker/functions/markoutClaim.ts)): extracted the per-claim outcome math from `markout.ts` (incl. the short-sign P&L convention) for reuse; `markout.ts` now calls it.
 - **`processExtraction` backfill support**: optional `{ createdAt, entryPriceResolver }` — inserts claims with their TRUE historical date (insert-only, no UPDATE → append-only preserved) and the EOD entry price as of that date.
-- **`backfillFunction`** ([backfill.ts](apps/worker/functions/backfill.ts)): event-triggered (`backfill/requested`) worker — resolve → insert historical events (hash-deduped) → extract with historical createdAt + EOD price → mature claims against historical prices (outcomes deduped on claimId+horizon, no notifications) → trigger scoring. Registered in the worker; operator trigger via `pnpm --filter @deepmint/worker backfill <archive.json>`.
+- **`backfillFunction`** ([backfill.ts](../apps/worker/functions/backfill.ts)): event-triggered (`backfill/requested`) worker — resolve → insert historical events (hash-deduped) → extract with historical createdAt + EOD price → mature claims against historical prices (outcomes deduped on claimId+horizon, no notifications) → trigger scoring. Registered in the worker; operator trigger via `pnpm --filter @deepmint/worker backfill <archive.json>`.
 
 **Prod blockers for §2 (flagged, not code):** `INNGEST_API_KEY` is still unset (DEVLOG risk #8) — new Inngest functions run in local dev but won't execute in prod until Inngest Cloud signing keys + the deployed `/api/inngest` endpoint are registered. Real browser scraping (Playwright) cannot run on Vercel serverless — RSS-over-fetch is fine; richer scraping must run on dedicated infra. `POLYGON_API_KEY` is required for meaningful backfill (it is set).
 
