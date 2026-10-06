@@ -121,7 +121,5 @@ B. Upstash Redis (priority 1 in docs/EXTERNAL_KEYS.md) plus the leaderboard's re
         @deepmint/shared does not declare @upstash/redis, so outside the Next build (vitest, tsx)
         the cache silently disables itself.
 
-Everything else is in docs/KNOWN_ISSUES.md. That includes the other high-severity issue,
-a small fix: /api/mcp returns 404 to every authenticated request, because createMcpHandler is
-called with no basePath (apps/web/app/api/mcp/route.ts:50).
+Everything else is in docs/KNOWN_ISSUES.md.
 ```

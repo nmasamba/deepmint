@@ -22,7 +22,7 @@ Today Deepmint covers seven large US technology stocks, the "Magnificent 7": App
 | **Players**: everyone who signs up | Log your own claims in the web app. They are checked against real prices by the same rules as Guides' claims. You appear on the leaderboard next to the Guides. You can also run practice ("paper") portfolios with virtual money. |
 | **Followers** | This is not a separate account type. Any Player can follow Guides and other Players, read their claims in a "Following" feed, keep a watchlist of stocks, and use "Mirror Signals" to copy someone's calls into a paper portfolio. Mirroring only logs trades when the person you mirror is a Player who logs a new claim. Mirroring a Guide logs nothing yet. |
 | **Admins** | Admin rights are granted by the maintainer in Clerk. Admins approve or reject claims held for review, manage the list of stocks and issue API keys. |
-| **Developers and AI agents** | Read scores, consensus and leaderboards through a REST API, using a key issued by an admin. An AI-agent (MCP) server exists in the code but cannot be used yet. |
+| **Developers and AI agents** | Read scores, consensus and leaderboards through a REST API, using a key issued by an admin. AI agents can use the same data through the MCP server at `/api/mcp`, with the same kind of key. |
 
 ## Why does it exist?
 
@@ -107,7 +107,7 @@ A claim's end date is its creation date plus the horizon in calendar days. If th
 |---|---|---|
 | Web app | [www.deepmint.ai](https://www.deepmint.ai), hosted on Vercel. `deepmint.ai` redirects to `www`. | Only the landing, sign-in and sign-up pages are public. Every other page needs an account. |
 | REST API | `https://www.deepmint.ai/api/v1`: `GET /entities/{slug}/scores`, `GET /instruments/{ticker}/consensus`, `GET /leaderboard?metric=…`, plus the spec at `/openapi.json` | The three data endpoints need an API key (`Authorization: Bearer dm_live_…`), and only admins can create keys. The spec needs no key; signed-in users can also browse it at `/docs/api`. |
-| AI-agent server (MCP) | `/api/mcp` | **Not usable.** The tools are written, but the handler is mounted at the wrong path, so every authenticated request returns 404. Only the "missing or invalid key" check (401) works. |
+| AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Read tools (regime, consensus, leaderboard, track record, instrument search) need the default read scopes; the write tools (`submit_claim`, `add_note`) need `claims:write` and currently act as the admin who created the key ([known issue](docs/KNOWN_ISSUES.md#mcp-acts-as-admin)). |
 | App API (tRPC) | `/api/trpc` | Used by the web app itself. Its read-only public calls answer without sign-in. |
 | Background jobs | 15 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
 | Database | PostgreSQL on Supabase | Operators only |
@@ -148,7 +148,6 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
   - The "Most Influential" tab and the regime filters (Bull, Bear and so on) always come back empty.
 - **Daily ingestion.** The daily Guide collection does nothing until an operator switches on a Guide's feed by editing the database (there is no admin control for it) or enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
 - **Not working yet:**
-  - The MCP agent server (404, see above).
   - Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
   - Mirroring a Guide, which never creates trades.
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
@@ -342,7 +341,7 @@ These results were measured on 2026-10-05 with no `.env.local`.
 | `pnpm --filter @deepmint/shared test` | 16 passed (2 files) | Nothing needed |
 | `pnpm --filter @deepmint/api test` | 5 passed (1 file) | Nothing needed |
 | `pnpm --filter @deepmint/ingestion test` | 56 passed, 6 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. |
-| `pnpm --filter @deepmint/web test` | 18 skipped (4 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The one authenticated MCP test fails because of the 404 bug. |
+| `pnpm --filter @deepmint/web test` | 18 skipped (4 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. |
 
 The worker has no tests.
 

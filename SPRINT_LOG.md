@@ -286,7 +286,6 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
   - the Polygon news lane needs `INGEST_POLYGON_NEWS=1`.
 - **Tests without keys:** scoring 87, shared 16, api 5, ingestion 56 (6 live LLM tests skip without `HF_API_KEY`), web 18 skipped.
 - **Open issues to know first:**
-  - MCP tool calls fail: every authenticated request to `/api/mcp` returns 404.
   - Self-logged claims are entered at the previous close, so a Player can book a price move they have already seen.
   - The leaderboard page waits about 3 minutes for an uncached regime lookup (about 25 throttled Polygon calls) on every view while Upstash is unset.
   - Leaderboards have no minimum sample size.

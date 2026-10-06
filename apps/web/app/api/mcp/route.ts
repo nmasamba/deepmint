@@ -201,6 +201,10 @@ const handler = createMcpHandler((server) => {
       }
     },
   );
+}, undefined, {
+  // mcp-handler derives its endpoint as `${basePath}/mcp`. Without a base path
+  // it answers only at "/mcp", so every request to this route (/api/mcp) 404'd.
+  basePath: "/api",
 });
 
 /**
