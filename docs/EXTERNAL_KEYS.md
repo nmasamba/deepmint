@@ -89,8 +89,8 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Variable:** `POLYGON_API_KEY`.
 - **Read by:** `packages/shared/src/polygon.ts:53` (the `@massive.com/client-js` client used for all prices and index values) and `packages/ingestion/src/sources/polygonNews.ts:39` (direct calls to `https://api.polygon.io/v2/reference/news`).
 - **Powers:**
-  - entry prices: self-logged claims (`packages/api/routers/claims.ts:94`), extracted claims (`packages/ingestion/src/extractor.ts:655,660`) and backfill (`apps/worker/functions/backfill.ts:147`);
-  - markout exit prices and target-hit bars (`apps/worker/functions/markoutClaim.ts:85,114`);
+  - markout: one range of daily bars per claim gives the entry (for claims stored without one), the exit and the target-hit window (`apps/worker/functions/markoutClaim.ts`);
+  - dated entry prices: rating-dated extracted claims (`packages/ingestion/src/extractor.ts`) and backfill (`apps/worker/functions/backfill.ts`);
   - paper trading, Signal Simulate fills and the ticker page price;
   - regime indicators for scoring, the leaderboard and MCP;
   - the data check that `backfill-prices` runs on newly added instruments;
@@ -100,9 +100,10 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
   - Prices are hard-coded dev values for the 7 Mag-7 tickers (AAPL is 22500 cents), and any other ticker throws.
   - Historical bars come back empty, so `backfill-prices` deactivates every newly added instrument.
   - Index values are VIX 18 and SPX 5300, so the regime is always `bull`. The news lane returns nothing.
-  - **Danger:** a claim priced and marked out without a key gets the same constant as entry and exit, so its outcome is 0 bps, written permanently into the append-only `outcomes` table. Never run a keyless deployment or worker against a shared database.
+  - Markout writes no outcomes without a key (it gets no bars), so it never scores against dev prices.
+  - **Danger:** a rating-dated or backfilled claim stored without a key still gets a dev constant as its entry price, permanently. Never run a keyless deployment or worker against a shared database.
 - **Behaviour with a key that callers should know about:**
-  - The "current price" is the **previous session's close** (previous-day aggregate first, then the snapshot's `prevDay`; the code notes the snapshot endpoint returns 403 on the current plan). If both calls fail, the lookup throws; it never invents a price.
+  - The "current price" is the **previous session's close** (previous-day aggregate first, then the snapshot's `prevDay`; the code notes the snapshot endpoint returns 403 on the current plan). If both calls fail, the lookup throws; it never invents a price. Since the next-close entry change, claims never use it; it prices paper trades and the ticker page.
   - VIX and SPX can still fall back to the hard-coded 18 and 5300 if both index endpoints fail (`polygon.ts:310-311`). Whether the plan includes index data is unverified.
   - Every call waits for a 12.5 s gap after the previous one, sized for a 5-requests-per-minute plan. The gap is per process and not a queue: calls started together (each `Promise.all` pair) fire together, and separate serverless instances do not share it.
   - Prices are never cached. Only the regime indicators are, and only with Upstash.

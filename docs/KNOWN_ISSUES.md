@@ -1,11 +1,11 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **103 open issues: 3 high, 29 medium and 71 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **101 open issues: 2 high, 27 medium and 72 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
 1. **Code map.** Six readers each mapped one area (product, server interfaces, workers, ingestion, scoring and data model, infrastructure) and cited `path:line` for every fact. A critic pass spot-checked their citations and corrected their errors.
-2. **Adversarial verification.** Each candidate issue from the map went to a verifier told to refute it from the code (and, where needed, the installed packages and the live site), to rewrite what it overstated and to re-judge its severity. None was refuted outright; 109 issues were confirmed or corrected, and 7 of them were docs drift that this update fixed. A final cross-document review of the docs found one more, [markout-holiday-exit-never-priced](#markout-holiday-exit-never-priced), and verified it against the code. The audit itself is summarised in [DEVLOG.md](DEVLOG.md).
+2. **Adversarial verification.** Each candidate issue from the map went to a verifier told to refute it from the code (and, where needed, the installed packages and the live site), to rewrite what it overstated and to re-judge its severity. None was refuted outright; 109 issues were confirmed or corrected, and 7 of them were docs drift that this update fixed. A final cross-document review of the docs found one more, `markout-holiday-exit-never-priced` (since fixed), and verified it against the code. The audit itself is summarised in [DEVLOG.md](DEVLOG.md).
 
 Facts the code cannot show come from the maintainer. Production keys were last recorded on 2026-07-02 and could not be re-checked on 2026-10-05; see [EXTERNAL_KEYS.md](EXTERNAL_KEYS.md). Read the impacts with that context: the product is pre-launch, auth runs on a Clerk development instance, only the Mag-7 instruments are known to exist in production, and Upstash, Sentry, R2, SnapTrade and Resend were last recorded as unset.
 
@@ -20,39 +20,28 @@ Facts the code cannot show come from the maintainer. Production keys were last r
 
 ## Most important
 
-The three high-severity issues:
+The two high-severity issues:
 
-1. **[Self-logged claims book a price move the user could already see](#self-logged-claim-lookahead).** The entry price is the previous close, but the claim is timed at submission, so a Player can log a 1D call after seeing much of the day's move and bank it. Outcomes are append-only, so affected track records cannot be corrected.
-2. **[MCP server returns 404 at its own route](#mcp-unreachable-basepath).** `createMcpHandler` gets no base path, so every authenticated request to `/api/mcp` gets 404 and no agent tool works. The fix is one argument.
-3. **[The leaderboard page waits about 3 minutes](#regime-lookup-on-interactive-pages).** Each view runs two uncached regime lookups of about 25 throttled Polygon calls each, and the leaderboard table waits for them in the same batched request.
+1. **[MCP server returns 404 at its own route](#mcp-unreachable-basepath).** `createMcpHandler` gets no base path, so every authenticated request to `/api/mcp` gets 404 and no agent tool works. The fix is one argument.
+2. **[The leaderboard page waits about 3 minutes](#regime-lookup-on-interactive-pages).** Each view runs two uncached regime lookups of about 25 throttled Polygon calls each, and the leaderboard table waits for them in the same batched request.
 
 ## Counts by area
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 1 | 4 | 7 | 12 |
+| [Scoring and ranking](#area-scoring) | 0 | 4 | 7 | 11 |
 | [Product (web app)](#area-product) | 0 | 9 | 19 | 28 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 2 | 3 | 12 | 17 |
-| [Workers and schedules](#area-workers) | 0 | 4 | 6 | 10 |
+| [Workers and schedules](#area-workers) | 0 | 3 | 6 | 9 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
-| [Data model and shared code](#area-data) | 0 | 2 | 5 | 7 |
+| [Data model and shared code](#area-data) | 0 | 1 | 6 | 7 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 5 | 10 | 15 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **3** | **29** | **71** | **103** |
+| **All** | **2** | **27** | **72** | **101** |
 
 <a id="area-scoring"></a>
 
 ## Scoring and ranking
-
-<a id="self-logged-claim-lookahead"></a>
-
-### Self-logged claims book a price move the user could already see
-
-**High** · data-integrity · `self-logged-claim-lookahead`
-
-- **What's wrong:** `claims.submit` stores `getCurrentPrice()` as the entry price, and that is always the previous session's close. `created_at` is the submission time, and markout exits at the close on `created_at + horizon_days`. The scored return therefore includes whatever the user could already see at submission: the session so far, pre-market gaps and after-hours news. `target_hit` leaks the same way, because its bar window starts on the submission date. The leak is up to one session of the window: about half for a 1D claim, about 1/6 for 1W and about 1/22 for 1M. Live-ingested Guide claims without a rating date use the same price, but Guides do not choose when they are captured.
-- **User impact:** Any Player can log 1D claims in the direction a stock has already moved and bank most of the return. That raises their hit rate, average return, Sharpe and EIV on a board with no minimum sample ([leaderboard-no-minimum-sample](#leaderboard-no-minimum-sample)). The 10 claims/hour limit is off without Upstash. Claims and outcomes are append-only, so contaminated records cannot be corrected. Exposure is small while the product is pre-launch, but the flaw is in the scoring core.
-- **Evidence:** [`packages/api/routers/claims.ts:93-110`](../packages/api/routers/claims.ts#L93-L110) · [`packages/shared/src/polygon.ts:101-131`](../packages/shared/src/polygon.ts#L101-L131) · [`packages/db/schema/claims.ts:51`](../packages/db/schema/claims.ts#L51) · [`apps/worker/functions/markoutClaim.ts:77-89`](../apps/worker/functions/markoutClaim.ts#L77-L89) · [`apps/worker/functions/markoutClaim.ts:114-117`](../apps/worker/functions/markoutClaim.ts#L114-L117)
 
 <a id="leaderboard-no-minimum-sample"></a>
 
@@ -160,7 +149,7 @@ The three high-severity issues:
 
 **Low** · dead-code · `dead-scoring-code`
 
-- **What's wrong:** Seven exported functions are called only by tests: `detectInfluenceEvents`, `calmarRatio`, `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore`, `timeDecayedBrierScore` and `formatEIVWithContext`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, at one extra Polygon request per claim with a target, but no metric or UI uses it.
+- **What's wrong:** Seven exported functions are called only by tests: `detectInfluenceEvents`, `calmarRatio`, `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore`, `timeDecayedBrierScore` and `formatEIVWithContext`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
 - **User impact:** Maintainers may assume continuous Brier and MAE/MFE feed live scores. Because the profile copies the EIV thresholds instead of calling `formatEIVWithContext`, a scored entity with EIV 0 shows "No data yet" rather than "No Edge".
 - **Evidence:** [`packages/scoring/src/influence.ts:46`](../packages/scoring/src/influence.ts#L46) · [`packages/scoring/src/player.ts:23`](../packages/scoring/src/player.ts#L23) · [`packages/scoring/src/guide.ts:141-189`](../packages/scoring/src/guide.ts#L141-L189) · [`packages/scoring/src/eiv.ts:67`](../packages/scoring/src/eiv.ts#L67) · [`apps/web/components/EntityProfileTabs.tsx:104-112`](../apps/web/components/EntityProfileTabs.tsx#L104-L112) · [`apps/worker/functions/markoutClaim.ts:110-129`](../apps/worker/functions/markoutClaim.ts#L110-L129)
 
@@ -294,7 +283,7 @@ The three high-severity issues:
 
 **Low** · bug · `current-price-is-previous-close`
 
-- **What's wrong:** `getCurrentPrice` returns the previous close by design. The ticker page shows it with no label or date, paper trades open, close and mark to it, and Learn says paper trades execute "at the current market price". (Its effect on claim entry prices is [self-logged-claim-lookahead](#self-logged-claim-lookahead).)
+- **What's wrong:** `getCurrentPrice` returns the previous close by design. The ticker page shows it with no label or date, paper trades open, close and mark to it, and Learn says paper trades execute "at the current market price". (Since the next-close entry change, claims no longer use it for entry prices.)
 - **User impact:** The header price can be a session old but reads as live. Paper P&L is off and can be gamed by trading after an intraday move, but only in the user's own sandbox.
 - **Evidence:** [`packages/shared/src/polygon.ts:101-131`](../packages/shared/src/polygon.ts#L101-L131) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:93-97`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L93-L97) · [`packages/api/routers/paper.ts:153`](../packages/api/routers/paper.ts#L153) · [`packages/api/routers/paper.ts:350`](../packages/api/routers/paper.ts#L350) · [`apps/web/lib/learnModules.ts:273`](../apps/web/lib/learnModules.ts#L273)
 
@@ -656,16 +645,6 @@ The three high-severity issues:
 - **User impact:** On days when no claim matures, consensus and influence are not recomputed, however many claims arrived; the 90-day window and decay freeze too. The UI shows no as-of date, so stale signals look current. If no claim has ever matured, no consensus row exists.
 - **Evidence:** [`apps/worker/functions/markout.ts:136-144`](../apps/worker/functions/markout.ts#L136-L144) · [`apps/worker/functions/score.ts:323-331`](../apps/worker/functions/score.ts#L323-L331) · [`apps/worker/functions/consensus-signal.ts:21`](../apps/worker/functions/consensus-signal.ts#L21) · [`apps/worker/functions/influence-aggregate.ts:14`](../apps/worker/functions/influence-aggregate.ts#L14)
 
-<a id="markout-holiday-exit-never-priced"></a>
-
-### A claim whose end date is a market holiday never gets an outcome
-
-**Medium** · data-integrity · `markout-holiday-exit-never-priced`
-
-- **What's wrong:** `computeMarkoutForClaim` sets the exit date to `created_at + horizon_days` and moves it past weekends only (`nextTradingDay` checks `isWeekend`, not the market calendar). On a market holiday `getEODPrice` has no bar and throws, the function returns null, and markout counts the claim as skipped "to retry next run". The next run computes the same exit date, so the claim is skipped on every run. Backfill uses the same function. (Found by the final cross-document review of this docs update, and verified against the code.)
-- **User impact:** Every active claim whose end date lands on an NYSE holiday (the next is Thanksgiving, 2026-11-26) stays "Matured" with no outcome, so it never counts in any score, and nothing reports it. Each stuck claim also costs one throttled Polygon call (12.5 s) on every weekday markout run, for ever, which adds to [inngest-route-no-maxduration](#inngest-route-no-maxduration).
-- **Evidence:** [`apps/worker/functions/markoutClaim.ts:27-33`](../apps/worker/functions/markoutClaim.ts#L27-L33) · [`apps/worker/functions/markoutClaim.ts:78-89`](../apps/worker/functions/markoutClaim.ts#L78-L89) · [`packages/shared/src/polygon.ts:179-200`](../packages/shared/src/polygon.ts#L179-L200) · [`apps/worker/functions/markout.ts:91-95`](../apps/worker/functions/markout.ts#L91-L95) · [`apps/worker/functions/backfill.ts:205`](../apps/worker/functions/backfill.ts#L205)
-
 <a id="backfill-prices-deactivates-on-error"></a>
 
 ### `backfill-prices` deactivates an instrument on any error
@@ -693,7 +672,7 @@ The three high-severity issues:
 **Low** · bug · `cron-times-assume-edt`
 
 - **What's wrong:** The crons are UTC with no `TZ=` prefix, and comments give EDT times. From Monday 2026-11-02 until US daylight time resumes on 2027-03-14, `ingest-sources` (20:30 UTC) runs at 15:30 ET, before the close, and `markout-computation` (21:00 UTC) runs at exactly 16:00 ET.
-- **User impact:** Most outcomes will likely land one trading day late: at 16:00 ET the day's bar is probably not available yet, so the claim waits for the next run, which still prices the correct exit date. A claim whose `rating_date` is today can fail its entry-price lookup and be stored with no entry price, so it never scores.
+- **User impact:** In winter, every outcome whose exit is the run date lands one trading day late: a session's bar counts only from 16:30 ET, so the 16:00 ET run waits and the next run prices the same exit date.
 - **Evidence:** [`apps/worker/functions/ingest.ts:53-61`](../apps/worker/functions/ingest.ts#L53-L61) · [`apps/worker/functions/markout.ts:8-15`](../apps/worker/functions/markout.ts#L8-L15) · [`apps/worker/functions/markoutClaim.ts:85-88`](../apps/worker/functions/markoutClaim.ts#L85-L88) · [`packages/ingestion/src/extractor.ts:649-664`](../packages/ingestion/src/extractor.ts#L649-L664)
 
 <a id="merkle-audit-gaps"></a>
@@ -864,16 +843,6 @@ The three high-severity issues:
 
 ## Data model and shared code
 
-<a id="fallback-prices-in-ledger"></a>
-
-### A failed entry-price lookup leaves a claim that never scores; a keyless deploy writes fake prices
-
-**Medium** · data-integrity · `fallback-prices-in-ledger`
-
-- **What's wrong:** With a key, extraction and backfill swallow any entry-price error and insert the claim with `entry_price_cents` null. Claims are immutable, re-extraction skips the event, and markout returns nothing for it on every run. With no key, price helpers return fixed dev prices (Mag 7 only) and empty history, so claims and outcomes get made-up entry prices and 0 bps returns.
-- **User impact:** Live: a Guide claim whose price lookup fails once (a 429, or a rating dated on a market holiday) shows as active but never scores, and nothing reports it. Latent: a keyless deploy writing to a shared database would store fake, undeletable outcomes.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:646-664`](../packages/ingestion/src/extractor.ts#L646-L664) · [`apps/worker/functions/backfill.ts:145-152`](../apps/worker/functions/backfill.ts#L145-L152) · [`apps/worker/functions/markoutClaim.ts:74`](../apps/worker/functions/markoutClaim.ts#L74) · [`packages/shared/src/polygon.ts:38-56`](../packages/shared/src/polygon.ts#L38-L56)
-
 <a id="uniqueness-invariants-comment-only"></a>
 
 ### Uniqueness and append-only rules exist only in comments
@@ -883,6 +852,16 @@ The three high-severity issues:
 - **What's wrong:** No migration creates the unique indexes the schema comments describe (one outcome per claim and horizon, one instrument per ticker and exchange, one score per entity, metric, horizon, regime and date), and `events.content_hash` is not unique. No trigger or permission enforces append-only. Dedupe is check-then-insert with no `ON CONFLICT` and no Inngest concurrency limit: markout checks every due claim first, then spends minutes pricing them before inserting. Derived tables are deleted and re-inserted outside a transaction.
 - **User impact:** Sequential retries are safe. A historical backfill overlapping the 21:00 UTC markout can write duplicate outcomes, which count twice in hit rate, returns and EIV and are never removed.
 - **Evidence:** [`packages/db/schema/outcomes.ts:21-22`](../packages/db/schema/outcomes.ts#L21-L22) · [`packages/db/schema/events.ts:9`](../packages/db/schema/events.ts#L9) · [`apps/worker/functions/markout.ts:44-61`](../apps/worker/functions/markout.ts#L44-L61) · [`apps/worker/functions/markout.ts:83-108`](../apps/worker/functions/markout.ts#L83-L108) · [`apps/worker/functions/score.ts:243-251`](../apps/worker/functions/score.ts#L243-L251)
+
+<a id="fallback-prices-in-ledger"></a>
+
+### A keyless deploy writes fake entry prices on dated and backfilled claims
+
+**Low** · data-integrity · `fallback-prices-in-ledger`
+
+- **What's wrong:** With no `POLYGON_API_KEY`, `getEODPrice` returns fixed dev prices (Mag 7 only), and a rating-dated extracted claim or a backfilled claim stores that as its entry price. (Fixed 2026-10-06: a failed entry lookup no longer leaves a claim that never scores, because markout prices a missing entry at the first close after the claim; and markout writes no outcomes without a key.)
+- **User impact:** Latent: a keyless deploy or worker writing to a shared database would store fake, undeletable entry prices on those claims.
+- **Evidence:** [`packages/ingestion/src/extractor.ts:646-664`](../packages/ingestion/src/extractor.ts#L646-L664) · [`apps/worker/functions/backfill.ts:145-152`](../apps/worker/functions/backfill.ts#L145-L152) · [`packages/shared/src/polygon.ts:38-56`](../packages/shared/src/polygon.ts#L38-L56)
 
 <a id="soft-delete-half-implemented"></a>
 
@@ -994,7 +973,7 @@ The three high-severity issues:
 
 **Low** · config · `inngest-route-no-maxduration`
 
-- **What's wrong:** Several steps are long single invocations under the project's default function limit (unverified; about 300 s with Fluid compute). Markout prices every due claim in one step at 12.5–25 s each, so about 12–24 due claims fill 300 s. Scoring starts with the uncached regime lookup (about 3 minutes). One LLM model can take 3 × 120 s.
+- **What's wrong:** Several steps are long single invocations under the project's default function limit (unverified; about 300 s with Fluid compute). Markout prices every due claim in one step at one 12.5 s call each, so about 24 due claims fill 300 s. Scoring starts with the uncached regime lookup (about 3 minutes). One LLM model can take 3 × 120 s.
 - **User impact:** Probably nothing at today's volume. As it grows, steps are killed and retried. If every markout attempt times out, scoring does not run that day, and a hung primary model uses up the step before the fallback model is tried.
 - **Evidence:** [`apps/web/app/api/inngest/route.ts:1-11`](../apps/web/app/api/inngest/route.ts#L1-L11) · [`apps/worker/functions/markout.ts:83-91`](../apps/worker/functions/markout.ts#L83-L91) · [`apps/worker/functions/score.ts:32-38`](../apps/worker/functions/score.ts#L32-L38) · [`packages/ingestion/src/extractor.ts:308-309`](../packages/ingestion/src/extractor.ts#L308-L309)
 

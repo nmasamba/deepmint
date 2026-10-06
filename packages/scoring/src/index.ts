@@ -6,3 +6,4 @@ export * from "./consensus";
 export * from "./regime";
 export * from "./eiv";
 export * from "./influence";
+export * from "./markout";

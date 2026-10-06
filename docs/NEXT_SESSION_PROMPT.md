@@ -15,7 +15,7 @@ READ FIRST
 - README.md
 - docs/KNOWN_ISSUES.md: the verified open issues, by severity
 - docs/EXTERNAL_KEYS.md: which keys are set or empty, and how to add one
-- docs/DEVLOG.md: the four 2026-10-05 entries at the top (newest first)
+- docs/DEVLOG.md: the newest entries at the top (2026-10-06 and 2026-10-05)
 
 CURRENT STATE
 - Production: https://www.deepmint.ai (canonical; deepmint.ai 307-redirects to www, and webhook
@@ -79,22 +79,11 @@ WORKING RULES
 10. Mag-7 only for now. Expanding beyond the Mag 7 is planned only once the core product has
     matured. Don't propose it as a fix, and don't press the admin "Seed S&P 500 Top 50" button.
 
-NEXT: TWO WORKSTREAMS. Ask me which to start.
+NEXT: workstream A is done; B remains. Ask me before starting.
 
-A. Self-logged claims book a price move the user could already see (high, scoring core).
-   - claims.submit stores entry_price_cents = getCurrentPrice(), which returns the PREVIOUS
-     session's close (packages/api/routers/claims.ts:93-94, packages/shared/src/polygon.ts:100-131),
-     and created_at = now().
-   - Markout exits at the close on created_at + horizon_days, skipping weekends only
-     (apps/worker/functions/markoutClaim.ts:77-89). The target_hit bar window also starts on the
-     submission date (:114-117).
-   - So a 1D claim submitted at 3pm ET is scored from the previous close and banks most of a day
-     the user had already watched, plus pre-market gaps and after-hours news. MCP submit_claim
-     takes the same path. Hit rate, Sharpe and EIV inherit the leak.
-   - Goal: the scored window starts after the claim is made.
-   - Constraint: entry_price_cents cannot be back-filled later (append-only). Propose a design,
-     e.g. markout prices a self_logged claim's entry at the first close after created_at, and
-     agree it with me before coding. Every day this stays live adds records that cannot be fixed.
+A. Done: self-logged and undated claims are stored with entry_price_cents = null and entered by
+   markout at the first close after they are made; the price is recorded on the outcome. Pick the
+   next item from docs/KNOWN_ISSUES.md by severity instead.
 
 B. Upstash Redis (priority 1 in docs/EXTERNAL_KEYS.md) plus the leaderboard's regime lookup
    (high, latency).

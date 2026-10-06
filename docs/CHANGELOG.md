@@ -3,11 +3,25 @@
 All notable changes to Deepmint are recorded here, newest first.
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versions are not tagged in git: from 0.8.0 on, each entry names the commits or pull requests it covers (`git log --first-parent origin/main`). Reasoning and verification notes live in [DEVLOG.md](DEVLOG.md).
 
-Entries before 0.8.0 are kept as history. Where one was wrong about the code at the time, it now carries a dated *Correction* note; a wrong count, time or name was fixed in place. [Unreleased] lists every such fix.
+Entries before 0.8.0 are kept as history. Where one was wrong about the code at the time, it now carries a dated *Correction* note; a wrong count, time or name was fixed in place. [0.10.1] lists every such fix.
 
 ---
 
-## [Unreleased] — Documentation pass (2026-10-05)
+## [Unreleased]
+
+### Fixed
+- **Claims are scored from the first close after they are made.** Self-logged claims were stored with `getCurrentPrice()`, which is the previous session's close, so a Player could log a call after seeing much of the day's move and be credited with it (a 1-day claim leaked about half its window). Claims without a dated price (self-logged, and live-ingested Guide claims without a rating date) are now stored with no entry price. Markout enters them at the close of the first trading session after `created_at`, records it on the outcome, starts the target-hit window the day after entry, and measures the horizon from the entry date. Claims stored before this change keep their prices (append-only). Closes `self-logged-claim-lookahead`.
+- **Holiday exits.** An exit date on a market holiday had no bar, so the claim was retried on the same date for ever. Exits now roll to the next session with a bar. Closes `markout-holiday-exit-never-priced`.
+- **A failed entry lookup no longer stops a claim from scoring.** Extraction and backfill store null when the lookup fails, and markout now prices that entry like any other undated claim. Without a Polygon key, markout writes no outcomes rather than scoring against dev prices. `fallback-prices-in-ledger` is reduced to the keyless-deploy risk for dated and backfilled claims (now low).
+
+### Changed
+- Markout fetches one range of daily bars per claim instead of one or two calls, and skips the fetch until the exit session has closed. The pricing rules are pure, unit-tested functions in `packages/scoring/src/markout.ts`.
+- `claims.submit` no longer waits on a throttled price lookup (measured locally: 9 ms).
+- Claim cards for claims without a stored entry say "Entry: first close after claim"; the price used is recorded on the outcome. Signal Simulate mirroring retries instead of opening a paper trade at no price.
+
+---
+
+## [0.10.1] — Documentation pass (2026-10-05)
 
 Markdown docs and `.env.example` only; no application code changed. Statements were checked against the code at `cd63901` (= `origin/main`). How the audit was done, and the most serious findings, are in [DEVLOG.md](DEVLOG.md).
 
