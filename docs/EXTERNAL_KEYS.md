@@ -30,12 +30,11 @@ Never write a real key value into this file, [`.env.example`](../.env.example) o
 Ordered by what each step changes in the running code today.
 
 1. **Upstash Redis.** Config only, no code change. Without it:
-   - The regime indicators (VIX, S&P 500, 11 sector ETFs) are recomputed on every call instead of being cached for 1 hour. One lookup is about 25 Polygon calls behind the 12.5 s throttle, roughly 2.5–3 minutes. It runs on every leaderboard page view (the main table waits for it, because tRPC batches it into the same request), every scoring run and, once the MCP route's 404 is fixed (see [Test-only variables](#test-only-variables)), every MCP `get_current_regime` call.
    - `claims.submit` has no 10-claims-per-hour limit, so a signed-in user can submit claims without bound.
    - `/api/v1` and `/api/mcp` have no per-key limit. This matters once the first `dm_live_` key is issued; production had 0 keys on 2026-08-03 and the count since is not recorded.
 2. **Check for an unprefixed `INNGEST_EVENT_KEY` in Vercel.** Config check. The tRPC routers send events through their own Inngest clients, which never see the `INNGEST_WORKFLOW_` mapping. If production has only the prefixed keys, self-logged claims and follows silently emit no events, and the admin "Seed S&P 500 Top 50" button errors after inserting rows. Details under [Inngest](#inngest).
 3. **Clerk production instance, before launch.** Production runs on a development instance. That instance allows 100 Backend API requests per 10 seconds, and every signed-in non-admin tRPC request and full page load makes one (`users.getUser`, for the admin check). Moving needs the custom domain, Google OAuth credentials and DNS, then new values for both keys and the webhook secret.
-4. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 15 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
+4. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 16 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
 5. **SnapTrade: when Player broker verification launches,** and only after the gaps listed under [SnapTrade](#snaptrade) are fixed.
 6. **Resend: code first.** The digest sends to placeholder addresses.
 7. **Cloudflare R2: code first, lowest priority.** No code path uploads anything.
@@ -99,12 +98,12 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **If missing:**
   - Prices are hard-coded dev values for the 7 Mag-7 tickers (AAPL is 22500 cents), and any other ticker throws.
   - Historical bars come back empty, so `backfill-prices` deactivates every newly added instrument.
-  - Index values are VIX 18 and SPX 5300, so the regime is always `bull`. The news lane returns nothing.
+  - No market-regime snapshot is stored: every indicator would be a dev constant, so each is marked defaulted and the snapshot job refuses to write one. The leaderboard shows no regime. The news lane returns nothing.
   - Markout writes no outcomes without a key (it gets no bars), so it never scores against dev prices.
   - **Danger:** a rating-dated or backfilled claim stored without a key still gets a dev constant as its entry price, permanently. Never run a keyless deployment or worker against a shared database.
 - **Behaviour with a key that callers should know about:**
   - The "current price" is the **previous session's close** (previous-day aggregate first, then the snapshot's `prevDay`; the code notes the snapshot endpoint returns 403 on the current plan). If both calls fail, the lookup throws; it never invents a price. Since the next-close entry change, claims never use it; it prices paper trades and the ticker page.
-  - VIX and SPX can still fall back to the hard-coded 18 and 5300 if both index endpoints fail (`polygon.ts:310-311`). Whether the plan includes index data is unverified.
+  - The plan has **no index data**: `I:VIX` and `I:SPX` return 403 NOT_AUTHORIZED (checked 2026-10-06). The regime's S&P 500 30-day return is therefore measured on SPY, and VIX is recorded as defaulted in every snapshot (`market_regimes.defaulted_fields`); it is never replaced by a made-up value. A plan with index data fills VIX in with no code change.
   - Every call waits for a 12.5 s gap after the previous one, sized for a 5-requests-per-minute plan. The gap is per process and not a queue: calls started together (each `Promise.all` pair) fire together, and separate serverless instances do not share it.
   - Prices are never cached. Only the regime indicators are, and only with Upstash.
 - **Get it:** Massive (polygon.io) dashboard → API keys.
@@ -169,7 +168,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
   | `packages/shared/src/polygonCache.ts:24-25` | 1-hour cache of the **regime indicators only** (`polygon.ts:406-409`). Price lookups are never cached; `historicalCacheKey` and `currentPriceCacheKey` are unused. |
 
 - **Required:** no. Priority 1 explains why to set it anyway.
-- **If missing:** no rate limits anywhere, follower counts come from the database each time, and the regime lookup (about 25 Polygon calls) runs on every call.
+- **If missing:** no rate limits anywhere, and follower counts come from the database each time. The regime no longer depends on it: it is a stored daily snapshot.
 - **Headers prove nothing.** `/api/v1` sends `X-RateLimit-*` headers on every authenticated response, with or without Upstash (`remaining` equals the limit when it is off).
 - **Silent failure:** `@upstash/redis` is not a declared dependency of `@deepmint/shared`. `polygonCache.ts` imports it dynamically, and if that import fails the regime cache switches itself off without an error.
 - **Get it:** console.upstash.com → create a Redis database → REST API → URL and token. The code reads only these two names; if a marketplace integration injects other names, add these two as well.
@@ -259,7 +258,6 @@ These are read from the **root** `.env.local` by `apps/web/vitest.config.ts`.
   - Admins are the only people who can mint keys; the UI offers only the 3 read scopes.
 - **`TEST_BASE_URL`**: default `http://localhost:3000`. The server must be running.
 - **`TEST_ENTITY_SLUG`**: default `demo-guide`, which no seed creates. Use a seeded slug such as `sarah-chen`.
-- **Expected failure:** the authenticated MCP test fails until the MCP route's base-path bug is fixed. `/api/mcp` answers 404 after auth, because `mcp-handler` 1.1.0 defaults to serving `/mcp`.
 
 ## Names that nothing reads
 

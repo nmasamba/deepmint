@@ -8,7 +8,7 @@ Docs it points to: [README](../README.md) · [KNOWN_ISSUES](KNOWN_ISSUES.md) · 
 
 ```text
 You are picking up Deepmint: a pnpm/Turborepo monorepo with apps/web (Next.js 15),
-apps/worker (15 Inngest functions, served by apps/web at /api/inngest) and
+apps/worker (16 Inngest functions, served by apps/web at /api/inngest) and
 packages/{api,db,ingestion,scoring,shared}. State below is as of 2026-10-05, main = cd63901.
 
 READ FIRST
@@ -85,16 +85,10 @@ A. Done: self-logged and undated claims are stored with entry_price_cents = null
    markout at the first close after they are made; the price is recorded on the outcome. Pick the
    next item from docs/KNOWN_ISSUES.md by severity instead.
 
-B. Upstash Redis (priority 1 in docs/EXTERNAL_KEYS.md) plus the leaderboard's regime lookup
-   (high, latency).
-   - getRegimeIndicators makes ~25 Polygon calls behind the 12.5 s throttle, about 2.5-3 minutes
-     on a fresh instance (packages/shared/src/polygon.ts:406-457). Its 1-hour cache works only
-     with Upstash (packages/shared/src/polygonCache.ts:21-42).
-   - It runs inside page requests: regime.current (the leaderboard page; also MCP
-     get_current_regime) and leaderboard.bestInCurrentConditions. httpBatchLink batches both
-     with leaderboard.top, so the whole leaderboard table shows skeletons until the lookup ends.
-   - Upstash also switches on rate limits (claims.submit 10/h, broker sync 1/h, v1 and MCP per key
-     per minute) and the follower-count cache. It does NOT cache prices.
+B. Upstash Redis (priority 1 in docs/EXTERNAL_KEYS.md).
+   - It switches on rate limits (claims.submit 10/h, broker sync 1/h, v1 and MCP per key per
+     minute) and the follower-count cache. It does NOT cache prices. The leaderboard's regime no
+     longer needs it: since 2026-10-06 it is a stored daily snapshot (market_regimes).
    - Steps:
      1. I run `vercel login`. You list env var NAMES, never values, to refresh
         docs/EXTERNAL_KEYS.md. Include whether an unprefixed INNGEST_EVENT_KEY exists: the
@@ -105,12 +99,8 @@ B. Upstash Redis (priority 1 in docs/EXTERNAL_KEYS.md) plus the leaderboard's re
         see new env after a fresh production deploy; ask me before triggering one.
      3. Verify: X-RateLimit-* headers are sent even without Upstash, so check that
         X-RateLimit-Remaining drops between two /api/v1 calls with the same key.
-     4. Code: even with Upstash, the first visitor after each 1-hour expiry still waits minutes.
-        Take the regime lookup off the request path, and agree the design with me first.
-        @deepmint/shared does not declare @upstash/redis, so outside the Next build (vitest, tsx)
-        the cache silently disables itself.
+     4. @deepmint/shared does not declare @upstash/redis, so outside the Next build (vitest, tsx)
+        its cache silently disables itself.
 
-Everything else is in docs/KNOWN_ISSUES.md. That includes the other high-severity issue,
-a small fix: /api/mcp returns 404 to every authenticated request, because createMcpHandler is
-called with no basePath (apps/web/app/api/mcp/route.ts:50).
+Everything else is in docs/KNOWN_ISSUES.md.
 ```

@@ -9,7 +9,13 @@ Entries before 0.8.0 are kept as history. Where one was wrong about the code at 
 
 ## [Unreleased]
 
+### Added
+- **Stored daily market regime.** A new `market_regimes` table (migration 0008) holds one snapshot per weekday, written by the new `market-regime-snapshot` job at 21:30 UTC (16 Inngest functions in total). Scoring reuses that day's snapshot. Each snapshot records its indicators in basis points and lists any that were unavailable in `defaulted_fields`; a day where all three are unavailable is not stored.
+
 ### Fixed
+- **MCP server answers at `/api/mcp`.** `createMcpHandler` had no `basePath`, so mcp-handler served only `/mcp` and every authenticated request returned 404; no agent tool had ever worked. It now passes `basePath: "/api"`. Closes `mcp-unreachable-basepath`.
+- **The leaderboard no longer waits about 3 minutes.** `regime.current`, `leaderboard.bestInCurrentConditions` and MCP `get_current_regime` read the latest stored snapshot instead of making ~25 throttled Polygon calls on every view (measured locally: 177 s before, under 0.5 s after). With no snapshot yet they return nothing rather than a default. Closes `regime-lookup-on-interactive-pages`.
+- **No made-up index values.** With a key configured, `getIndexSnapshot` threw no error and returned the dev constants (VIX 18, SPX 5300) when the index endpoints failed, and the current plan has no index data at all (both return 403). It now throws, the regime records VIX as defaulted, and the S&P 500 30-day return is measured on SPY, which the plan covers. The "yesterday" fallback also snaps to a trading day. Closes `index-fallback-fabricates-values`.
 - **Claims are scored from the first close after they are made.** Self-logged claims were stored with `getCurrentPrice()`, which is the previous session's close, so a Player could log a call after seeing much of the day's move and be credited with it (a 1-day claim leaked about half its window). Claims without a dated price (self-logged, and live-ingested Guide claims without a rating date) are now stored with no entry price. Markout enters them at the close of the first trading session after `created_at`, records it on the outcome, starts the target-hit window the day after entry, and measures the horizon from the entry date. Claims stored before this change keep their prices (append-only). Closes `self-logged-claim-lookahead`.
 - **Holiday exits.** An exit date on a market holiday had no bar, so the claim was retried on the same date for ever. Exits now roll to the next session with a bar. Closes `markout-holiday-exit-never-priced`.
 - **A failed entry lookup no longer stops a claim from scoring.** Extraction and backfill store null when the lookup fails, and markout now prices that entry like any other undated claim. Without a Polygon key, markout writes no outcomes rather than scoring against dev prices. `fallback-prices-in-ledger` is reduced to the keyless-deploy risk for dated and backfilled claims (now low).
@@ -18,6 +24,9 @@ Entries before 0.8.0 are kept as history. Where one was wrong about the code at 
 - Markout fetches one range of daily bars per claim instead of one or two calls, and skips the fetch until the exit session has closed. The pricing rules are pure, unit-tested functions in `packages/scoring/src/markout.ts`.
 - `claims.submit` no longer waits on a throttled price lookup (measured locally: 9 ms).
 - Claim cards for claims without a stored entry say "Entry: first close after claim"; the price used is recorded on the outcome. Signal Simulate mirroring retries instead of opening a paper trade at no price.
+
+### Migration
+- `0008_fixed_valeria_richards.sql`: `CREATE TABLE market_regimes`. No existing rows are touched. Apply it to Supabase before this ships.
 
 ---
 

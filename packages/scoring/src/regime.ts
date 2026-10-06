@@ -29,3 +29,28 @@ export function detectRegime(data: RegimeInput): MarketRegime {
   if (data.sectorDispersion > 0.15) return "rotation";
   return "bull"; // default
 }
+
+/** The stored form of a regime snapshot: returns in basis points (invariant #4). */
+export interface RegimeSnapshotValues {
+  vixLevel: string; // numeric(8,2) column
+  sp500Return30dBps: number;
+  sectorDispersionBps: number;
+}
+
+/** Convert live indicators into the stored snapshot values. */
+export function toRegimeSnapshotValues(data: RegimeInput): RegimeSnapshotValues {
+  return {
+    vixLevel: data.vixLevel.toFixed(2),
+    sp500Return30dBps: Math.round(data.sp500Return30d * 10000),
+    sectorDispersionBps: Math.round(data.sectorDispersion * 10000),
+  };
+}
+
+/** Convert a stored snapshot back into decimal indicators. */
+export function fromRegimeSnapshotValues(row: RegimeSnapshotValues): RegimeInput {
+  return {
+    vixLevel: Number(row.vixLevel),
+    sp500Return30d: row.sp500Return30dBps / 10000,
+    sectorDispersion: row.sectorDispersionBps / 10000,
+  };
+}
