@@ -258,7 +258,6 @@ These are read from the **root** `.env.local` by `apps/web/vitest.config.ts`.
   - Admins are the only people who can mint keys; the UI offers only the 3 read scopes.
 - **`TEST_BASE_URL`**: default `http://localhost:3000`. The server must be running.
 - **`TEST_ENTITY_SLUG`**: default `demo-guide`, which no seed creates. Use a seeded slug such as `sarah-chen`.
-- **Expected failure:** the authenticated MCP test fails until the MCP route's base-path bug is fixed. `/api/mcp` answers 404 after auth, because `mcp-handler` 1.1.0 defaults to serving `/mcp`.
 
 ## Names that nothing reads
 

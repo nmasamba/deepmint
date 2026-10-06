@@ -7,7 +7,14 @@ Entries before 0.8.0 are kept as history. Where one was wrong about the code at 
 
 ---
 
-## [Unreleased] — Documentation pass (2026-10-05)
+## [Unreleased]
+
+### Fixed
+- **MCP server answers at `/api/mcp`.** `createMcpHandler` had no `basePath`, so mcp-handler served only `/mcp` and every authenticated request returned 404; no agent tool had ever worked. It now passes `basePath: "/api"`. Closes `mcp-unreachable-basepath`.
+
+---
+
+## [0.10.1] — Documentation pass (2026-10-05)
 
 Markdown docs and `.env.example` only; no application code changed. Statements were checked against the code at `cd63901` (= `origin/main`). How the audit was done, and the most serious findings, are in [DEVLOG.md](DEVLOG.md).
 

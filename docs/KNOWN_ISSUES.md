@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **103 open issues: 3 high, 29 medium and 71 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **102 open issues: 2 high, 29 medium and 71 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -13,18 +13,17 @@ Facts the code cannot show come from the maintainer. Production keys were last r
 
 ## Maintaining this file
 
-- **When a PR fixes an issue,** delete its entry and update the counts table in that PR, and cite the issue id, such as `mcp-unreachable-basepath`, in the PR description. Record the fix in [CHANGELOG.md](CHANGELOG.md).
+- **When a PR fixes an issue,** delete its entry and update the counts table in that PR, and cite the issue id, such as `regime-lookup-on-interactive-pages`, in the PR description. Record the fix in [CHANGELOG.md](CHANGELOG.md).
 - **When a fix is partial,** rewrite the entry to describe what remains.
 - **To add an issue,** verify it against the code first, give `path:line` evidence, and place it in its area in severity order.
 - **Line numbers** in the evidence links are those of `cd63901`. After later edits, search for the named symbol.
 
 ## Most important
 
-The three high-severity issues:
+The two high-severity issues:
 
 1. **[Self-logged claims book a price move the user could already see](#self-logged-claim-lookahead).** The entry price is the previous close, but the claim is timed at submission, so a Player can log a 1D call after seeing much of the day's move and bank it. Outcomes are append-only, so affected track records cannot be corrected.
-2. **[MCP server returns 404 at its own route](#mcp-unreachable-basepath).** `createMcpHandler` gets no base path, so every authenticated request to `/api/mcp` gets 404 and no agent tool works. The fix is one argument.
-3. **[The leaderboard page waits about 3 minutes](#regime-lookup-on-interactive-pages).** Each view runs two uncached regime lookups of about 25 throttled Polygon calls each, and the leaderboard table waits for them in the same batched request.
+2. **[The leaderboard page waits about 3 minutes](#regime-lookup-on-interactive-pages).** Each view runs two uncached regime lookups of about 25 throttled Polygon calls each, and the leaderboard table waits for them in the same batched request.
 
 ## Counts by area
 
@@ -32,13 +31,13 @@ The three high-severity issues:
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 1 | 4 | 7 | 12 |
 | [Product (web app)](#area-product) | 0 | 9 | 19 | 28 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 2 | 3 | 12 | 17 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 1 | 3 | 12 | 16 |
 | [Workers and schedules](#area-workers) | 0 | 4 | 6 | 10 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
 | [Data model and shared code](#area-data) | 0 | 2 | 5 | 7 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 5 | 10 | 15 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **3** | **29** | **71** | **103** |
+| **All** | **2** | **29** | **71** | **102** |
 
 <a id="area-scoring"></a>
 
@@ -434,7 +433,7 @@ The three high-severity issues:
 
 **Low** · feature-gap · `claim-notes-no-ui`
 
-- **What's wrong:** `claims.addNote` is called only by the MCP `add_note` tool, which is unreachable ([mcp-unreachable-basepath](#mcp-unreachable-basepath)). `ClaimCard`'s notes count is never passed, and no page shows notes.
+- **What's wrong:** `claims.addNote` is called only by the MCP `add_note` tool. `ClaimCard`'s notes count is never passed, and no page shows notes.
 - **User impact:** Players cannot annotate or correct their own claims, though notes are the only correction mechanism for append-only claims.
 - **Evidence:** [`packages/api/routers/claims.ts:259-300`](../packages/api/routers/claims.ts#L259-L300) · [`apps/web/components/claims/ClaimCard.tsx:249`](../apps/web/components/claims/ClaimCard.tsx#L249) · [`apps/web/app/api/mcp/route.ts:167-203`](../apps/web/app/api/mcp/route.ts#L167-L203)
 
@@ -451,16 +450,6 @@ The three high-severity issues:
 <a id="area-api"></a>
 
 ## API: tRPC, REST v1, MCP, auth
-
-<a id="mcp-unreachable-basepath"></a>
-
-### MCP server returns 404 at its own route `/api/mcp`
-
-**High** · inert-integration · `mcp-unreachable-basepath`
-
-- **What's wrong:** `createMcpHandler(...)` is called with no config, so mcp-handler@1.1.0 uses `basePath ""` and answers only at pathname `/mcp`. Inside the Next.js route the pathname is `/api/mcp`, so every request that passes `withMcpAuth` gets 404 "Not found"; only the 401 for a missing or bad key works. The authenticated MCP test expects 200 and would fail. The route has had no base path since it was added. Fix: pass `{ basePath: "/api" }` (or `{ streamableHttpEndpoint: "/api/mcp" }`) as the third argument.
-- **User impact:** No agent can call any MCP tool, read or write, at https://www.deepmint.ai/api/mcp. MCP is not mentioned in the app or on `/docs/api`, and keys are admin-issued, so this affects the maintainer and anyone given a key.
-- **Evidence:** [`apps/web/app/api/mcp/route.ts:50`](../apps/web/app/api/mcp/route.ts#L50) · [`apps/web/app/api/mcp/route.ts:224-228`](../apps/web/app/api/mcp/route.ts#L224-L228) · [`apps/web/__tests__/api-mcp/mcp.test.ts:54-69`](../apps/web/__tests__/api-mcp/mcp.test.ts#L54-L69)
 
 <a id="regime-lookup-on-interactive-pages"></a>
 
@@ -579,7 +568,7 @@ The three high-severity issues:
 **Low** · bug · `mcp-tool-contract-gaps`
 
 - **What's wrong:** `get_entity_track_record` returns only the raw entities row, with no claims, outcomes or scores. Opening a session requires `consensus:read`, and read tools check no further scope. `submit_claim` has no `rationaleTags`. Tool descriptions say "Mag-7 ticker" but any instrument resolves.
-- **User impact:** Moot until [mcp-unreachable-basepath](#mcp-unreachable-basepath) is fixed.
+- **User impact:** An agent asking for a track record gets no claims, outcomes or scores, and tool descriptions promise Mag-7 while any instrument resolves.
 - **Evidence:** [`apps/web/app/api/mcp/route.ts:36-43`](../apps/web/app/api/mcp/route.ts#L36-L43) · [`apps/web/app/api/mcp/route.ts:93-98`](../apps/web/app/api/mcp/route.ts#L93-L98) · [`apps/web/app/api/mcp/route.ts:113-123`](../apps/web/app/api/mcp/route.ts#L113-L123) · [`apps/web/app/api/mcp/route.ts:214`](../apps/web/app/api/mcp/route.ts#L214)
 
 <a id="openapi-spec-drift"></a>
@@ -1116,4 +1105,4 @@ These verified issues were docs drift. The 2026-10-05 docs update fixed them in 
 | `llm-model-docs-drift` | Low | [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) named the old pinned `openai/gpt-oss-120b:cerebras` and listed the model overrides as configured; [SPRINT_LOG.md](../SPRINT_LOG.md) and [CHANGELOG.md](CHANGELOG.md) stopped at older defaults. | All three now give the code defaults, `openai/gpt-oss-120b:fastest` with fallback `meta-llama/Llama-3.3-70B-Instruct:fastest`. The stale demo-adapter docstring in code is [worker-stale-docstrings](#worker-stale-docstrings). |
 | `readme-clerk-providers` | Low | The README's tech-stack line listed sign-in providers that production does not offer. | [README.md](../README.md) gives what the production Clerk development instance offered on 2026-10-05: Google, Apple, and username plus password. Still in code: a styling comment at [`apps/web/app/(auth)/sign-in/[[...sign-in]]/page.tsx:31-33`](../apps/web/app/%28auth%29/sign-in/%5B%5B...sign-in%5D%5D/page.tsx#L31-L33) (and the sign-up page) names Facebook and X. |
 
-The docs part of [gitignored-doc-references](#gitignored-doc-references) is fixed too: [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) no longer tells sessions to read a gitignored spec, though older [DEVLOG.md](DEVLOG.md) entries still cite them as history. The doc statements behind several open entries were also corrected, including [sentry-inert](#sentry-inert), [mcp-unreachable-basepath](#mcp-unreachable-basepath), [polygon-throttle-not-serialized](#polygon-throttle-not-serialized), [redis-compose-unused](#redis-compose-unused) and [db-seed-unsafe](#db-seed-unsafe); their code issues stay open above.
+The docs part of [gitignored-doc-references](#gitignored-doc-references) is fixed too: [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) no longer tells sessions to read a gitignored spec, though older [DEVLOG.md](DEVLOG.md) entries still cite them as history. The doc statements behind several open entries were also corrected, including [sentry-inert](#sentry-inert), `mcp-unreachable-basepath` (since fixed), [polygon-throttle-not-serialized](#polygon-throttle-not-serialized), [redis-compose-unused](#redis-compose-unused) and [db-seed-unsafe](#db-seed-unsafe); their code issues stay open above.
