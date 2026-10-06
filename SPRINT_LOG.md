@@ -177,8 +177,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - Mobile hamburger navigation; the bottom bar was cut to 4 items.
   - PWA manifest, Serwist service worker and an `/offline` page.
 - **Status today:**
-  - With a key set, if both index endpoints fail, regime detection still falls back to fixed values (VIX 18, SPX 5300).
-  - Without Upstash, the regime lookup (about 25 throttled Polygon calls) runs uncached on every scoring run and leaderboard view.
+  - Since 2026-10-06 the regime is a stored daily snapshot (`market_regimes`, migration 0008), written on weekdays at 21:30 UTC; pages read it instead of recomputing. The plan has no index data (`I:VIX` and `I:SPX` return 403), so the S&P 500 30-day return is measured on SPY and VIX is recorded as defaulted, never as a made-up value.
   - The web suite has 18 tests in 4 files; an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
   - `/docs/api` is shown to every signed-in user, but only admins can mint keys.
   - `/manifest.json` and `/offline` sit behind sign-in. The manifest returns 404, and the offline page is never precached, so neither works.
@@ -288,7 +287,6 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 - **Open issues to know first:**
   - MCP tool calls fail: every authenticated request to `/api/mcp` returns 404.
   - Self-logged claims are entered at the previous close, so a Player can book a price move they have already seen.
-  - The leaderboard page waits about 3 minutes for an uncached regime lookup (about 25 throttled Polygon calls) on every view while Upstash is unset.
   - Leaderboards have no minimum sample size.
   - `claims/created` fires only for self-logged claims.
   - The `packages/api` Inngest clients do not map the `INNGEST_WORKFLOW_` keys. This matters only if production lacks an unprefixed `INNGEST_EVENT_KEY`, which is not verified.

@@ -79,6 +79,7 @@ All schedules run in UTC. US Eastern time is UTC−4 until 2026-11-01 (EDT) and 
 | Daily digest | Emails a summary of followed activity (not delivered today; see below) | 12:00 | 08:00 / 07:00 | Mon–Fri |
 | Ingest | Collects new Guide posts, then hands them to extraction | 20:30 | 16:30 / 15:30 | Mon–Fri |
 | Markout | Checks matured claims against closing prices | 21:00 | 17:00 / 16:00 | Mon–Fri |
+| Market regime | Records the day's market conditions (S&P 500 trend, VIX, sector spread) for the leaderboard | 21:30 | 17:30 / 16:30 | Mon–Fri |
 | Broker sync | Imports trades from linked brokerage accounts | 22:00 | 18:00 / 17:00 | Mon–Fri |
 | Merkle audit | Fingerprints the previous day's claims | 22:00 | 18:00 / 17:00 | Every day |
 
@@ -109,7 +110,7 @@ A claim's end date is its creation date plus the horizon in calendar days. If th
 | REST API | `https://www.deepmint.ai/api/v1`: `GET /entities/{slug}/scores`, `GET /instruments/{ticker}/consensus`, `GET /leaderboard?metric=…`, plus the spec at `/openapi.json` | The three data endpoints need an API key (`Authorization: Bearer dm_live_…`), and only admins can create keys. The spec needs no key; signed-in users can also browse it at `/docs/api`. |
 | AI-agent server (MCP) | `/api/mcp` | **Not usable.** The tools are written, but the handler is mounted at the wrong path, so every authenticated request returns 404. Only the "missing or invalid key" check (401) works. |
 | App API (tRPC) | `/api/trpc` | Used by the web app itself. Its read-only public calls answer without sign-in. |
-| Background jobs | 15 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
+| Background jobs | 16 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
 | Database | PostgreSQL on Supabase | Operators only |
 | Outside services | Clerk (sign-in), Polygon (end-of-day stock prices), Hugging Face router (the extraction model) | — |
 
@@ -143,7 +144,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - **Results.** Claim cards never show a claim's own result. A single claim's result appears only in the in-app "claim resolved" notification sent to its author; everyone else sees only the author's overall scores.
 - **Entry prices.** Self-logged claims are priced at the previous close, so a Player can log a call after seeing part of the day's move. This matters most for 1-day claims.
 - **Leaderboard.**
-  - Each visit can take about 3 minutes to fill in. The page recomputes current market conditions from about 25 rate-limited price requests, and the cache that would avoid this (Upstash) was last recorded as not configured.
+  - The market-conditions badge is a once-a-day snapshot. The current Polygon plan has no index data, so VIX is recorded as unavailable and the badge says "partial data"; the S&P 500 trend comes from the SPY fund instead of the index.
   - There is no minimum number of outcomes, so one lucky call can top the board.
   - The "Most Influential" tab and the regime filters (Bull, Bear and so on) always come back empty.
 - **Daily ingestion.** The daily Guide collection does nothing until an operator switches on a Guide's feed by editing the database (there is no admin control for it) or enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
@@ -184,7 +185,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui components, Serwist (PWA) |
 | API | tRPC v11 (15 routers, 72 procedures), REST `/api/v1`, MCP via `mcp-handler` |
 | Database | PostgreSQL (16 in Docker locally, Supabase in production) with Drizzle ORM 0.41 |
-| Background jobs | Inngest 4 (15 functions) |
+| Background jobs | Inngest 4 (16 functions) |
 | Auth | Clerk (`@clerk/nextjs` 7) |
 | Market data | Polygon.io through `@massive.com/client-js` (US stock endpoints only) |
 | Extraction LLM | OpenAI SDK pointed at the Hugging Face router: `openai/gpt-oss-120b:fastest`, with fallback `meta-llama/Llama-3.3-70B-Instruct:fastest` |
@@ -196,7 +197,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 ```
 apps/
   web/         Next.js app: pages, /api/trpc, /api/v1, /api/mcp, Clerk webhook, /api/inngest
-  worker/      The 15 Inngest functions (served by apps/web) and the backfill CLI
+  worker/      The 16 Inngest functions (served by apps/web) and the backfill CLI
 packages/
   api/         tRPC routers
   db/          Drizzle schema, migrations (drizzle/0000–0007), seed script
@@ -294,7 +295,7 @@ It writes **no outcomes or scores**. It is not idempotent, so run it once, on an
 pnpm --filter @deepmint/web dev    # http://localhost:3000
 ```
 
-Sign up, and your Player record is created on your first signed-in request. Root `pnpm dev` also starts the worker's `dev` script, which only logs "Deepmint worker loaded: 15 functions registered" and serves nothing. The worker's `start` script points at a file that does not exist.
+Sign up, and your Player record is created on your first signed-in request. Root `pnpm dev` also starts the worker's `dev` script, which only logs "Deepmint worker loaded: 16 functions registered" and serves nothing. The worker's `start` script points at a file that does not exist.
 
 **6. Run background jobs locally (optional)**
 

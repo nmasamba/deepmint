@@ -13,6 +13,7 @@ import { notifyNewFollowerFunction } from "../functions/notify-new-follower";
 import { backfillPricesFunction } from "../functions/backfill-prices";
 import { brokerSyncFunction } from "../functions/broker-sync";
 import { backfillFunction } from "../functions/backfill";
+import { regimeSnapshotFunction } from "../functions/regime-snapshot";
 
 // Export all Inngest functions for the serve handler
 export const inngestFunctions = [
@@ -31,6 +32,7 @@ export const inngestFunctions = [
   backfillPricesFunction,
   brokerSyncFunction,
   backfillFunction,
+  regimeSnapshotFunction,
 ];
 
 // Re-export the Inngest client

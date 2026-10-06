@@ -2,32 +2,16 @@ import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
 import { db, desc, sql } from "@deepmint/db";
 import { scores } from "@deepmint/db/schema";
-import { detectRegime } from "@deepmint/scoring";
 import type { MarketRegime } from "@deepmint/scoring";
-import { getRegimeIndicators } from "@deepmint/shared";
+import { getLatestMarketRegime } from "../lib/marketRegime";
 
 export const regimeRouter = router({
-  /** Get the current detected market regime from live market data. */
-  current: publicProcedure.query(async () => {
-    let indicators;
-    try {
-      indicators = await getRegimeIndicators();
-    } catch {
-      indicators = {
-        sp500Return30d: 0.01,
-        vixLevel: 18,
-        sectorDispersion: 0.08,
-      };
-    }
-
-    const regime = detectRegime(indicators);
-
-    return {
-      regime,
-      detectedAt: new Date().toISOString(),
-      indicators,
-    };
-  }),
+  /**
+   * The latest stored market regime (one snapshot per weekday, computed in the
+   * background), or null before the first snapshot exists. Never computes the
+   * regime here: that takes ~25 throttled Polygon calls.
+   */
+  current: publicProcedure.query(() => getLatestMarketRegime()),
 
   /** Historical regime tags from scored data. */
   history: publicProcedure

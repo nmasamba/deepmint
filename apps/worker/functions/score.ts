@@ -15,7 +15,8 @@ import {
   detectRegime,
   computeRegimeAwareEIV,
 } from "@deepmint/scoring";
-import { getRegimeIndicators } from "@deepmint/shared";
+import type { MarketRegime } from "@deepmint/scoring";
+import { ensureRegimeSnapshot } from "./regime-snapshot";
 import { createNotification } from "@deepmint/db/queries/createNotification";
 
 /**
@@ -32,12 +33,13 @@ export const scoreFunction = inngest.createFunction(
     const result = await step.run("compute-scores", async () => {
       const today = new Date().toISOString().slice(0, 10);
 
-      // Detect current regime from live market data (VIX, S&P 500, sector ETFs)
+      // The day's market-regime snapshot, computed and stored if this run is
+      // the first to need it (the market-regime-snapshot cron also writes it).
       let currentRegime;
       try {
-        const indicators = await getRegimeIndicators();
-        currentRegime = detectRegime(indicators);
-        console.log(`[scoring] Regime detected: ${currentRegime}`, indicators);
+        const snapshot = await ensureRegimeSnapshot(today);
+        currentRegime = snapshot.regime as MarketRegime;
+        console.log(`[scoring] Regime: ${currentRegime}`, snapshot);
       } catch (err) {
         console.warn("[scoring] Failed to fetch live regime indicators, using defaults:", err);
         currentRegime = detectRegime({

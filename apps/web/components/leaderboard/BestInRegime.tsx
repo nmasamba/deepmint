@@ -26,7 +26,7 @@ export function BestInRegime() {
     );
   }
 
-  if (!data || data.entities.length === 0) return null;
+  if (!data || !data.regime || data.entities.length === 0) return null;
 
   return (
     <div className="rounded-lg border border-border bg-bg-secondary p-4">

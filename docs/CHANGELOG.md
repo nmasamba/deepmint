@@ -7,7 +7,21 @@ Entries before 0.8.0 are kept as history. Where one was wrong about the code at 
 
 ---
 
-## [Unreleased] — Documentation pass (2026-10-05)
+## [Unreleased]
+
+### Added
+- **Stored daily market regime.** A new `market_regimes` table (migration 0008) holds one snapshot per weekday, written by the new `market-regime-snapshot` job at 21:30 UTC (16 Inngest functions in total). Scoring reuses that day's snapshot. Each snapshot records its indicators in basis points and lists any that were unavailable in `defaulted_fields`; a day where all three are unavailable is not stored.
+
+### Fixed
+- **The leaderboard no longer waits about 3 minutes.** `regime.current`, `leaderboard.bestInCurrentConditions` and MCP `get_current_regime` read the latest stored snapshot instead of making ~25 throttled Polygon calls on every view (measured locally: 177 s before, under 0.5 s after). With no snapshot yet they return nothing rather than a default. Closes `regime-lookup-on-interactive-pages`.
+- **No made-up index values.** With a key configured, `getIndexSnapshot` threw no error and returned the dev constants (VIX 18, SPX 5300) when the index endpoints failed, and the current plan has no index data at all (both return 403). It now throws, the regime records VIX as defaulted, and the S&P 500 30-day return is measured on SPY, which the plan covers. The "yesterday" fallback also snaps to a trading day. Closes `index-fallback-fabricates-values`.
+
+### Migration
+- `0008_fixed_valeria_richards.sql`: `CREATE TABLE market_regimes`. No existing rows are touched. Apply it to Supabase before this ships.
+
+---
+
+## [0.10.1] — Documentation pass (2026-10-05)
 
 Markdown docs and `.env.example` only; no application code changed. Statements were checked against the code at `cd63901` (= `origin/main`). How the audit was done, and the most serious findings, are in [DEVLOG.md](DEVLOG.md).
 

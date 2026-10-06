@@ -2,8 +2,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
 import { db, desc, eq, and, sql, isNull } from "@deepmint/db";
 import { scores, entities } from "@deepmint/db/schema";
-import { detectRegime } from "@deepmint/scoring";
-import { getRegimeIndicators } from "@deepmint/shared";
+import { getLatestMarketRegime } from "../lib/marketRegime";
 
 export const leaderboardRouter = router({
   /**
@@ -157,18 +156,10 @@ export const leaderboardRouter = router({
       }),
     )
     .query(async ({ input }) => {
-      // Detect current regime from live market indicators, falling back to
-      // neutral defaults if the market-data fetch fails.
-      let currentRegime;
-      try {
-        currentRegime = detectRegime(await getRegimeIndicators());
-      } catch {
-        currentRegime = detectRegime({
-          sp500Return30d: 0.01,
-          vixLevel: 18,
-          sectorDispersion: 0.08,
-        });
-      }
+      // The latest stored regime snapshot; never computed on a page view.
+      const snapshot = await getLatestMarketRegime();
+      if (!snapshot) return { regime: null, entities: [] };
+      const currentRegime = snapshot.regime;
 
       // Query the regime-tagged "eiv" row, NOT "eiv_overall".
       //

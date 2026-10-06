@@ -58,7 +58,12 @@ const handler = createMcpHandler((server) => {
     "get_current_regime",
     "Get the current detected market regime (bull/bear/high_vol/low_vol/rotation) and its indicators (VIX, S&P 30d return, sector dispersion).",
     {},
-    async () => text(await publicCaller.regime.current()),
+    async () => {
+      const regime = await publicCaller.regime.current();
+      return regime
+        ? text(regime)
+        : errorText("No market regime has been computed yet.");
+    },
   );
 
   server.tool(
