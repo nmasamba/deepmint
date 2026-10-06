@@ -29,6 +29,19 @@ Fixes the high-severity `regime-lookup-on-interactive-pages` and the medium `ind
 
 ---
 
+## 2026-10-06 — MCP Server Reachable at `/api/mcp`
+
+Fixes the high-severity `mcp-unreachable-basepath` from [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
+- **Cause.** [route.ts](../apps/web/app/api/mcp/route.ts) called `createMcpHandler` with no config. mcp-handler 1.1.0 derives its endpoint as `${basePath}/mcp` with `basePath` defaulting to `""`, so it answered only at `/mcp`. Every request that passed the API-key check got 404, and no agent tool had ever worked in production.
+- **Fix.** Pass `{ basePath: "/api" }` as the third argument.
+- **Verified live** against the local web app and Docker database, with a test key created only in the local database:
+  - Without the fix, `tools/list` returned 404. With it, `tools/list` returned 200 listing all 7 tools, and a `get_leaderboard` tool call returned data. No key still returns 401.
+  - The repo's integration suites (`apps/web`, MCP plus REST v1) passed 18/18. The authenticated MCP test could never pass before. The suite's default `TEST_ENTITY_SLUG` (`demo-guide`) exists in no seed, so it needs a real slug.
+- **Not fixed.** MCP write tools still act as the admin who created the key (`mcp-acts-as-admin`), and the tools return less than they promise (`mcp-tool-contract-gaps`).
+
+---
+
 ## 2026-10-05 — Docs Coherence Audit
 
 The tracked docs had drifted from the code. The README's setup could not work as written, `docs/NEXT_SESSION_PROMPT.md` named a model pin the code no longer has, `SPRINT_LOG.md` still gave Qwen as the default, and the README promised Facebook and X sign-in. This pass rewrote the docs against the code at `cd63901` (= `origin/main`, after PRs #6–#9). No application code changed: only Markdown docs and `.env.example`.

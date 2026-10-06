@@ -209,7 +209,7 @@ CHANGELOG [0.8.0](docs/CHANGELOG.md#080--logic-error-audit-extraction-hardening-
   - `computeMarkoutForClaim`.
   - The `historical-backfill` worker and its CLI, `pnpm --filter @deepmint/worker backfill <archive.json>` (the path is relative to `apps/worker`; locally, prefix `INNGEST_DEV=1`). The worker count reached 15.
 - **MCP server (2026-06-26, `92ec088`).** `/api/mcp` has 5 read tools and 2 write tools (`submit_claim`, `add_note`).
-  - `createMcpHandler` is called with no `basePath`, so every authenticated request returns 404. Only the 401 auth gate works.
+  - `createMcpHandler` had no `basePath`, so every authenticated request returned 404 until [PR #11](https://github.com/nmasamba/deepmint/pull/11) fixed it on 2026-10-06.
   - The write tools act as the admin who minted the key.
 - **Model switch (2026-06-26, `2070eb5`).** Qwen had been deprecated on the router, so the default became `openai/gpt-oss-120b:cerebras` with a Llama fallback. Superseded by `:fastest` (PR #6).
 - **Inngest in production (2026-07-02).**
@@ -285,7 +285,6 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
   - the Polygon news lane needs `INGEST_POLYGON_NEWS=1`.
 - **Tests without keys:** scoring 87, shared 16, api 5, ingestion 56 (6 live LLM tests skip without `HF_API_KEY`), web 18 skipped.
 - **Open issues to know first:**
-  - MCP tool calls fail: every authenticated request to `/api/mcp` returns 404.
   - Self-logged claims are entered at the previous close, so a Player can book a price move they have already seen.
   - Leaderboards have no minimum sample size.
   - `claims/created` fires only for self-logged claims.
