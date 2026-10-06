@@ -4,6 +4,31 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-10-06 — Stored Daily Market Regime; No Made-Up Index Values
+
+Fixes the high-severity `regime-lookup-on-interactive-pages` and the medium `index-fallback-fabricates-values` from [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Design agreed with the maintainer: store a daily regime rather than cache it.
+
+- **Problem.** Every leaderboard view, and every MCP `get_current_regime` call, recomputed the market regime with ~25 throttled Polygon calls. Measured on the local app: `regime.current` took **177 s**. The Upstash cache would only have helped after the first visitor each hour.
+- **Fix.**
+  - New table `market_regimes` (migration 0008): one row per weekday, with returns in basis points and `defaulted_fields` naming any indicator that was unavailable. A day where all three are unavailable is refused rather than stored.
+  - New job `market-regime-snapshot` (weekdays 21:30 UTC) writes the row. Scoring reuses the same day's row through `ensureRegimeSnapshot`.
+  - [regime.ts](../packages/api/routers/regime.ts), `leaderboard.bestInCurrentConditions` and MCP read the latest row through [marketRegime.ts](../packages/api/lib/marketRegime.ts), and never call Polygon. Before the first row exists they return nothing, not a default.
+  - The leaderboard badge now says "as of {date}", plus "partial data" when an indicator was defaulted.
+- **Discovery: the Polygon plan has no index data.** `I:VIX` and `I:SPX` both return 403 NOT_AUTHORIZED, probed directly. With a key configured, `getIndexSnapshot` silently returned the dev constants (VIX 18, SPX 5300), and the S&P leg fell back to its default too. So the "live" regime had never seen real VIX or S&P data.
+  - It now throws instead.
+  - The S&P 500 30-day return is measured on SPY, which the plan covers.
+  - VIX is recorded as defaulted in every snapshot.
+  - Without a key, all three indicators are marked defaulted, so a keyless environment never stores a snapshot.
+- **Verified live** on the local app and Docker database with the real Polygon key:
+  - The snapshot job took 163 s in the background and stored `bull`: SPY +0.60% (60 bps), dispersion 2.08% (208 bps), VIX defaulted.
+  - Afterwards `regime.current` took **0.39 s** and `bestInCurrentConditions` **0.27 s**, both with data. With no snapshot both answered in under 0.5 s with nothing.
+  - The real scoring job ran in 0.1 s on the stored regime and tagged today's EIV rows `bull`.
+  - New unit tests cover the basis-point conversion both ways.
+- **Not fixed.** Sector dispersion came out at 5.16% in an earlier run and 2.08% in this one, from the same dates. This fits `polygon-throttle-not-serialized`: paired calls exceed the 5-per-minute plan, so some ETF legs can be rate-limited and dropped silently. The regime filter chips are still empty (`leaderboard-regime-filter-empty`).
+- **Migration 0008 must be applied to Supabase before this deploys.** Until the first weekday run at 21:30 UTC (or a manual run of `market-regime-snapshot` from the Inngest dashboard), the leaderboard shows no regime.
+
+---
+
 ## 2026-10-06 — MCP Server Reachable at `/api/mcp`
 
 Fixes the high-severity `mcp-unreachable-basepath` from [KNOWN_ISSUES.md](KNOWN_ISSUES.md).

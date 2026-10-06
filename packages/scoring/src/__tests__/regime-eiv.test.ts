@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectRegime } from "../regime";
+import { detectRegime, toRegimeSnapshotValues, fromRegimeSnapshotValues } from "../regime";
 import { computeRegimeAwareEIV, formatEIVWithContext } from "../eiv";
 
 describe("detectRegime", () => {
@@ -167,5 +167,30 @@ describe("formatEIVWithContext", () => {
   it("labels no edge for 0", () => {
     const result = formatEIVWithContext(0, "bull", true);
     expect(result.label).toBe("No Edge");
+  });
+});
+
+describe("regime snapshot conversion", () => {
+  it("stores returns in whole basis points and VIX to 2 decimals", () => {
+    expect(
+      toRegimeSnapshotValues({ sp500Return30d: 0.03456, vixLevel: 17.234, sectorDispersion: 0.081249 }),
+    ).toEqual({ vixLevel: "17.23", sp500Return30dBps: 346, sectorDispersionBps: 812 });
+    expect(
+      toRegimeSnapshotValues({ sp500Return30d: -0.0412, vixLevel: 31, sectorDispersion: 0 }),
+    ).toEqual({ vixLevel: "31.00", sp500Return30dBps: -412, sectorDispersionBps: 0 });
+  });
+
+  it("round-trips to the same regime", () => {
+    for (const input of [
+      { sp500Return30d: 0.05, vixLevel: 18, sectorDispersion: 0.1 },
+      { sp500Return30d: -0.05, vixLevel: 20, sectorDispersion: 0.1 },
+      { sp500Return30d: 0.01, vixLevel: 30, sectorDispersion: 0.1 },
+      { sp500Return30d: 0.01, vixLevel: 12, sectorDispersion: 0.1 },
+      { sp500Return30d: 0.01, vixLevel: 18, sectorDispersion: 0.2 },
+    ]) {
+      const back = fromRegimeSnapshotValues(toRegimeSnapshotValues(input));
+      expect(detectRegime(back)).toBe(detectRegime(input));
+      expect(back.sp500Return30d).toBeCloseTo(input.sp500Return30d, 4);
+    }
   });
 });

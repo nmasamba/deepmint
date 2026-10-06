@@ -17,3 +17,4 @@ export * from './signalSimulate';
 export * from './notifications';
 export * from './tickerRequests';
 export * from './apiKeys';
+export * from './marketRegimes';

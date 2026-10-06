@@ -57,7 +57,20 @@ export default function LeaderboardPage() {
         <Trophy className="h-6 w-6 text-accent" />
         <h1 className="text-2xl font-bold text-text-primary">Leaderboard</h1>
         {currentRegime && (
-          <RegimeBadge regime={currentRegime.regime} />
+          <>
+            <RegimeBadge regime={currentRegime.regime} />
+            <span
+              className="text-xs text-text-muted"
+              title={
+                currentRegime.defaultedFields.length > 0
+                  ? `Unavailable, so defaulted: ${currentRegime.defaultedFields.join(", ")}`
+                  : undefined
+              }
+            >
+              as of {currentRegime.asOfDate}
+              {currentRegime.defaultedFields.length > 0 && " · partial data"}
+            </span>
+          </>
         )}
       </div>
 

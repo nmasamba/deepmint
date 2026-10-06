@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **102 open issues: 2 high, 29 medium and 71 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **100 open issues: 1 high, 28 medium and 71 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -13,31 +13,30 @@ Facts the code cannot show come from the maintainer. Production keys were last r
 
 ## Maintaining this file
 
-- **When a PR fixes an issue,** delete its entry and update the counts table in that PR, and cite the issue id, such as `regime-lookup-on-interactive-pages`, in the PR description. Record the fix in [CHANGELOG.md](CHANGELOG.md).
+- **When a PR fixes an issue,** delete its entry and update the counts table in that PR, and cite the issue id, such as `self-logged-claim-lookahead`, in the PR description. Record the fix in [CHANGELOG.md](CHANGELOG.md).
 - **When a fix is partial,** rewrite the entry to describe what remains.
 - **To add an issue,** verify it against the code first, give `path:line` evidence, and place it in its area in severity order.
 - **Line numbers** in the evidence links are those of `cd63901`. After later edits, search for the named symbol.
 
 ## Most important
 
-The two high-severity issues:
+The one high-severity issue:
 
 1. **[Self-logged claims book a price move the user could already see](#self-logged-claim-lookahead).** The entry price is the previous close, but the claim is timed at submission, so a Player can log a 1D call after seeing much of the day's move and bank it. Outcomes are append-only, so affected track records cannot be corrected.
-2. **[The leaderboard page waits about 3 minutes](#regime-lookup-on-interactive-pages).** Each view runs two uncached regime lookups of about 25 throttled Polygon calls each, and the leaderboard table waits for them in the same batched request.
 
 ## Counts by area
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 1 | 4 | 7 | 12 |
+| [Scoring and ranking](#area-scoring) | 1 | 3 | 7 | 11 |
 | [Product (web app)](#area-product) | 0 | 9 | 19 | 28 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 1 | 3 | 12 | 16 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 12 | 15 |
 | [Workers and schedules](#area-workers) | 0 | 4 | 6 | 10 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
 | [Data model and shared code](#area-data) | 0 | 2 | 5 | 7 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 5 | 10 | 15 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **2** | **29** | **71** | **102** |
+| **All** | **1** | **28** | **71** | **100** |
 
 <a id="area-scoring"></a>
 
@@ -62,16 +61,6 @@ The two high-severity issues:
 - **What's wrong:** `leaderboard.top`, `bestInCurrentConditions`, `byTicker` and `GET /api/v1/leaderboard` apply no outcome-count or significance filter, and all sort `scores.value DESC`. The scorer writes scores after one outcome. `hit_rate` and `avg_return_bps` have no sample adjustment, and Sharpe has no floor above n=2. EIV's `n/(n+20)` shrinkage is too weak: with the fixed Brier of 0.5 that every Player gets, 1/1 correct at +800 bps scores 0.8, above 120/200 at +150 bps (0.5). The z-test's `isSignificant` flag (p<0.05, n≥15) is discarded, and `checkAntiGaming` is never called. `calibration_brier` and `max_drawdown` are lower-is-better, yet tRPC, MCP and v1 return them worst first.
 - **User impact:** Once outcomes exist, a Player whose first call lands shows 100% on the default board (Hit Rate, All), above long records, and the page shows no sample count. Latent while there is little scored data.
 - **Evidence:** [`packages/api/routers/leaderboard.ts:28-42`](../packages/api/routers/leaderboard.ts#L28-L42) · [`packages/api/routers/leaderboard.ts:79`](../packages/api/routers/leaderboard.ts#L79) · [`apps/web/app/api/v1/leaderboard/route.ts:90`](../apps/web/app/api/v1/leaderboard/route.ts#L90) · [`apps/worker/functions/score.ts:80-83`](../apps/worker/functions/score.ts#L80-L83) · [`apps/worker/functions/score.ts:137-142`](../apps/worker/functions/score.ts#L137-L142) · [`apps/web/app/(app)/leaderboard/page.tsx:42`](../apps/web/app/%28app%29/leaderboard/page.tsx#L42)
-
-<a id="index-fallback-fabricates-values"></a>
-
-### Regime detection uses made-up VIX and SPX values even with a real key
-
-**Medium** · data-integrity · `index-fallback-fabricates-values`
-
-- **What's wrong:** With `POLYGON_API_KEY` set, `getIndexSnapshot` tries the indices snapshot, then the open/close for calendar "yesterday" (not snapped to a trading day). If both fail it returns the hard-coded `DEV_FALLBACK_INDEX` (VIX 18, SPX 5300) instead of throwing. The SPX close from 30 days ago is real data.
-- **User impact:** Which index endpoints the plan allows is unverified. If the snapshot is blocked but daily open/close works, the fallback fires on Sundays, Mondays and the day after a holiday. SPX 5300 against a real past close gives a large negative 30-day return, so `detectRegime` returns `bear`. The leaderboard badge, MCP `get_current_regime` (which also returns the fake indicators) and that day's `eiv` regime tags are then wrong. EIV values are unaffected.
-- **Evidence:** [`packages/shared/src/polygon.ts:261-264`](../packages/shared/src/polygon.ts#L261-L264) · [`packages/shared/src/polygon.ts:300-311`](../packages/shared/src/polygon.ts#L300-L311) · [`packages/shared/src/polygon.ts:434-440`](../packages/shared/src/polygon.ts#L434-L440) · [`packages/scoring/src/regime.ts:24-31`](../packages/scoring/src/regime.ts#L24-L31)
 
 <a id="eiv-not-regime-aware"></a>
 
@@ -450,16 +439,6 @@ The two high-severity issues:
 <a id="area-api"></a>
 
 ## API: tRPC, REST v1, MCP, auth
-
-<a id="regime-lookup-on-interactive-pages"></a>
-
-### The leaderboard page waits about 3 minutes for an uncached regime lookup
-
-**High** · bug · `regime-lookup-on-interactive-pages`
-
-- **What's wrong:** `getRegimeIndicators` makes 25–27 Polygon calls (VIX, SPX now and 30 days ago, 11 sector ETFs × 2), which the 12.5 s throttle spreads over about 13–15 intervals. Its 1-hour cache works only with Upstash, last recorded as unset in production, so every call pays the full cost. `regime.current` and `leaderboard.bestInCurrentConditions` both run it on each leaderboard page view, and MCP `get_current_regime` runs it too. `httpBatchLink` batches both with `leaderboard.top`, so the whole response waits.
-- **User impact:** Each leaderboard visit shows skeletons for the table and the "Best in Current Conditions" strip, and no regime badge, for about 2.5–3 minutes. If the request outlasts the function's time limit (the repo sets no `maxDuration`, so the Vercel default applies), the batch fails and the table shows the misleading "No scores yet" state. The two concurrent lookups send about 50 calls against a 5 req/min plan.
-- **Evidence:** [`packages/shared/src/polygon.ts:406-457`](../packages/shared/src/polygon.ts#L406-L457) · [`packages/shared/src/polygonCache.ts:21-30`](../packages/shared/src/polygonCache.ts#L21-L30) · [`packages/api/routers/regime.ts:11-30`](../packages/api/routers/regime.ts#L11-L30) · [`packages/api/routers/leaderboard.ts:152-166`](../packages/api/routers/leaderboard.ts#L152-L166) · [`apps/web/app/(app)/leaderboard/page.tsx:45-52`](../apps/web/app/%28app%29/leaderboard/page.tsx#L45-L52) · [`apps/web/components/providers/TRPCProvider.tsx:31`](../apps/web/components/providers/TRPCProvider.tsx#L31)
 
 <a id="consensus-mag7-returns-all-instruments"></a>
 

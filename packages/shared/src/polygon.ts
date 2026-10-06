@@ -299,7 +299,9 @@ export async function getIndexSnapshot(ticker: string): Promise<number> {
   // Fallback: previous day open/close
   try {
     await polygonRateLimit();
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const yesterday = tradingDayOnOrBefore(new Date(Date.now() - 86400000))
+      .toISOString()
+      .slice(0, 10);
     const resp = await client.getIndicesOpenClose({ indicesTicker: ticker, date: yesterday });
     const data = resp as { close?: number };
     if (typeof data.close === "number") return data.close;
@@ -307,8 +309,9 @@ export async function getIndexSnapshot(ticker: string): Promise<number> {
     // fall through
   }
 
-  const fallback = DEV_FALLBACK_INDEX[ticker];
-  if (fallback !== undefined) return fallback;
+  // With a key configured, never substitute the dev constant: it would be
+  // reported as a live reading (the current plan has no index data at all,
+  // so VIX would silently be 18 every day). Callers record it as defaulted.
   throw new Error(`Failed to fetch index value for ${ticker}`);
 }
 
@@ -349,6 +352,28 @@ export function tradingDayOnOrBefore(d: Date): Date {
  * Compute 30-day returns for sector ETFs.
  * Returns a Map of ticker → 30d return as decimal (e.g. 0.03 = 3%).
  */
+/**
+ * Trailing ~30-day close-to-close return for a stock or ETF, or null if either
+ * close is unavailable. The "current" leg is the last completed trading day
+ * (today's EOD bar does not exist intraday, on weekends or on holidays); the
+ * "past" leg is a trading day on or before 30 days ago.
+ */
+async function stockReturn30d(ticker: string): Promise<number | null> {
+  const today = new Date();
+  const currentStr = tradingDayOnOrBefore(new Date(today.getTime() - 86400000))
+    .toISOString()
+    .slice(0, 10);
+  const pastStr = tradingDayOnOrBefore(new Date(today.getTime() - 30 * 86400000))
+    .toISOString()
+    .slice(0, 10);
+  const [currentEod, pastEod] = await Promise.all([
+    getEODPrice(ticker, currentStr).catch(() => null),
+    getEODPrice(ticker, pastStr).catch(() => null),
+  ]);
+  if (!currentEod || !pastEod || pastEod.closeCents <= 0) return null;
+  return (currentEod.closeCents - pastEod.closeCents) / pastEod.closeCents;
+}
+
 export async function getSectorETFReturns30d(): Promise<Map<string, number>> {
   const client = getClient();
   if (!client) {
@@ -356,33 +381,10 @@ export async function getSectorETFReturns30d(): Promise<Map<string, number>> {
   }
 
   const result = new Map<string, number>();
-  const today = new Date();
-  // Anchor the "current" leg to the last completed trading day — today's EOD
-  // bar does not exist intraday, on weekends, or on holidays. Anchor the "past"
-  // leg to a trading day on/before 30 days ago so it isn't a non-trading day.
-  const currentDate = tradingDayOnOrBefore(new Date(today.getTime() - 86400000));
-  const thirtyDaysAgo = tradingDayOnOrBefore(
-    new Date(today.getTime() - 30 * 86400000),
-  );
-  const todayStr = currentDate.toISOString().slice(0, 10);
-  const pastStr = thirtyDaysAgo.toISOString().slice(0, 10);
-
   for (const etf of SECTOR_ETFS) {
-    try {
-      const [currentEod, pastEod] = await Promise.all([
-        getEODPrice(etf, todayStr).catch(() => null),
-        getEODPrice(etf, pastStr).catch(() => null),
-      ]);
-
-      if (currentEod && pastEod && pastEod.closeCents > 0) {
-        const ret = (currentEod.closeCents - pastEod.closeCents) / pastEod.closeCents;
-        result.set(etf, ret);
-      }
-    } catch {
-      // Skip this ETF
-    }
+    const ret = await stockReturn30d(etf);
+    if (ret !== null) result.set(etf, ret);
   }
-
   return result;
 }
 
@@ -399,61 +401,69 @@ export interface RegimeIndicators {
   sectorDispersion: number;
 }
 
+/** Regime indicators plus the names of any that fell back to their default. */
+export interface RegimeIndicatorsResult extends RegimeIndicators {
+  defaulted: Array<keyof RegimeIndicators>;
+}
+
 /**
  * Fetch live regime indicators: VIX level, S&P 500 30d return, sector dispersion.
- * Results are cached in Redis for 1 hour. Falls back to dev defaults when API unavailable.
+ * Results are cached in Redis for 1 hour. An indicator whose data is
+ * unavailable falls back to a default and is named in `defaulted`.
+ *
+ * Slow (~25 throttled Polygon calls): call it from background jobs only.
+ * Interactive reads use the stored snapshot (market_regimes).
  */
-export async function getRegimeIndicators(): Promise<RegimeIndicators> {
+export async function getRegimeIndicators(): Promise<RegimeIndicatorsResult> {
   const { getCached } = await import("./polygonCache");
 
-  return getCached<RegimeIndicators>("regime:indicators", 3600, async () => {
+  return getCached<RegimeIndicatorsResult>("regime:indicators:v2", 3600, async () => {
     const defaults: RegimeIndicators = {
       sp500Return30d: 0.01,
       vixLevel: 18,
       sectorDispersion: 0.08,
     };
 
-    // VIX
+    const defaulted: Array<keyof RegimeIndicators> = [];
+
+    // Without a key every source below is a dev constant, so each indicator
+    // is reported as defaulted and no snapshot gets stored from it.
+    const hasKey = getClient() !== null;
+
+    // VIX (index data: not on the current plan, so this defaults)
     let vixLevel = defaults.vixLevel;
     try {
+      if (!hasKey) throw new Error("no Polygon key");
       vixLevel = await getIndexSnapshot("I:VIX");
     } catch {
-      // use default
+      defaulted.push("vixLevel");
     }
 
-    // S&P 500 30d return
+    // S&P 500 30d return, measured on SPY: the plan has stock data but no
+    // index data (I:SPX returns 403), and SPY tracks the index closely.
     let sp500Return30d = defaults.sp500Return30d;
-    try {
-      const today = new Date();
-      // Snap to a trading day on/before 30 days ago — getIndicesOpenClose has
-      // no close on weekends/holidays, which would otherwise null the leg and
-      // silently fall back to the default.
-      const thirtyDaysAgo = tradingDayOnOrBefore(
-        new Date(today.getTime() - 30 * 86400000),
-      );
-      const [current, past] = await Promise.all([
-        getIndexSnapshot("I:SPX"),
-        getIndexClose("I:SPX", thirtyDaysAgo.toISOString().slice(0, 10)).catch(() => null),
-      ]);
-      if (past && past > 0) {
-        sp500Return30d = (current - past) / past;
-      }
-    } catch {
-      // use default
+    const spyReturn = hasKey ? await stockReturn30d("SPY") : null;
+    if (spyReturn !== null) {
+      sp500Return30d = spyReturn;
+    } else {
+      defaulted.push("sp500Return30d");
     }
 
     // Sector dispersion
     let sectorDispersion = defaults.sectorDispersion;
     try {
+      if (!hasKey) throw new Error("no Polygon key");
       const sectorReturns = await getSectorETFReturns30d();
       if (sectorReturns.size >= 5) {
         sectorDispersion = stddev(Array.from(sectorReturns.values()));
+      } else {
+        defaulted.push("sectorDispersion");
       }
     } catch {
-      // use default
+      defaulted.push("sectorDispersion");
     }
 
-    return { sp500Return30d, vixLevel, sectorDispersion };
+    return { sp500Return30d, vixLevel, sectorDispersion, defaulted };
   });
 }
 
