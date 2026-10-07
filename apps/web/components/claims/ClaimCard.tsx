@@ -174,6 +174,11 @@ export function ClaimCard({
             {claim.confidence}% conf
           </Badge>
         )}
+        {claim.entryPriceCents === null && (
+          <span className="text-xs text-text-muted" title="This claim is measured from the first market close after it was made. The price is recorded on its outcome.">
+            Entry: first close after claim
+          </span>
+        )}
         {claim.entryPriceCents && (
           <span className="font-mono text-xs text-text-secondary">
             Entry: {formatCurrency(claim.entryPriceCents)}

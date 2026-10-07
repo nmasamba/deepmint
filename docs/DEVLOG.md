@@ -4,6 +4,35 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-10-06 — Next-Close Entry Prices; Holiday-Safe Markout
+
+Fixes the high-severity `self-logged-claim-lookahead` and the medium `markout-holiday-exit-never-priced`, and most of `fallback-prices-in-ledger`, from [KNOWN_ISSUES.md](KNOWN_ISSUES.md). The design was agreed with the maintainer: next close for all undated claims, with existing claims keeping their stored prices.
+
+- **Problem.**
+  - `claims.submit` stored `getCurrentPrice()`, which is always the previous session's close, while the claim was timed at submission. A Player could log a 1-day call at 15:00 ET and be credited with the move they had just watched. The target-hit window leaked the same way.
+  - Live-ingested Guide claims without a rating date used the same price.
+  - A failed entry lookup left a claim that never scored.
+  - An exit on a market holiday was retried for ever.
+- **Fix.**
+  - Pure, unit-tested rules in [markout.ts](../packages/scoring/src/markout.ts):
+    - `firstCloseDateAtOrAfter` (US Eastern, DST-aware, weekends skipped);
+    - `computeMarkoutFromBars`: entry is the first bar on or after that date, the exit is the first bar on or after entry + horizon, the target window starts after entry, and a session counts only from 16:30 ET on its date.
+  - [markoutClaim.ts](../apps/worker/functions/markoutClaim.ts) fetches one bar range per claim.
+  - `claims.submit` and live extraction store `entry_price_cents = null`. Dated paths (rating date, backfill) are unchanged.
+  - Claims stored before this change keep their stored prices, and keep the `created_at + horizon` exit.
+  - Mirroring retries instead of opening a paper trade at no price. Claim cards say "Entry: first close after claim" (the price itself is on the outcome; the claim row stays null).
+- **Verified live** with real Polygon data and the local database:
+  - The same AAPL long, made 2025-09-16 at 15:00 ET with a 7-day horizon. Under the old rule it was entered at $236.70 (the previous close) and scored **+7.49%**. Under the new rule it was entered at $238.15, Polygon's official close for that day, and scored **+6.84%**.
+  - A 1-day claim made on 2025-11-26, whose exit fell on Thanksgiving, rolled to the next session and scored +0.47%. The old code would have retried it for ever.
+  - The real `claims.submit` stored a null entry in **9 ms**. It previously waited on a 12.5 s throttled lookup.
+  - 19 new unit tests (scoring: 106 in all). An adversarial review found that undated claims could cost a Polygon call before their exit existed; markout now skips the fetch until the exit session has closed (`markoutDueDate`).
+- **Not fixed.**
+  - On early-close days (13:00 ET), a claim made between 13:00 and 16:00 ET is entered at that day's 13:00 close. That close is before the claim, but such days are rare.
+  - Paper trades and the ticker page still use the previous close (`current-price-is-previous-close`).
+  - Claim cards still don't show outcomes (`claim-outcomes-not-shown`).
+
+---
+
 ## 2026-10-06 — Stored Daily Market Regime; No Made-Up Index Values
 
 Fixes the high-severity `regime-lookup-on-interactive-pages` and the medium `index-fallback-fabricates-values` from [KNOWN_ISSUES.md](KNOWN_ISSUES.md). Design agreed with the maintainer: store a daily regime rather than cache it.

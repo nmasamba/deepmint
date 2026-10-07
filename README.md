@@ -30,7 +30,7 @@ Market predictions are everywhere: TV, newsletters, social media, bank research 
 
 Deepmint's answer:
 
-- **Record it before the outcome.** A claim is stored with its date and an entry price before anyone knows how it turns out. The exceptions are backfilled history (past posts loaded from an archive, dated to when they were published) and analyst ratings, which are dated to the day the rating was issued. Self-logged claims are also not fully "before the fact" yet: their entry price is the previous close, so part of the move can already be visible (see [Main limitations](#whats-live-today)).
+- **Record it before the outcome.** A claim is stored with its date before anyone knows how it turns out, and its scored move starts at the first market close after it was made. The exceptions are backfilled history (past posts loaded from an archive, dated to when they were published) and analyst ratings, which are dated to the day the rating was issued.
 - **Never rewrite it.** Claims are append-only. The only change allowed is an admin approving or rejecting a claim that was held for review. The application code enforces this; the database itself does not.
 - **Put a deadline on every call.** Every claim has a horizon between 1 day and 1 year, so "eventually" does not count.
 - **Use real prices and plain statistics.** Results come from end-of-day closing prices (Polygon), and scores are ordinary statistics such as hit rate, average return and the Sharpe ratio. No AI is involved in scoring. The only AI in Deepmint is the model that reads text to pull out claims.
@@ -41,7 +41,7 @@ Deepmint's answer:
 flowchart TD
   P["Player logs a claim in the web app"] --> A
   G["Guide posts collected from feeds or an archive"] --> L["AI model extracts claims and checks the evidence"]
-  L -->|"confident, horizon quoted"| A["Active claim, stored with an entry price"]
+  L -->|"confident, horizon quoted"| A["Active claim"]
   L -->|"not sure"| R["Admin review queue"]
   R -->|"approve"| A
   R -->|"reject"| X["Rejected, kept on record"]
@@ -52,7 +52,7 @@ flowchart TD
 ```
 
 1. **A claim is captured.**
-   - **Players** use the claim form. They pick a stock, a direction (long = up, short = down, neutral = roughly flat), a horizon and a confidence from 0 to 100 (the slider starts at 50 and is always sent), and can add a target price, a written rationale and tags. The claim goes live at once. Its entry price is the **previous trading day's close**, not a live price.
+   - **Players** use the claim form. They pick a stock, a direction (long = up, short = down, neutral = roughly flat), a horizon and a confidence from 0 to 100 (the slider starts at 50 and is always sent), and can add a target price, a written rationale and tags. The claim goes live at once. Its entry price is the **closing price of the first trading session after it was made**: the same day's close if it was logged before 16:00 ET on a trading day, otherwise the next session's. It is set when the claim is checked, so nothing that had already moved when the claim was made counts.
    - **Guides**: every weekday a job reads new posts from the Guide feeds an operator has switched on. If enabled, it also reads a news feed of Wall Street analyst ratings; that feed is off by default. An operator can also load an archive of a Guide's past posts (a "backfill"). Each post is stored with a fingerprint (a hash of its link, text and publication date), so a post seen again is skipped. A feed item with no date is fingerprinted with the time it was fetched instead, so it can be stored again on a later run.
 2. **An AI model reads Guide posts.** A large language model (open models served through Hugging Face) pulls out each call: which of the 7 stocks, which direction, which horizon and any target price. It keeps a supporting quote and the stated horizon only if they appear word for word in the post. Posts that name none of the 7 companies are skipped without calling the model.
 3. **Uncertain claims wait for a person.** An extracted claim goes live only if all of these hold:
@@ -87,7 +87,7 @@ Other jobs run in a chain rather than on a clock:
 
 - Extraction runs right after ingest, but only when ingest found new posts.
 - Scoring runs after the markout (or a backfill), but only if it wrote at least one outcome. Consensus and influence are recalculated after scoring. So **consensus is not refreshed on days when no claim matures**.
-- During EST the ingest run (15:30 ET) starts before the 16:00 US market close, and the markout runs at the close itself. A day's closing price is probably not available yet, so most outcomes will likely land one trading day later in winter.
+- During EST the ingest run (15:30 ET) starts before the 16:00 US market close, and the markout runs at the close itself. A session counts only from 16:30 ET, so in winter every outcome whose exit is the run date lands one trading day later.
 
 **Horizons.** Every claim uses one of six horizons:
 
@@ -100,7 +100,7 @@ Other jobs run in a chain rather than on a clock:
 | 6 months | 180 | 6M |
 | 1 year | 365 | 1Y |
 
-A claim's end date is its creation date plus the horizon in calendar days. If that falls on a weekend it moves to the Monday. Market holidays are not handled. If no closing price exists for the end date, the markout skips the claim and retries on its next run with the same end date, so a claim whose end date is a market holiday never gets an outcome ([known issue](docs/KNOWN_ISSUES.md#markout-holiday-exit-never-priced)).
+A claim's end date is its entry date plus the horizon in calendar days. (For older claims stored with an entry price, and for dated or backfilled claims, it is the creation date plus the horizon.) If the end date is a weekend or a market holiday, the next trading session's close is used. A session counts only once it has closed: from 16:30 ET on its date.
 
 ## Where does it run?
 
@@ -142,7 +142,6 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 **Main limitations:**
 
 - **Results.** Claim cards never show a claim's own result. A single claim's result appears only in the in-app "claim resolved" notification sent to its author; everyone else sees only the author's overall scores.
-- **Entry prices.** Self-logged claims are priced at the previous close, so a Player can log a call after seeing part of the day's move. This matters most for 1-day claims.
 - **Leaderboard.**
   - The market-conditions badge is a once-a-day snapshot. The current Polygon plan has no index data, so VIX is recorded as unavailable and the badge says "partial data"; the S&P 500 trend comes from the SPY fund instead of the index.
   - There is no minimum number of outcomes, so one lucky call can top the board.
@@ -165,7 +164,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 |---|---|
 | **Claim** | A dated call on one stock: a direction (long, short or neutral), a horizon, and an optional target price and confidence. The app also calls it a "prediction". |
 | **Horizon** | How long a claim runs before it is checked: 1 day, 1 week, 1 month, 3 months, 6 months or 1 year. |
-| **Entry price** | The closing price stored with a claim. For claims logged now it is the previous trading day's close. For dated or backfilled claims it is the close on that date. |
+| **Entry price** | The closing price a claim is measured from. For a claim logged now it is the close of the first trading session after it was made, set at markout and recorded on the outcome. For dated or backfilled claims it is the close on that date. Self-logged claims made before the next-close change shipped keep the previous-day close they were stored with. |
 | **Markout** | Checking a claim against the market when its horizon ends, using that day's closing price. Each claim gets one **outcome**: its return, whether the direction was right, and whether the target was reached. |
 | **Hit rate** | The share of an author's checked claims whose direction was right. |
 | **Basis points (bps)** | Hundredths of a percent: 100 bps = 1%. Returns are stored in basis points. |
@@ -334,11 +333,11 @@ In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`.
 
 ### Tests
 
-These results were measured on 2026-10-05 with no `.env.local`.
+These results were measured on 2026-10-06 with no `.env.local`.
 
 | Command | Result without keys | What enables more |
 |---|---|---|
-| `pnpm --filter @deepmint/scoring test` | 87 passed (6 files) | Nothing needed |
+| `pnpm --filter @deepmint/scoring test` | 108 passed (7 files) | Nothing needed |
 | `pnpm --filter @deepmint/shared test` | 16 passed (2 files) | Nothing needed |
 | `pnpm --filter @deepmint/api test` | 5 passed (1 file) | Nothing needed |
 | `pnpm --filter @deepmint/ingestion test` | 56 passed, 6 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. |

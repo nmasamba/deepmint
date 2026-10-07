@@ -5,7 +5,6 @@ import {
   MAG7_TICKERS,
   VALID_HORIZONS,
   type ValidHorizon,
-  getCurrentPrice,
   getEODPrice,
   tradingDayOnOrBefore,
 } from "@deepmint/shared";
@@ -552,8 +551,9 @@ export interface ProcessExtractionOptions {
   createdAt?: Date;
   /**
    * Resolve the entry price (cents) for a ticker. Backfill supplies a resolver
-   * that returns the EOD price AS OF the claim's historical date; the live path
-   * defaults to getCurrentPrice (price now).
+   * that returns the EOD price AS OF the claim's historical date. Without one
+   * (the live path) no entry is stored, and markout enters the claim at the
+   * first close after it was captured.
    */
   entryPriceResolver?: (ticker: string) => Promise<number | null>;
   /**
@@ -656,11 +656,13 @@ export async function processExtraction(
         entryPriceCents = eod.closeCents;
       } else if (options.entryPriceResolver) {
         entryPriceCents = await options.entryPriceResolver(claim.instrumentTicker);
-      } else {
-        entryPriceCents = await getCurrentPrice(claim.instrumentTicker);
       }
+      // Otherwise no dated price exists: leave it null. The latest available
+      // price is the previous close, which predates the post; markout enters
+      // the claim at the first close after it was captured instead.
     } catch {
-      // Non-fatal — continue with null price
+      // Non-fatal: a null entry is priced by markout at the first close after
+      // created_at, so the claim still scores.
     }
 
     // Convert target price from dollars to cents. Explicit null check (not a

@@ -72,7 +72,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - a verified quote contains horizon words that name exactly the claim's horizon.
 
   Anything else goes to `pending_review`.
-- **Entry price "from Polygon with dev fallback prices"** → the entry price is the previous trading day's close (`getCurrentPrice`).
+- **Entry price "from Polygon with dev fallback prices"** → the previous trading day's close (`getCurrentPrice`) → since the next-close entry change, no entry price at submission: markout enters a self-logged or undated claim at the close of the first session after it was made, and records it on the outcome.
   - The fixed Mag-7 dev prices apply only when `POLYGON_API_KEY` is unset.
   - With a key, a failed lookup throws (PR #4, 2026-08-13).
 - **Snapshot storage** (`r2.ts`) and **Playwright capture** (`capture.ts`) → still in the repo, but nothing calls them; `events.snapshot_path` is always null.
@@ -283,9 +283,8 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 - **Ingestion:** the weekday ingest does nothing unless one of the two lanes is configured:
   - RSS needs Guides with `is_allowlisted=true` and a `source_url`, set by hand in SQL;
   - the Polygon news lane needs `INGEST_POLYGON_NEWS=1`.
-- **Tests without keys:** scoring 87, shared 16, api 5, ingestion 56 (6 live LLM tests skip without `HF_API_KEY`), web 18 skipped.
+- **Tests without keys:** scoring 108, shared 16, api 5, ingestion 56 (6 live LLM tests skip without `HF_API_KEY`), web 18 skipped.
 - **Open issues to know first:**
-  - Self-logged claims are entered at the previous close, so a Player can book a price move they have already seen.
   - Leaderboards have no minimum sample size.
   - `claims/created` fires only for self-logged claims.
   - The `packages/api` Inngest clients do not map the `INNGEST_WORKFLOW_` keys. This matters only if production lacks an unprefixed `INNGEST_EVENT_KEY`, which is not verified.

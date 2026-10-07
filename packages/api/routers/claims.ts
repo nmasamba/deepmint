@@ -15,7 +15,7 @@ import {
   protectedProcedure,
   adminProcedure,
 } from "../trpc";
-import { VALID_HORIZONS, RATIONALE_TAGS, getCurrentPrice } from "@deepmint/shared";
+import { VALID_HORIZONS, RATIONALE_TAGS } from "@deepmint/shared";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { Inngest } from "inngest";
@@ -90,10 +90,11 @@ export const claimRouter = router({
         });
       }
 
-      // 3. Get current price from Polygon (or dev fallback)
-      const entryPriceCents = await getCurrentPrice(instrument.ticker);
-
-      // 4. Insert into claims table (append-only, immutable)
+      // 3. Insert into claims table (append-only, immutable). No entry price
+      // is stored: the latest available price is the previous close, which
+      // would credit the claim with a move already visible when it was made.
+      // Markout enters it at the first close after created_at and records
+      // that price on the outcome.
       const [claim] = await ctx.db
         .insert(claims)
         .values({
@@ -105,7 +106,7 @@ export const claimRouter = router({
           confidence: input.confidence ?? null,
           rationale: input.rationale ?? null,
           rationaleTags: input.rationaleTags ?? [],
-          entryPriceCents,
+          entryPriceCents: null,
           status: "active",
           sourceKind: "self_logged",
           // eventId is null for Player self-logged claims

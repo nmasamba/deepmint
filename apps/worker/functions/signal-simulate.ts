@@ -50,11 +50,15 @@ export const signalSimulateFunction = inngest.createFunction(
 
       if (!instrument) return { tradesCreated: 0 };
 
-      // Get current price (fallback to entry price from claim)
+      // Paper trades open at the latest available price. Self-logged claims
+      // no longer carry an entry price, so if the lookup fails there may be
+      // no fallback: throw and let the step retry rather than open a trade
+      // at no price.
       let priceCents: number;
       try {
         priceCents = await getCurrentPrice(instrument.ticker);
-      } catch {
+      } catch (err) {
+        if (entryPriceCents == null) throw err;
         priceCents = entryPriceCents;
       }
 
