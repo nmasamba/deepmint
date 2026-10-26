@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **93 open issues: no high, 23 medium and 70 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **92 open issues: no high, 23 medium and 69 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,7 +26,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 3 | 7 | 10 |
+| [Scoring and ranking](#area-scoring) | 0 | 3 | 6 | 9 |
 | [Product (web app)](#area-product) | 0 | 9 | 19 | 28 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 12 | 15 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
@@ -34,7 +34,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **23** | **70** | **93** |
+| **All** | **0** | **23** | **69** | **92** |
 
 <a id="area-scoring"></a>
 
@@ -69,16 +69,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Player metrics use each active claim's `return_bps` as one "daily" return, whatever its horizon (1 to 365 days). Sharpe is mean/std × √252 with no risk-free rate. Calmar compounds claim returns in sequence even when the positions overlapped, then annualises by 252 / number of claims. CVaR and consistency use the same series.
 - **User impact:** Player Sharpe and Calmar on profiles, the Sharpe board and the ticker page's Top Players have no financial meaning. Three 1-year claims of +10%, +12% and +8% give a Sharpe of about 79, and long-horizon claimants are inflated by up to √252 against 1-day claimants.
 - **Evidence:** [`apps/worker/functions/score.ts:201-221`](../apps/worker/functions/score.ts#L201-L221) · [`packages/scoring/src/player.ts:12-18`](../packages/scoring/src/player.ts#L12-L18)
-
-<a id="score-outcomes-unordered"></a>
-
-### Drawdown, Calmar and consistency depend on arbitrary row order
-
-**Low** · bug · `score-outcomes-unordered`
-
-- **What's wrong:** The Player outcome query has no `ORDER BY`, yet `max_drawdown` (and so Calmar) and `consistency` (from 64 outcomes) treat the rows as a time series.
-- **User impact:** Max Drawdown and Calmar on a Player profile can change between runs with no new data. The web leaderboard does not rank on these metrics.
-- **Evidence:** [`apps/worker/functions/score.ts:66-78`](../apps/worker/functions/score.ts#L66-L78) · [`apps/worker/functions/score.ts:206-221`](../apps/worker/functions/score.ts#L206-L221) · [`packages/scoring/src/player.ts:63-75`](../packages/scoring/src/player.ts#L63-L75)
 
 <a id="broker-trades-never-scored"></a>
 
@@ -658,9 +648,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · docs-drift · `worker-stale-docstrings`
 
-- **What's wrong:** `getSourceAdapters`' docstring says it falls back to the demo adapter; the body has no fallback, as its own note says, and `DemoSourceAdapter` is used only by a test. `score.ts` comments "entities that have outcomes" over a query of all entities and selects an unused `brokerLinkStatus`. `ingest-sources` returns `totalProcessed` as the number of adapters, not captures.
+- **What's wrong:** `getSourceAdapters`' docstring says it falls back to the demo adapter; the body has no fallback, as its own note says, and `DemoSourceAdapter` is used only by a test. `ingest-sources` returns `totalProcessed` as the number of adapters, not captures.
 - **User impact:** Maintainers only.
-- **Evidence:** [`apps/worker/functions/ingest.ts:11-15`](../apps/worker/functions/ingest.ts#L11-L15) · [`apps/worker/functions/ingest.ts:46-49`](../apps/worker/functions/ingest.ts#L46-L49) · [`apps/worker/functions/ingest.ts:133`](../apps/worker/functions/ingest.ts#L133) · [`apps/worker/functions/score.ts:50-57`](../apps/worker/functions/score.ts#L50-L57)
+- **Evidence:** [`apps/worker/functions/ingest.ts:11-15`](../apps/worker/functions/ingest.ts#L11-L15) · [`apps/worker/functions/ingest.ts:46-49`](../apps/worker/functions/ingest.ts#L46-L49) · [`apps/worker/functions/ingest.ts:133`](../apps/worker/functions/ingest.ts#L133)
 
 <a id="area-ingestion"></a>
 
