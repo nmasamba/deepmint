@@ -10,7 +10,7 @@ import { toast } from "sonner";
 
 export default function AdminReviewPage() {
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.claims.pendingReview.useQuery({ limit: 50 });
+  const { data, isLoading, error } = trpc.claims.pendingReview.useQuery({ limit: 50 });
 
   const reviewMutation = trpc.claims.reviewClaim.useMutation({
     onSuccess: (result) => {
@@ -46,7 +46,11 @@ export default function AdminReviewPage() {
         </p>
       </div>
 
-      {items.length === 0 ? (
+      {error ? (
+        <div className="rounded-lg border border-red-500/30 bg-bg-secondary p-8 text-center">
+          <p className="text-red-400">Could not load the review queue: {error.message}</p>
+        </div>
+      ) : items.length === 0 ? (
         <div className="rounded-lg border border-border bg-bg-secondary p-8 text-center">
           <p className="text-text-secondary">No claims pending review.</p>
         </div>

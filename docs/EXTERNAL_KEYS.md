@@ -32,7 +32,7 @@ Ordered by what each step changes in the running code today.
 1. **Upstash Redis.** Config only, no code change. Without it:
    - `claims.submit` has no 10-claims-per-hour limit, so a signed-in user can submit claims without bound.
    - `/api/v1` and `/api/mcp` have no per-key limit. This matters once the first `dm_live_` key is issued; production had 0 keys on 2026-08-03 and the count since is not recorded.
-2. **Clerk production instance, before launch.** Production runs on a development instance. That instance allows 100 Backend API requests per 10 seconds, and every signed-in non-admin tRPC request and full page load makes one (`users.getUser`, for the admin check). Moving needs the custom domain, Google OAuth credentials and DNS, then new values for both keys and the webhook secret.
+2. **Clerk production instance, before launch.** Production runs on a development instance. That instance allows 100 Backend API requests per 10 seconds. The admin check makes at most one (`users.getUser`) per signed-in user per minute per server instance, and none with the optional session-token claim (see [Clerk](#clerk)). Moving needs the custom domain, Google OAuth credentials and DNS, then new values for both keys and the webhook secret.
 3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 16 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
 4. **SnapTrade: when Player broker verification launches,** and only after the gaps listed under [SnapTrade](#snaptrade) are fixed.
 5. **Resend: code first.** The digest sends to placeholder addresses.
@@ -61,7 +61,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 ## Clerk (auth)
 
 **`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`**
-- **Powers:** sign-in and sessions, and the route protection in `apps/web/middleware.ts`. The secret key also backs `clerkClient()`, which the tRPC context (`apps/web/app/api/trpc/[trpc]/route.ts`) uses to create a missing Player entity (self-heal) and to look up the admin role. `apps/web/app/(app)/layout.tsx` uses it for the admin nav.
+- **Powers:** sign-in and sessions, and the route protection in `apps/web/middleware.ts`. The secret key also backs `clerkClient()`, which the tRPC context (`apps/web/app/api/trpc/[trpc]/route.ts`) uses to create a missing Player entity (self-heal) and `apps/web/lib/adminRole.ts` uses to look up the admin role for the tRPC context, the admin nav in `apps/web/app/(app)/layout.tsx` and the `/admin` gate.
 - **Read by:** `@clerk/nextjs` 7.0.7 implicitly; no repo code names them.
 - **Required:** yes. CI also needs both as GitHub repository secrets for the web build (`.github/workflows/ci.yml`).
 - **If missing:** in a production build, Clerk middleware cannot run, so auth and every page fail. Under `next dev`, Clerk 7 instead falls back to keyless mode with temporary development keys.
@@ -80,7 +80,9 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up`: read implicitly by Clerk. Without them Clerk uses its hosted sign-in and sign-up pages instead of the in-app ones.
 - `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`: **not read** by Clerk 7, which reads the `*_FALLBACK_REDIRECT_URL` and `*_FORCE_REDIRECT_URL` names instead. Users still land on `/dashboard`, because middleware redirects signed-in visitors from `/` (`apps/web/middleware.ts:27-29`).
 
-**Admin role:** set `privateMetadata.role = "admin"` on the user in the Clerk dashboard. There is no in-app way to grant it.
+**Admin role:** set `privateMetadata.role = "admin"` on the user in the Clerk dashboard. There is no in-app way to grant it. Non-admins get a 404 on `/admin/*`.
+
+**Optional session-token claim.** In the Clerk dashboard (Sessions → Customize session token), add `{"metadata": "{{user.private_metadata}}"}`. `resolveIsAdmin` then reads the role from every session token and never calls Clerk's backend for it. Without the claim it calls `users.getUser` once per user and caches the role for 60 seconds per server instance (the user the tRPC self-heal fetched is reused). A role change takes effect when the user's token next refreshes (about a minute) with the claim, or within 60 seconds without it. Lookup failures are logged as `[adminRole] Clerk getUser failed`.
 
 ## Market data (Massive, formerly Polygon.io)
 

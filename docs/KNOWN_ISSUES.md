@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **84 open issues: no high, 21 medium and 63 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **82 open issues: no high, 21 medium and 61 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 7 | 18 | 25 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 10 | 13 |
+| [Product (web app)](#area-product) | 0 | 7 | 17 | 24 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 9 | 12 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **21** | **63** | **84** |
+| **All** | **0** | **21** | **61** | **82** |
 
 <a id="area-scoring"></a>
 
@@ -264,16 +264,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Cosmetic: pressing `/` does nothing.
 - **Evidence:** [`apps/web/components/InstrumentSearch.tsx:111-120`](../apps/web/components/InstrumentSearch.tsx#L111-L120)
 
-<a id="admin-pages-not-gated"></a>
-
-### Admin pages render for any signed-in user with a false empty state
-
-**Low** · bug · `admin-pages-not-gated`
-
-- **What's wrong:** `/admin/review`, `/admin/instruments` and `/admin/api-keys` are client pages with no role check. Their data calls return FORBIDDEN, but the pages ignore the error and show "No claims pending review", "No instruments yet" or "No API keys yet", with action buttons enabled.
-- **User impact:** A non-admin who opens an admin URL sees a misleading empty admin screen. No data leaks and no action succeeds.
-- **Evidence:** [`apps/web/app/(app)/admin/review/page.tsx:13`](../apps/web/app/%28app%29/admin/review/page.tsx#L13) · [`apps/web/app/(app)/admin/instruments/page.tsx:18-19`](../apps/web/app/%28app%29/admin/instruments/page.tsx#L18-L19) · [`apps/web/app/(app)/admin/api-keys/page.tsx:44`](../apps/web/app/%28app%29/admin/api-keys/page.tsx#L44) · [`packages/api/trpc.ts:50-62`](../packages/api/trpc.ts#L50-L62)
-
 <a id="notifications-dead-ends"></a>
 
 ### Notifications are dead ends, and one preference does nothing
@@ -467,16 +457,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** The webhook verifies `JSON.stringify(await req.json())` instead of the raw request body. Payloads whose bytes change when re-serialised (an escaped `/`, an escaped `&`, `1.0`) fail with 400 "Invalid signature".
 - **User impact:** None today: maintainer notes (2026-08-11, unverified) say no production webhook endpoint is registered, and the tRPC self-heal creates entities either way. Once registered, some sign-ups would get 400s and Svix retries.
 - **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts:42-54`](../apps/web/app/api/webhooks/clerk/route.ts#L42-L54)
-
-<a id="clerk-getuser-per-request"></a>
-
-### Every non-admin request calls Clerk's backend `getUser`
-
-**Low** · bug · `clerk-getuser-per-request`
-
-- **What's wrong:** For signed-in users whose session claim does not say admin, which is every non-admin, the tRPC context and the `(app)` layout both call `users.getUser` to read the role: once per tRPC HTTP request and once per full page render.
-- **User impact:** Each such request waits on a Clerk round trip. A Clerk development instance allows 100 backend requests per 10 s; past that, admins lose admin access for that request with nothing logged, and new users' self-heal fails for that request (this one is logged).
-- **Evidence:** [`apps/web/app/api/trpc/[trpc]/route.ts:64-81`](../apps/web/app/api/trpc/%5Btrpc%5D/route.ts#L64-L81) · [`apps/web/app/(app)/layout.tsx:19-38`](../apps/web/app/%28app%29/layout.tsx#L19-L38)
 
 <a id="unused-trpc-procedures"></a>
 

@@ -5,6 +5,7 @@ import { db, eq } from "@deepmint/db";
 import { entities } from "@deepmint/db/schema";
 import { ensureEntityForClerkUser } from "@deepmint/db/queries/ensureEntityForClerkUser";
 import { slugify } from "@deepmint/shared";
+import { resolveIsAdmin } from "@/lib/adminRole";
 
 async function handler(req: Request) {
   return fetchRequestHandler({
@@ -15,6 +16,8 @@ async function handler(req: Request) {
       const { userId, sessionClaims } = await auth();
 
       let entity = null;
+      // A Clerk user fetched by the self-heal below, reused for the role.
+      let fetchedUser: { privateMetadata: unknown } | undefined;
       if (userId) {
         const [found] = await db
           .select()
@@ -36,6 +39,7 @@ async function handler(req: Request) {
           try {
             const client = await clerkClient();
             const user = await client.users.getUser(userId);
+            fetchedUser = user;
             const displayName =
               [user.firstName, user.lastName].filter(Boolean).join(" ") ||
               user.username ||
@@ -57,29 +61,9 @@ async function handler(req: Request) {
         }
       }
 
-      // Admin role is stored in Clerk `privateMetadata` (server-only). Prefer
-      // the session-token `metadata` claim if the session-token customization
-      // is configured; otherwise fall back to a direct backend lookup so the
-      // admin flag works even with a stale token or no customization.
-      let isAdmin = false;
-      if (userId) {
-        const claimMetadata = sessionClaims?.metadata as
-          | { role?: string }
-          | undefined;
-        if (claimMetadata?.role === "admin") {
-          isAdmin = true;
-        } else {
-          try {
-            const client = await clerkClient();
-            const user = await client.users.getUser(userId);
-            const privateRole = (user.privateMetadata as { role?: string })
-              ?.role;
-            isAdmin = privateRole === "admin";
-          } catch {
-            isAdmin = false;
-          }
-        }
-      }
+      // Admin role (Clerk privateMetadata): from the session claim when the
+      // token carries one, else one cached backend lookup per user per 60 s.
+      const isAdmin = await resolveIsAdmin(userId, sessionClaims, fetchedUser);
 
       return createContext({ userId, entity, isAdmin });
     },
