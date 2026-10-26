@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { SCORE_HORIZONS, REGIME_TAGS } from "@deepmint/shared";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,10 +26,11 @@ export function GET() {
       description:
         "B2B REST API exposing Deepmint entity scores, consensus signals, " +
         "and leaderboards. All endpoints require a `Bearer dm_live_*` API " +
-        "key in the Authorization header.",
+        "key in the Authorization header, and each endpoint also requires " +
+        "the scope named in its `x-required-scope` (403 without it).",
       contact: {
         name: "Deepmint",
-        url: "https://deepmint.app",
+        url: "https://www.deepmint.ai",
       },
     },
     servers: [
@@ -46,6 +48,7 @@ export function GET() {
             "Returns the most recent score per metric for a Player or Guide.",
           operationId: "getEntityScores",
           tags: ["Entities"],
+          "x-required-scope": "scores:read",
           parameters: [
             {
               name: "slug",
@@ -65,6 +68,7 @@ export function GET() {
               },
             },
             "401": { $ref: "#/components/responses/Unauthorized" },
+            "403": { $ref: "#/components/responses/Forbidden" },
             "404": { $ref: "#/components/responses/NotFound" },
             "429": { $ref: "#/components/responses/RateLimited" },
           },
@@ -75,6 +79,7 @@ export function GET() {
           summary: "Get consensus signal for an instrument",
           operationId: "getInstrumentConsensus",
           tags: ["Instruments"],
+          "x-required-scope": "consensus:read",
           parameters: [
             {
               name: "ticker",
@@ -94,6 +99,7 @@ export function GET() {
               },
             },
             "401": { $ref: "#/components/responses/Unauthorized" },
+            "403": { $ref: "#/components/responses/Forbidden" },
             "404": { $ref: "#/components/responses/NotFound" },
             "429": { $ref: "#/components/responses/RateLimited" },
           },
@@ -104,6 +110,7 @@ export function GET() {
           summary: "Get top entities by metric",
           operationId: "getLeaderboard",
           tags: ["Leaderboard"],
+          "x-required-scope": "leaderboard:read",
           parameters: [
             {
               name: "metric",
@@ -123,7 +130,8 @@ export function GET() {
               in: "query",
               schema: {
                 type: "string",
-                enum: ["1d", "1w", "1m", "3m", "6m", "12m", "all"],
+                enum: [...SCORE_HORIZONS],
+                default: "all",
               },
             },
             {
@@ -131,7 +139,7 @@ export function GET() {
               in: "query",
               schema: {
                 type: "string",
-                enum: ["bull", "bear", "high_vol", "low_vol", "rotation"],
+                enum: [...REGIME_TAGS],
               },
             },
             {
@@ -151,6 +159,7 @@ export function GET() {
             },
             "400": { $ref: "#/components/responses/BadRequest" },
             "401": { $ref: "#/components/responses/Unauthorized" },
+            "403": { $ref: "#/components/responses/Forbidden" },
             "429": { $ref: "#/components/responses/RateLimited" },
           },
         },
@@ -202,8 +211,8 @@ export function GET() {
           properties: {
             metric: { type: "string" },
             value: { type: "number" },
-            horizon: { type: "string", nullable: true },
-            regimeTag: { type: "string", nullable: true },
+            horizon: { type: ["string", "null"] },
+            regimeTag: { type: ["string", "null"] },
             asOfDate: { type: "string", format: "date" },
           },
         },
@@ -234,13 +243,13 @@ export function GET() {
                   properties: {
                     ticker: { type: "string" },
                     name: { type: "string" },
-                    exchange: { type: "string", nullable: true },
-                    sector: { type: "string", nullable: true },
+                    exchange: { type: ["string", "null"] },
+                    assetClass: { type: "string" },
+                    sector: { type: ["string", "null"] },
                   },
                 },
                 consensus: {
-                  type: "object",
-                  nullable: true,
+                  type: ["object", "null"],
                   properties: {
                     direction: {
                       type: "string",
@@ -253,8 +262,8 @@ export function GET() {
                     weightedBearishScore: { type: "number" },
                     weightedNeutralScore: { type: "number" },
                     convictionStrength: { type: "number" },
-                    avgTargetPriceCents: { type: "integer", nullable: true },
-                    targetDispersionBps: { type: "integer", nullable: true },
+                    avgTargetPriceCents: { type: ["integer", "null"] },
+                    targetDispersionBps: { type: ["integer", "null"] },
                     activeClaims: { type: "integer" },
                     asOfDate: { type: "string", format: "date" },
                   },
@@ -270,8 +279,8 @@ export function GET() {
             rank: { type: "integer" },
             entity: { $ref: "#/components/schemas/Entity" },
             score: { type: "number" },
-            horizon: { type: "string", nullable: true },
-            regimeTag: { type: "string", nullable: true },
+            horizon: { type: ["string", "null"] },
+            regimeTag: { type: ["string", "null"] },
           },
         },
         LeaderboardResponse: {
@@ -281,9 +290,9 @@ export function GET() {
               type: "object",
               properties: {
                 metric: { type: "string" },
-                horizon: { type: "string", nullable: true },
-                regimeTag: { type: "string", nullable: true },
-                asOfDate: { type: "string", format: "date" },
+                horizon: { type: "string", enum: [...SCORE_HORIZONS] },
+                regimeTag: { type: ["string", "null"] },
+                asOfDate: { type: ["string", "null"], format: "date" },
                 rows: {
                   type: "array",
                   items: { $ref: "#/components/schemas/LeaderboardRow" },
@@ -305,6 +314,14 @@ export function GET() {
         },
         Unauthorized: {
           description: "Missing or invalid API key",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ErrorResponse" },
+            },
+          },
+        },
+        Forbidden: {
+          description: "The API key lacks the endpoint's required scope",
           content: {
             "application/json": {
               schema: { $ref: "#/components/schemas/ErrorResponse" },

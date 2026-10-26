@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **89 open issues: no high, 23 medium and 66 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **87 open issues: no high, 23 medium and 64 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -28,13 +28,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
 | [Product (web app)](#area-product) | 0 | 9 | 19 | 28 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 12 | 15 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 10 | 13 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **23** | **66** | **89** |
+| **All** | **0** | **23** | **64** | **87** |
 
 <a id="area-scoring"></a>
 
@@ -42,13 +42,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="leaderboard-no-minimum-sample"></a>
 
-### Leaderboards have no minimum sample or significance gate, and always sort descending
+### Leaderboards have no minimum sample or significance gate
 
 **Medium** · bug · `leaderboard-no-minimum-sample`
 
-- **What's wrong:** `leaderboard.top`, `bestInCurrentConditions`, `byTicker` and `GET /api/v1/leaderboard` apply no outcome-count or significance filter, and all sort `scores.value DESC`. The scorer writes scores after one outcome. `hit_rate` and `avg_return_bps` have no sample adjustment, and Sharpe has no floor above n=2. EIV's `n/(n+20)` shrinkage is too weak: with the fixed Brier of 0.5 that every Player gets, 1/1 correct at +800 bps scores 0.8, above 120/200 at +150 bps (0.5). The z-test's `isSignificant` flag (p<0.05, n≥15) is discarded, and `checkAntiGaming` is never called. `calibration_brier` and `max_drawdown` are lower-is-better, yet tRPC, MCP and v1 return them worst first.
+- **What's wrong:** `leaderboard.top` (and so the web, MCP and REST v1 boards), `bestInCurrentConditions` and `byTicker` apply no outcome-count or significance filter. The scorer writes scores after one outcome. `hit_rate` and `avg_return_bps` have no sample adjustment, and Sharpe has no floor above n=2. EIV's `n/(n+20)` shrinkage is too weak: with the fixed Brier of 0.5 that every Player gets, 1/1 correct at +800 bps scores 0.8, above 120/200 at +150 bps (0.5). The z-test's `isSignificant` flag (p<0.05, n≥15) is discarded, and `checkAntiGaming` is never called.
 - **User impact:** Once outcomes exist, a Player whose first call lands shows 100% on the default board (Hit Rate, All), above long records, and the page shows no sample count. Latent while there is little scored data.
-- **Evidence:** [`packages/api/routers/leaderboard.ts:28-42`](../packages/api/routers/leaderboard.ts#L28-L42) · [`packages/api/routers/leaderboard.ts:79`](../packages/api/routers/leaderboard.ts#L79) · [`apps/web/app/api/v1/leaderboard/route.ts:90`](../apps/web/app/api/v1/leaderboard/route.ts#L90) · [`apps/worker/functions/score.ts:80-83`](../apps/worker/functions/score.ts#L80-L83) · [`apps/worker/functions/score.ts:137-142`](../apps/worker/functions/score.ts#L137-L142) · [`apps/web/app/(app)/leaderboard/page.tsx:42`](../apps/web/app/%28app%29/leaderboard/page.tsx#L42)
+- **Evidence:** [`packages/api/routers/leaderboard.ts:28-42`](../packages/api/routers/leaderboard.ts#L28-L42) · [`apps/worker/functions/score.ts:80-83`](../apps/worker/functions/score.ts#L80-L83) · [`apps/worker/functions/score.ts:137-142`](../apps/worker/functions/score.ts#L137-L142) · [`apps/web/app/(app)/leaderboard/page.tsx:42`](../apps/web/app/%28app%29/leaderboard/page.tsx#L42)
 
 <a id="eiv-not-regime-aware"></a>
 
@@ -478,16 +478,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Mostly cosmetic: "J.P. Morgan" becomes `jp-morgan` as a Player and `j-p-morgan` as a Guide. The collision risk is [guide-resolver-matches-user-slug](#guide-resolver-matches-user-slug).
 - **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts:61-64`](../apps/web/app/api/webhooks/clerk/route.ts#L61-L64) · [`apps/web/app/api/trpc/[trpc]/route.ts:38-41`](../apps/web/app/api/trpc/%5Btrpc%5D/route.ts#L38-L41) · [`packages/shared/src/utils.ts:1-8`](../packages/shared/src/utils.ts#L1-L8) · [`packages/ingestion/src/sources/resolver.ts:7-15`](../packages/ingestion/src/sources/resolver.ts#L7-L15)
 
-<a id="v1-leaderboard-missing-fixes"></a>
-
-### REST `/api/v1/leaderboard` lacks the tRPC leaderboard's fixes
-
-**Low** · bug · `v1-leaderboard-missing-fixes`
-
-- **What's wrong:** With no `horizon` given, the route does not default to `all`, so `metric=hit_rate` lists a Guide up to 7 times (pooled plus one row per outcome horizon). Its latest-date probe ignores the horizon, so a horizon with no rows on the newest date returns an empty board. It has no `deleted_at` filter (latent: nothing sets it).
-- **User impact:** API callers get duplicate rows and a ranking that differs from the web and MCP boards. Keys are admin-issued and no external consumer is known.
-- **Evidence:** [`apps/web/app/api/v1/leaderboard/route.ts:46-65`](../apps/web/app/api/v1/leaderboard/route.ts#L46-L65) · [`packages/api/routers/leaderboard.ts:21`](../packages/api/routers/leaderboard.ts#L21) · [`packages/api/routers/leaderboard.ts:47-57`](../packages/api/routers/leaderboard.ts#L47-L57)
-
 <a id="mcp-tool-contract-gaps"></a>
 
 ### MCP tools return less than they promise
@@ -497,16 +487,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `get_entity_track_record` returns only the raw entities row, with no claims, outcomes or scores. Opening a session requires `consensus:read`, and read tools check no further scope. `submit_claim` has no `rationaleTags`. Tool descriptions say "Mag-7 ticker" but any instrument resolves.
 - **User impact:** An agent asking for a track record gets no claims, outcomes or scores, and tool descriptions promise Mag-7 while any instrument resolves.
 - **Evidence:** [`apps/web/app/api/mcp/route.ts:36-43`](../apps/web/app/api/mcp/route.ts#L36-L43) · [`apps/web/app/api/mcp/route.ts:93-98`](../apps/web/app/api/mcp/route.ts#L93-L98) · [`apps/web/app/api/mcp/route.ts:113-123`](../apps/web/app/api/mcp/route.ts#L113-L123) · [`apps/web/app/api/mcp/route.ts:214`](../apps/web/app/api/mcp/route.ts#L214)
-
-<a id="openapi-spec-drift"></a>
-
-### The OpenAPI spec disagrees with what the v1 API returns
-
-**Low** · docs-drift · `openapi-spec-drift`
-
-- **What's wrong:** The spec's leaderboard `horizon` enum offers `12m`, which is never written, and omits `1y`; the route does not validate horizon, so `12m` returns an empty 200. The spec documents no 403 and no per-endpoint scope, omits `assetClass` from the consensus instrument object, uses OpenAPI 3.0's `nullable` under `openapi: 3.1.0`, and gives `https://deepmint.app` as the contact URL.
-- **User impact:** Clients built from the spec get empty boards, undocumented 403s and dropped or mistyped fields.
-- **Evidence:** [`apps/web/app/api/v1/openapi.json/route.ts:31`](../apps/web/app/api/v1/openapi.json/route.ts#L31) · [`apps/web/app/api/v1/openapi.json/route.ts:121-127`](../apps/web/app/api/v1/openapi.json/route.ts#L121-L127) · [`apps/web/app/api/v1/openapi.json/route.ts:232-239`](../apps/web/app/api/v1/openapi.json/route.ts#L232-L239) · [`apps/web/app/api/v1/lib/auth.ts:88-98`](../apps/web/app/api/v1/lib/auth.ts#L88-L98)
 
 <a id="clerk-webhook-fragile"></a>
 
@@ -870,9 +850,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · config · `domain-mismatch`
 
-- **What's wrong:** `deepmint.app` is the metadata base fallback, the OpenAPI contact URL and the digest sender, recipient and links. `deepmint.com` is the R2 public URL default and the demo adapter's URLs. Production is www.deepmint.ai, and the OpenAPI and digest values have no env override.
-- **User impact:** Only the OpenAPI and Swagger contact link is visible today, and `deepmint.app` does not resolve.
-- **Evidence:** [`apps/web/app/layout.tsx:21-23`](../apps/web/app/layout.tsx#L21-L23) · [`apps/web/app/api/v1/openapi.json/route.ts:29-32`](../apps/web/app/api/v1/openapi.json/route.ts#L29-L32) · [`apps/worker/functions/digest.ts:156-165`](../apps/worker/functions/digest.ts#L156-L165) · [`packages/ingestion/src/r2.ts:53`](../packages/ingestion/src/r2.ts#L53)
+- **What's wrong:** `deepmint.app` is the digest sender, recipient and links. `deepmint.com` is the R2 public URL default and the demo adapter's URLs. Production is www.deepmint.ai, and the digest values have no env override.
+- **User impact:** None visible today: the digest skips without a Resend key, the R2 code is never called, and the demo adapter runs only in a test. `deepmint.app` does not resolve.
+- **Evidence:** [`apps/worker/functions/digest.ts:156-165`](../apps/worker/functions/digest.ts#L156-L165) · [`packages/ingestion/src/r2.ts:53`](../packages/ingestion/src/r2.ts#L53)
 
 <a id="lint-broken"></a>
 

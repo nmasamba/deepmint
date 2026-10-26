@@ -237,7 +237,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 | Variable | Read at | Effect | Production |
 |---|---|---|---|
 | `INGEST_POLYGON_NEWS` | `apps/worker/functions/ingest.ts:42` | Only `"1"` adds the Wall Street ratings lane (Polygon news, 7 tickers, up to 50 articles each, every weekday 16:30 US Eastern). Parked on purpose: a live run of 210 articles gave 0 attributed ratings ([DEVLOG](DEVLOG.md), 2026-08-03). | Not recorded; keep unset |
-| `NEXT_PUBLIC_APP_URL` | `apps/web/app/layout.tsx:22` | `metadataBase`, default `https://deepmint.app`. No metadata field uses a relative URL today, so it has no visible effect. Set it to `https://www.deepmint.ai` before adding OG images or canonical URLs. An empty value throws (`new URL("")`). Inlined at build time. | Not recorded |
+| `NEXT_PUBLIC_APP_URL` | `apps/web/app/layout.tsx:22` | `metadataBase`, default `https://www.deepmint.ai`. No metadata field uses a relative URL today, so it has no visible effect. Set it to `https://www.deepmint.ai` before adding OG images or canonical URLs. An empty value throws (`new URL("")`). Inlined at build time. | Not recorded |
 | `VERCEL_URL` | `apps/web/components/providers/TRPCProvider.tsx:11` | Set by Vercel. The server-side tRPC base URL; `http://localhost:3000` without it. | Automatic |
 | `NODE_ENV` | `apps/web/next.config.ts:7` | Set by Next. `development` disables the service worker. | Automatic |
 

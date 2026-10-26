@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
-import { db, desc, eq, and, sql, isNull } from "@deepmint/db";
+import { db, desc, asc, eq, and, sql, isNull } from "@deepmint/db";
 import { scores, entities } from "@deepmint/db/schema";
+import { LOWER_IS_BETTER_METRICS } from "@deepmint/shared";
 import { getLatestMarketRegime } from "../lib/marketRegime";
 
 export const leaderboardRouter = router({
@@ -75,7 +76,13 @@ export const leaderboardRouter = router({
         .from(scores)
         .innerJoin(entities, eq(scores.entityId, entities.id))
         .where(and(...conditions))
-        .orderBy(desc(scores.value))
+        // Best first: ascending for metrics where lower is better (Brier,
+        // drawdown), which descending order listed worst first.
+        .orderBy(
+          LOWER_IS_BETTER_METRICS.includes(input.metric)
+            ? asc(scores.value)
+            : desc(scores.value),
+        )
         .limit(input.limit);
 
       return rows.map((row, i) => ({
