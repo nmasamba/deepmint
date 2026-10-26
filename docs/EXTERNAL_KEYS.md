@@ -275,7 +275,7 @@ No tool reads a root `.env`.
 | vitest in web, api, ingestion, scoring and shared | the root `.env.local`; write values unquoted, empty values are skipped |
 | `db:seed`, the backfill CLI, the `tsx -e` checks above | the shell only |
 
-Under root `pnpm dev` and `pnpm test` (turbo), shell-exported variables do not reach the tasks (except `NEXT_PUBLIC_*` for the web app): `turbo.json` declares no `env`, and Turbo 2 runs in strict mode. Variables in the files above are read from disk, so they are not affected.
+Under root `pnpm dev` and `pnpm test` (turbo), shell-exported variables reach the tasks: `turbo.json` uses loose env mode. Tests are never cached, and the `.env.local` files are part of every other task's cache key.
 
 ## How to add a key to production (Vercel)
 

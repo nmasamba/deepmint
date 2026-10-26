@@ -203,7 +203,7 @@ packages/
   shared/      Polygon price client, Merkle tree, constants (Mag-7 list, horizons)
 tooling/
   tsconfig/    Shared TypeScript configs
-  eslint/      ESLint config (not used by any package yet)
+  eslint/      Shared ESLint flat config, used by apps/web
 docs/          Project docs (see Documentation below)
 ```
 
@@ -263,7 +263,7 @@ What happens when an optional key is missing:
 
 Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `INNGEST_DEV=1`. Without `INNGEST_DEV`, production keys in those variables would send your local events to production Inngest. `INGEST_POLYGON_NEWS=1` turns on the Wall Street ratings feed, which is off by default.
 
-`turbo.json` declares no env variables, and Turbo 2 runs in strict env mode, so variables exported in your shell may not reach tasks started with root `pnpm dev` or `pnpm test`. Turbo also does not count `.env.local` edits when it caches results, so root `pnpm test` can replay stale results. Keep variables in the files above, and prefer `pnpm --filter`.
+`turbo.json` runs tasks in loose env mode, so variables exported in your shell reach tasks started with root `pnpm dev` or `pnpm test`. Tests are never cached, because live tests must hit live services on every run, and the root and `apps/web` `.env.local` files are part of every other task's cache key.
 
 **3. Run the migrations**
 
@@ -328,7 +328,7 @@ In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`.
 | `pnpm --filter @deepmint/db db:studio` | Opens Drizzle Studio |
 | `pnpm --filter @deepmint/worker backfill <file>` | Sends a `backfill/requested` event |
 | `pnpm --filter @deepmint/web build` | Production build of the web app |
-| `pnpm lint` | **Does not work.** `apps/web` has no ESLint config or ESLint dependency. |
+| `pnpm lint` | Lints the web app with ESLint 9 (typescript-eslint, Next.js and React hooks rules). Rules the existing code breaks are warnings, so it exits 0. |
 
 ### Tests
 
@@ -389,10 +389,11 @@ Keep in mind:
 - **Inngest.** The app `deepmint` is synced to production through the Vercel integration. Its keys arrive with an `INNGEST_WORKFLOW_` prefix, and `packages/api/lib/inngestEnv.ts` maps them to the names the SDK reads before any Inngest client is built: the tRPC routers' (through `packages/api/trpc.ts`), the worker's and `/api/inngest`'s. The functions run inside the Vercel deployment at `/api/inngest`.
 - **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
   - Runs on every push and pull request to `main`, on Node 22.
-  - Type-checks `scoring` and `shared`.
-  - Tests `scoring`, `shared` and `ingestion`; the live LLM tests are skipped.
-  - Builds the web app, which also type-checks most of `api`, `db`, `ingestion` and `worker`.
-  - Does not run the `api` or `web` tests, lint, or a database.
+  - Type-checks every package with its own `tsc` (`pnpm -r check`), scripts included.
+  - Lints (`pnpm lint`).
+  - Tests `scoring`, `shared`, `ingestion` and `api`; live tests skip, because CI has no keys or database.
+  - Builds the web app.
+  - Does not run the `web` integration tests (they need a running server and an API key) or a database.
   - It was broken at the pnpm setup step from August 2026 until PR #9 fixed it on 2026-10-05.
 
 ## Documentation

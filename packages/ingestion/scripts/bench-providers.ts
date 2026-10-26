@@ -31,7 +31,7 @@ const TEXT = `Market outlook for Q2 2026:
 - NVDA: Strongly bullish, AI demand continuing to surge. Target $1100 in 90 days.
 - META: Slightly bearish, ad revenue slowing. Short-term target $480 over 30 days.`;
 
-const { extractClaims } = await import("../src/extractor.ts");
+const { extractClaims } = await import("../src/extractor");
 
 async function once(): Promise<{ ms: number; claims: number; ok: boolean; error?: string }> {
   const t0 = Date.now();

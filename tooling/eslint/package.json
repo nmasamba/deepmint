@@ -2,7 +2,9 @@
   "name": "@deepmint/eslint-config",
   "version": "0.0.0",
   "private": true,
+  "main": "base.js",
   "dependencies": {
+    "@eslint/js": "^9.39.4",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.0.0"

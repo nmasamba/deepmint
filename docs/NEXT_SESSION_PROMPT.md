@@ -40,9 +40,9 @@ CURRENT STATE
   #7 backfill matures only active claims and recovers retries; scores, digest and landing
      stats count only active claims' outcomes
 - CI (.github/workflows/ci.yml) failed at pnpm setup from August until #9; it was green on #9.
-  It type-checks scoring and shared, tests scoring, shared and ingestion (live LLM tests skip),
-  and builds web. It does not run the api or web tests, lint or a database.
-  `pnpm check` passes for all 7 packages. `pnpm lint` does not work (no ESLint config).
+  Since wave 1 it type-checks every package (pnpm -r check), lints, tests scoring, shared,
+  ingestion and api (live tests skip) and builds web. It does not run the web integration tests
+  or a database. `pnpm check` and `pnpm lint` pass.
 - Production keys could NOT be re-verified on 2026-10-05 (the Vercel CLI token has expired and
   the connector cannot list env vars). Last recorded status (2026-07-02):
   set: DATABASE_URL, Clerk keys, POLYGON_API_KEY, HF_API_KEY, Inngest (INNGEST_WORKFLOW_ prefix);

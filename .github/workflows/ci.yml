@@ -25,11 +25,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Every package's own tsc, scripts included; next build alone misses
+      # files outside the web app's import graph.
       - name: Type check
-        run: pnpm --filter @deepmint/scoring check && pnpm --filter @deepmint/shared check
+        run: pnpm -r check
 
+      - name: Lint
+        run: pnpm lint
+
+      # Live tests skip here: CI has no .env.local and no service keys.
       - name: Test
-        run: pnpm --filter @deepmint/scoring test && pnpm --filter @deepmint/shared test && pnpm --filter @deepmint/ingestion test
+        run: pnpm --filter @deepmint/scoring test && pnpm --filter @deepmint/shared test && pnpm --filter @deepmint/ingestion test && pnpm --filter @deepmint/api test
 
       - name: Build web
         run: pnpm --filter @deepmint/web build
