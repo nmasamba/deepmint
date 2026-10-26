@@ -1,10 +1,10 @@
 {
   "extends": "@deepmint/tsconfig/node.json",
   "compilerOptions": {
-    "outDir": "./dist",
+    "noEmit": true,
     "rootDir": ".",
     "declaration": false,
     "declarationMap": false
   },
-  "include": ["src", "functions", "inngest.ts"]
+  "include": ["src", "functions", "inngest.ts", "scripts"]
 }

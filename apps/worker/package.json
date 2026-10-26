@@ -7,9 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "dev": "npx inngest-cli@latest dev -u http://localhost:3000/api/inngest",
     "check": "tsc --noEmit",
     "backfill": "tsx scripts/backfill.ts",
     "clean": "rm -rf dist .turbo"

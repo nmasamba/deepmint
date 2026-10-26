@@ -292,14 +292,14 @@ It writes **no outcomes or scores**. It is not idempotent, so run it once, on an
 pnpm --filter @deepmint/web dev    # http://localhost:3000
 ```
 
-Sign up, and your Player record is created on your first signed-in request. Root `pnpm dev` also starts the worker's `dev` script, which only logs "Deepmint worker loaded: 16 functions registered" and serves nothing. The worker's `start` script points at a file that does not exist.
+Sign up, and your Player record is created on your first signed-in request. Root `pnpm dev` also starts the worker's `dev` script, the Inngest dev server of step 6. The worker has no build or start of its own: its functions run inside the web app.
 
 **6. Run background jobs locally (optional)**
 
-This step is not scripted in the repo; it follows from how the Inngest SDK behaves. With `INNGEST_DEV=1` set in `apps/web/.env.local`, start the Inngest dev server against the app:
+With `INNGEST_DEV=1` set in `apps/web/.env.local`, start the Inngest dev server against the app:
 
 ```bash
-npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
+pnpm --filter @deepmint/worker dev   # runs: npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
 ```
 
 Its UI at http://localhost:8288 lets you invoke the cron functions by hand. Without `INNGEST_DEV`, inngest 4.1.0 runs in cloud mode, and sending any event fails without an event key.
@@ -386,7 +386,7 @@ Keep in mind:
   - `deepmint-web-7ald.vercel.app` also serves the app.
   - Webhook URLs must use the `www` host.
 - **Environment variables.** Changing an env var requires a redeploy to take effect.
-- **Inngest.** The app `deepmint` is synced to production through the Vercel integration. Its keys arrive with an `INNGEST_WORKFLOW_` prefix, and `apps/web/app/api/inngest/inngest-env.ts` maps them to the names the SDK reads. The functions run inside the Vercel deployment at `/api/inngest`.
+- **Inngest.** The app `deepmint` is synced to production through the Vercel integration. Its keys arrive with an `INNGEST_WORKFLOW_` prefix, and `packages/api/lib/inngestEnv.ts` maps them to the names the SDK reads before any Inngest client is built: the tRPC routers' (through `packages/api/trpc.ts`), the worker's and `/api/inngest`'s. The functions run inside the Vercel deployment at `/api/inngest`.
 - **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
   - Runs on every push and pull request to `main`, on Node 22.
   - Type-checks `scoring` and `shared`.

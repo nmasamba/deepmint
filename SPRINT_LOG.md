@@ -287,6 +287,5 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 - **Open issues to know first:**
   - Leaderboards have no minimum sample size.
   - `claims/created` fires only for self-logged claims.
-  - The `packages/api` Inngest clients do not map the `INNGEST_WORKFLOW_` keys. This matters only if production lacks an unprefixed `INNGEST_EVENT_KEY`, which is not verified.
   - Sentry and R2 are inert.
   - The digest reaches no one.

@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **96 open issues: no high, 25 medium and 71 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **93 open issues: no high, 23 medium and 70 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -32,9 +32,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
-| [Infrastructure, config and tooling](#area-infra) | 0 | 4 | 11 | 15 |
+| [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **25** | **71** | **96** |
+| **All** | **0** | **23** | **70** | **93** |
 
 <a id="area-scoring"></a>
 
@@ -864,16 +864,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 ## Infrastructure, config and tooling
 
-<a id="trpc-inngest-prefixed-keys"></a>
-
-### tRPC routers' Inngest clients never see the `INNGEST_WORKFLOW_`-prefixed keys
-
-**Medium** · config · `trpc-inngest-prefixed-keys`
-
-- **What's wrong:** The claims, social and instruments routers each create an Inngest client when the module loads, and it copies the environment then. The mapping from `INNGEST_WORKFLOW_*` to `INNGEST_*` is imported only by `/api/inngest` and `apps/worker/inngest.ts`. In cloud mode, `send()` throws when there is no event key.
-- **User impact:** Applies only if production lacks an unprefixed `INNGEST_EVENT_KEY`, which could not be checked on 2026-10-05. If so, `claims/created` and `social/followed` fail silently (no mirrored trades, influence events or follower notifications from self-logged activity), and admin instrument creation throws after inserting the rows, skipping the price check. Crons are unaffected.
-- **Evidence:** [`packages/api/routers/claims.ts:21-23`](../packages/api/routers/claims.ts#L21-L23) · [`packages/api/routers/claims.ts:116-128`](../packages/api/routers/claims.ts#L116-L128) · [`packages/api/routers/social.ts:85-93`](../packages/api/routers/social.ts#L85-L93) · [`packages/api/routers/instruments.ts:361-366`](../packages/api/routers/instruments.ts#L361-L366) · [`apps/web/app/api/inngest/inngest-env.ts:6-9`](../apps/web/app/api/inngest/inngest-env.ts#L6-L9)
-
 <a id="polygon-throttle-not-serialized"></a>
 
 ### The Polygon throttle queues calls only within one process
@@ -904,16 +894,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Run against production, it would duplicate the Mag-7 instruments and put fake Guides with backdated claims into the ledger; the next weekday markout would turn them into public scores. Cleanup would need hand-written SQL across about ten tables.
 - **Evidence:** [`packages/db/seed.ts:5-11`](../packages/db/seed.ts#L5-L11) · [`packages/db/seed.ts:51-65`](../packages/db/seed.ts#L51-L65) · [`packages/db/seed.ts:203-242`](../packages/db/seed.ts#L203-L242) · [`packages/db/drizzle/0000_medical_hammerhead.sql:102-114`](../packages/db/drizzle/0000_medical_hammerhead.sql#L102-L114)
 
-<a id="stale-worker-build-artifacts"></a>
-
-### Stale compiled worker files shadow the source in production
-
-**Medium** · config · `stale-worker-build-artifacts`
-
-- **What's wrong:** Compiled leftovers from 2026-04-02 are tracked in `apps/worker` (`inngest.js`, `inngest.js.map`, `inngest.d.ts`, `inngest.d.ts.map`, `functions/ingest.js.map`). Next's webpack resolves `.js` before `.ts`, so the production build bundles the stale `inngest.js`, which lacks the `INNGEST_WORKFLOW_` key mapping, for all 15 functions. tsx scripts load `inngest.ts`.
-- **User impact:** Production works only because `/api/inngest` imports `inngest-env.ts` first. Any future change to `apps/worker/inngest.ts` would work locally and silently not ship.
-- **Evidence:** [`apps/worker/inngest.js:1-2`](../apps/worker/inngest.js#L1-L2) · [`apps/worker/inngest.ts:7-10`](../apps/worker/inngest.ts#L7-L10) · [`apps/web/app/api/inngest/route.ts:4`](../apps/web/app/api/inngest/route.ts#L4)
-
 <a id="inngest-route-no-maxduration"></a>
 
 ### `/api/inngest` sets no `maxDuration` for steps that can run for minutes
@@ -943,16 +923,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `pnpm lint` runs `next lint` in `apps/web`, which has no ESLint config or dependency. `tooling/eslint` is an old-style config that nothing references.
 - **User impact:** The repo has no linting. Without a terminal `next lint` exits 1; in one, it starts Next's setup wizard, which can install packages and write a config.
 - **Evidence:** [`apps/web/package.json:10`](../apps/web/package.json#L10) · [`package.json:7`](../package.json#L7) · [`tooling/eslint/base.js:3-16`](../tooling/eslint/base.js#L3-L16)
-
-<a id="worker-scripts-broken"></a>
-
-### `apps/worker` `start` and `dev` scripts do nothing useful
-
-**Low** · config · `worker-scripts-broken`
-
-- **What's wrong:** `start` runs `node dist/index.js`, which the build never emits (it emits `dist/src/index.js`, whose extensionless imports fail in Node anyway). `dev` logs "15 functions registered" and serves nothing. The functions actually run inside `apps/web` at `/api/inngest`.
-- **User impact:** Developers only: `start` crashes and `dev` misleads.
-- **Evidence:** [`apps/worker/package.json:10-12`](../apps/worker/package.json#L10-L12) · [`apps/worker/src/index.ts:39-42`](../apps/worker/src/index.ts#L39-L42)
 
 <a id="root-vercel-json"></a>
 

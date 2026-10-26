@@ -7,6 +7,12 @@ dist/
 .next/
 .turbo/
 out/
+# The worker is TypeScript only and runs inside apps/web. Compiled files beside
+# the source would shadow it: webpack resolves .js before .ts.
+apps/worker/**/*.js
+apps/worker/**/*.js.map
+apps/worker/**/*.d.ts
+apps/worker/**/*.d.ts.map
 
 # env
 .env

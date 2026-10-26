@@ -17,7 +17,7 @@ Never write a real key value into this file, [`.env.example`](../.env.example) o
 | Hugging Face router | `HF_API_KEY` | Yes, for extraction | Set (last recorded) |
 | | `LLM_MODEL`, `LLM_MODEL_FALLBACK` | No | Deleted 2026-10-05; code defaults apply |
 | Inngest | `INNGEST_WORKFLOW_INNGEST_EVENT_KEY`, `INNGEST_WORKFLOW_INNGEST_SIGNING_KEY` | Yes | Set by the Vercel integration; `/api/inngest` reports both keys (probe 2026-10-05) |
-| | unprefixed `INNGEST_EVENT_KEY` | See [Inngest](#inngest) | Not recorded |
+| | unprefixed `INNGEST_EVENT_KEY` | No: the prefixed keys are mapped for every client (see [Inngest](#inngest)) | Not recorded |
 | Upstash Redis | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | No, but first in the priority list | Empty (last recorded) |
 | SnapTrade | `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY` | No | Empty (last recorded) |
 | Resend | `RESEND_API_KEY` | No; **inert** until code changes | Empty (last recorded) |
@@ -32,12 +32,11 @@ Ordered by what each step changes in the running code today.
 1. **Upstash Redis.** Config only, no code change. Without it:
    - `claims.submit` has no 10-claims-per-hour limit, so a signed-in user can submit claims without bound.
    - `/api/v1` and `/api/mcp` have no per-key limit. This matters once the first `dm_live_` key is issued; production had 0 keys on 2026-08-03 and the count since is not recorded.
-2. **Check for an unprefixed `INNGEST_EVENT_KEY` in Vercel.** Config check. The tRPC routers send events through their own Inngest clients, which never see the `INNGEST_WORKFLOW_` mapping. If production has only the prefixed keys, self-logged claims and follows silently emit no events, and the admin "Seed S&P 500 Top 50" button errors after inserting rows. Details under [Inngest](#inngest).
-3. **Clerk production instance, before launch.** Production runs on a development instance. That instance allows 100 Backend API requests per 10 seconds, and every signed-in non-admin tRPC request and full page load makes one (`users.getUser`, for the admin check). Moving needs the custom domain, Google OAuth credentials and DNS, then new values for both keys and the webhook secret.
-4. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 16 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
-5. **SnapTrade: when Player broker verification launches,** and only after the gaps listed under [SnapTrade](#snaptrade) are fixed.
-6. **Resend: code first.** The digest sends to placeholder addresses.
-7. **Cloudflare R2: code first, lowest priority.** No code path uploads anything.
+2. **Clerk production instance, before launch.** Production runs on a development instance. That instance allows 100 Backend API requests per 10 seconds, and every signed-in non-admin tRPC request and full page load makes one (`users.getUser`, for the admin check). Moving needs the custom domain, Google OAuth credentials and DNS, then new values for both keys and the webhook secret.
+3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 16 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
+4. **SnapTrade: when Player broker verification launches,** and only after the gaps listed under [SnapTrade](#snaptrade) are fixed.
+5. **Resend: code first.** The digest sends to placeholder addresses.
+6. **Cloudflare R2: code first, lowest priority.** No code path uploads anything.
 
 Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visible effect today). Keep `INGEST_POLYGON_NEWS` unset.
 
@@ -67,7 +66,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Required:** yes. CI also needs both as GitHub repository secrets for the web build (`.github/workflows/ci.yml`).
 - **If missing:** in a production build, Clerk middleware cannot run, so auth and every page fail. Under `next dev`, Clerk 7 instead falls back to keyless mode with temporary development keys.
 - **Get it:** Clerk dashboard → API keys.
-- **Production:** set, on a Clerk **development** instance (`pk_test_` keys). Sign-in methods are set in the Clerk dashboard, not in code; Facebook and X were never configured. See priority 3 for the move to a production instance.
+- **Production:** set, on a Clerk **development** instance (`pk_test_` keys). Sign-in methods are set in the Clerk dashboard, not in code; Facebook and X were never configured. See priority 2 for the move to a production instance.
 
 **`CLERK_WEBHOOK_SECRET`**
 - **Powers:** `POST /api/webhooks/clerk` (`apps/web/app/api/webhooks/clerk/route.ts:25`), which creates the Player entity on `user.created`. That is the only event it handles.
@@ -130,20 +129,15 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 
 ## Inngest
 
-**Variables:** `INNGEST_EVENT_KEY` (lets the app send events) and `INNGEST_SIGNING_KEY` (lets Inngest Cloud invoke `/api/inngest`). Both are read implicitly by inngest 4.1.0. The Vercel integration provides them as `INNGEST_WORKFLOW_INNGEST_EVENT_KEY` and `INNGEST_WORKFLOW_INNGEST_SIGNING_KEY`. Two shims copy those onto the standard names when the standard names are unset: `apps/web/app/api/inngest/inngest-env.ts:6-9`, imported first by `apps/web/app/api/inngest/route.ts`, and `apps/worker/inngest.ts:7-10`.
+**Variables:** `INNGEST_EVENT_KEY` (lets the app send events) and `INNGEST_SIGNING_KEY` (lets Inngest Cloud invoke `/api/inngest`). Both are read implicitly by inngest 4.1.0. The Vercel integration provides them as `INNGEST_WORKFLOW_INNGEST_EVENT_KEY` and `INNGEST_WORKFLOW_INNGEST_SIGNING_KEY`. `packages/api/lib/inngestEnv.ts` copies those onto the standard names when the standard names are unset. It runs before any Inngest client is built: `packages/api/trpc.ts` imports it on its first line, so it precedes the clients the claims, social and instruments routers build when they load, and `apps/worker/inngest.ts` and `apps/web/app/api/inngest/inngest-env.ts` (imported first by the route) import it too. An unprefixed `INNGEST_EVENT_KEY` is therefore not needed.
 
-- **Powers:** all 15 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 5 crons (ingest, markout, broker sync, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
+- **Powers:** all 16 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 6 crons (ingest, markout, market regime, broker sync, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
 - **Required:** yes, in production.
 - **If missing:** the SDK runs in cloud mode unless `INNGEST_DEV` is set. In cloud mode `send()` throws without an event key, and `/api/inngest` cannot verify Inngest's requests without the signing key, so no function runs.
-- **The unprefixed-key gap:**
-  - The three tRPC routers that send events build their own clients when the module loads: `packages/api/routers/claims.ts:23`, `social.ts:16` and `instruments.ts:17`. Neither shim is imported on their path, so they see an event key only if the unprefixed name exists (or, by chance, if `/api/inngest` loaded first in the same instance).
-  - If production has only the prefixed keys, `claims/created` (self-logged and MCP claims) and `social/followed` sends fail silently, because their errors are swallowed. As a result Signal Simulate mirrors log no trades, influence tracking records nothing, and follows send no notification.
-  - `instruments.adminBatchCreate` throws after the rows are already inserted, so `backfill-prices` never checks them.
-  - To check: `vercel env ls production` and look for `INNGEST_EVENT_KEY`. If it is absent, add it with the event key's value (a copy will not follow a key rotation), or fix the code so these clients get the mapping.
-- **Stale file:** `apps/worker/inngest.js`, a committed compile output without the shim, is likely what the production webpack bundle loads, because webpack resolves `.js` before `.ts`. The route-level `inngest-env.ts` is what actually maps the keys for `/api/inngest`.
+- **Before wave 1** the tRPC routers' clients never saw the mapping, so with only the prefixed keys their `claims/created` and `social/followed` sends would have failed silently, and a stale compiled `apps/worker/inngest.js` without it shadowed `inngest.ts` in the production bundle. Both are fixed; whether production ever lacked an unprefixed `INNGEST_EVENT_KEY` was not recorded.
 - **Get it:** Vercel → Integrations → Inngest (keys arrive prefixed), or Inngest dashboard → Production → event key and signing key.
 - **Verify:**
-  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05. This covers only the client inside that route, after the shim, so it cannot tell prefixed keys from unprefixed ones.
+  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job).
   - For the routers, follow and then unfollow any profile, and look for a `social/followed` event in the Inngest dashboard's event list. Do not test with a claim: claims are append-only.
 - **Production:** app `deepmint` is synced through the Vercel integration. The route sets no `maxDuration`.
 

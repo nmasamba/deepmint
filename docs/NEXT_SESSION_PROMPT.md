@@ -91,8 +91,7 @@ B. Upstash Redis (priority 1 in docs/EXTERNAL_KEYS.md).
      longer needs it: since 2026-10-06 it is a stored daily snapshot (market_regimes).
    - Steps:
      1. I run `vercel login`. You list env var NAMES, never values, to refresh
-        docs/EXTERNAL_KEYS.md. Include whether an unprefixed INNGEST_EVENT_KEY exists: the
-        Inngest clients in packages/api/routers read only unprefixed keys.
+        docs/EXTERNAL_KEYS.md.
      2. I paste the Upstash REST URL and token. Add each with
         `echo 'VALUE' | vercel env add VAR production --force` (echo, not printf: printf without \n
         sets an empty value). Mirror them into the root .env.local and apps/web/.env.local. Functions only
