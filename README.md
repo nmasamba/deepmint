@@ -67,7 +67,7 @@ flowchart TD
    - whether the direction was right (a neutral call is right if the price moved 2% or less either way);
    - whether the target price was reached.
 6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures. Players also get risk measures such as the Sharpe ratio and maximum drawdown.
-7. **Leaderboard and consensus.** The leaderboard ranks authors by the new scores. For each stock, Deepmint recalculates the consensus: a weighted vote (bullish, bearish or neutral) of the active claims from the last 90 days. Claims count for more when their author has a higher EIV, is a Guide or is a broker-verified Player, when they are newer and when their confidence is higher.
+7. **Leaderboard and consensus.** The leaderboard ranks authors by the new scores. For each stock, Deepmint recalculates the consensus: a weighted vote (bullish, bearish or neutral) of the active claims whose horizon has not yet passed, plus the average of their price targets and how widely those targets spread. Claims count for more when their author has a higher EIV, is a Guide or is a broker-verified Player, when they are newer and when their confidence is higher.
 8. **Nightly fingerprint.** Every night a job hashes the previous day's claims into a single Merkle root and stores it in the database. The roots are not yet published, anchored outside the database or checkable by users.
 
 ## When do things happen?
@@ -168,7 +168,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 | **Hit rate** | The share of an author's checked claims whose direction was right. |
 | **Basis points (bps)** | Hundredths of a percent: 100 bps = 1%. Returns are stored in basis points. |
 | **EIV** | Deepmint's 0–100 "edge" score. It combines how far the hit rate is above 50%, the average return, calibration (Guides only), and a discount for small samples. It is 0 when the hit rate is 50% or lower, or when the average return is zero or negative. The code calls it "Expected Information Value"; profile pages say "Earned Information Value". |
-| **Consensus** | For each stock, stored as one row per day: the weighted share of bullish, bearish and neutral active claims from the last 90 days, plus an overall direction and a 0–1 conviction. |
+| **Consensus** | For each stock, stored as one row per day: the weighted share of bullish, bearish and neutral active claims whose horizon has not passed, an overall direction, a 0–1 conviction, and the average price target with its dispersion. |
 | **Guide** | An analyst or firm whose published calls Deepmint collects. Guides are created only by the ingestion pipeline (and, with fictional data, by the local seed script). |
 | **Player** | Anyone who signs up. Every account is a Player. |
 

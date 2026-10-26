@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **92 open issues: no high, 23 medium and 69 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **91 open issues: no high, 23 medium and 68 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,7 +26,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 3 | 6 | 9 |
+| [Scoring and ranking](#area-scoring) | 0 | 3 | 5 | 8 |
 | [Product (web app)](#area-product) | 0 | 9 | 19 | 28 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 12 | 15 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
@@ -34,7 +34,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **23** | **69** | **92** |
+| **All** | **0** | **23** | **68** | **91** |
 
 <a id="area-scoring"></a>
 
@@ -89,16 +89,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Only self-logged claims (always Players) emit `claims/created`, so `influence-track`'s Guide branch never runs. Its Player branch counts followed entities' claims of any status, including `pending_review` and `rejected`, and treats any followed entity, Players included, as the "guide". `follower_count` actually holds distinct acting Players over 30 days, and `player_trade_id` is never written.
 - **User impact:** A Guide's "Events (30d)" and "Followers Acting" can include reactions to unreviewed or rejected claims. A Player whom other Players follow can appear in Trending Influencers, linking to a profile with no Influence tab.
 - **Evidence:** [`apps/worker/functions/influence-track.ts:39`](../apps/worker/functions/influence-track.ts#L39) · [`apps/worker/functions/influence-track.ts:95-112`](../apps/worker/functions/influence-track.ts#L95-L112) · [`apps/worker/functions/influence-aggregate.ts:26`](../apps/worker/functions/influence-aggregate.ts#L26) · [`packages/api/routers/influence.ts:28-43`](../packages/api/routers/influence.ts#L28-L43)
-
-<a id="consensus-includes-expired-claims"></a>
-
-### Consensus counts claims whose horizon has passed
-
-**Low** · bug · `consensus-includes-expired-claims`
-
-- **What's wrong:** Consensus uses every active claim from the last 90 days and never checks whether its horizon has ended. `horizonDays` is passed in but unused. Live 180- and 365-day claims older than 90 days drop out.
-- **User impact:** "Based on N active claims" counts expired calls at full weight. In the weighting, an expired 1-day call still carries about 41% of a fresh call's weight at 30 days.
-- **Evidence:** [`apps/worker/functions/consensus-signal.ts:38-51`](../apps/worker/functions/consensus-signal.ts#L38-L51) · [`packages/scoring/src/consensus.ts:90-116`](../packages/scoring/src/consensus.ts#L90-L116) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:98`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L98)
 
 <a id="neutral-claim-scoring"></a>
 
@@ -246,13 +236,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="ticker-page-dead-fragile-wiring"></a>
 
-### Ticker page panels that never render, and a wasteful overview query
+### Ticker page: a wasteful overview query, and no loading or error states
 
 **Low** · bug · `ticker-page-dead-fragile-wiring`
 
-- **What's wrong:** The consensus worker never writes `avg_target_price_cents` or `target_dispersion_bps`, so the Avg Target and Target Dispersion blocks never render, and REST v1 always returns them null. `ticker.overview` also fetches a price and claim stats the client ignores, so each page view makes two uncached price lookups. The client ignores loading and error states.
-- **User impact:** No ticker page shows target data. Each view spends at least 2 requests of the 5 req/min Polygon plan. Top Guides and Top Players say "No data yet." while loading or after a failed second lookup, and a full Polygon outage errors the whole page.
-- **Evidence:** [`apps/web/components/ticker/ConsensusBreakdown.tsx:136-172`](../apps/web/components/ticker/ConsensusBreakdown.tsx#L136-L172) · [`apps/worker/functions/consensus-signal.ts:116-128`](../apps/worker/functions/consensus-signal.ts#L116-L128) · [`apps/web/app/(app)/ticker/[symbol]/TickerClientSection.tsx:31-64`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/TickerClientSection.tsx#L31-L64) · [`packages/api/routers/ticker.ts:40-52`](../packages/api/routers/ticker.ts#L40-L52) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
+- **What's wrong:** `ticker.overview` fetches a price and claim stats the client ignores, so each page view makes two uncached price lookups. The client ignores loading and error states. (Since wave 1 the consensus worker writes the Avg Target and Target Dispersion figures.)
+- **User impact:** Each view spends at least 2 requests of the 5 req/min Polygon plan. Top Guides and Top Players say "No data yet." while loading or after a failed second lookup, and a full Polygon outage errors the whole page.
+- **Evidence:** [`apps/web/app/(app)/ticker/[symbol]/TickerClientSection.tsx:31-64`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/TickerClientSection.tsx#L31-L64) · [`packages/api/routers/ticker.ts:40-52`](../packages/api/routers/ticker.ts#L40-L52) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
 
 <a id="current-price-is-previous-close"></a>
 
@@ -475,7 +465,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Low** · data-integrity · `broker-verified-means-any-account`
 
 - **What's wrong:** `completeLink` sets `broker_link_status='verified'` once SnapTrade lists any account, keeps only `accounts[0]`, and checks no trades. A later sync failure sets only `broker_links.sync_status='error'`, so the flag is never withdrawn.
-- **User impact:** Dormant while SnapTrade is unconfigured (last recorded). Once enabled, linking any account, even an empty one, earns a public Verified badge and ×1.5 consensus weight on all claims from the last 90 days, and both survive a broken link. Fix before adding SnapTrade keys.
+- **User impact:** Dormant while SnapTrade is unconfigured (last recorded). Once enabled, linking any account, even an empty one, earns a public Verified badge and ×1.5 consensus weight on all of the Player's live claims, and both survive a broken link. Fix before adding SnapTrade keys.
 - **Evidence:** [`packages/api/routers/broker.ts:170-198`](../packages/api/routers/broker.ts#L170-L198) · [`packages/api/routers/broker.ts:384-392`](../packages/api/routers/broker.ts#L384-L392) · [`packages/scoring/src/consensus.ts:97`](../packages/scoring/src/consensus.ts#L97) · [`apps/worker/functions/consensus-signal.ts:99`](../apps/worker/functions/consensus-signal.ts#L99)
 
 <a id="snaptrade-secret-plaintext"></a>
@@ -599,7 +589,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Medium** · bug · `aggregates-refresh-only-after-markout`
 
 - **What's wrong:** `consensus-signal` and `influence-aggregate` run only on `scoring/completed`, which follows `markouts/completed`, which is sent only when markout (or a backfill) writes an outcome. No cron recomputes them.
-- **User impact:** On days when no claim matures, consensus and influence are not recomputed, however many claims arrived; the 90-day window and decay freeze too. The UI shows no as-of date, so stale signals look current. If no claim has ever matured, no consensus row exists.
+- **User impact:** On days when no claim matures, consensus and influence are not recomputed, however many claims arrived; the live-claim window and decay freeze too, so claims whose horizon has passed keep counting in the last stored signal. The UI shows no as-of date, so stale signals look current. If no claim has ever matured, no consensus row exists.
 - **Evidence:** [`apps/worker/functions/markout.ts:136-144`](../apps/worker/functions/markout.ts#L136-L144) · [`apps/worker/functions/score.ts:323-331`](../apps/worker/functions/score.ts#L323-L331) · [`apps/worker/functions/consensus-signal.ts:21`](../apps/worker/functions/consensus-signal.ts#L21) · [`apps/worker/functions/influence-aggregate.ts:14`](../apps/worker/functions/influence-aggregate.ts#L14)
 
 <a id="backfill-prices-deactivates-on-error"></a>
@@ -812,13 +802,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="stale-schema-and-scoring-comments"></a>
 
-### Schema and consensus comments describe behaviour that does not exist
+### The `scores` schema comment describes metrics that are never written
 
 **Low** · docs-drift · `stale-schema-and-scoring-comments`
 
-- **What's wrong:** The `scores` schema comment lists metrics never written (`hit_rate_3m`, `hit_rate_6m`, `hit_rate_12m`, `overall_player`, `overall_guide`) and a `12m` horizon; real horizons are `all`, `1d`, `1w`, `1m`, `3m`, `6m` and `1y`. The `confidenceMultiplier` comment says the APIs can write out-of-range confidence, but every writer bounds it to 0–100; only direct SQL could, as the column has no CHECK.
+- **What's wrong:** The `scores` schema comment lists metrics never written (`hit_rate_3m`, `hit_rate_6m`, `hit_rate_12m`, `overall_player`, `overall_guide`) and a `12m` horizon; real horizons are `all`, `1d`, `1w`, `1m`, `3m`, `6m` and `1y`.
 - **User impact:** Queries written from the comment return nothing.
-- **Evidence:** [`packages/db/schema/scores.ts:8-12`](../packages/db/schema/scores.ts#L8-L12) · [`packages/scoring/src/consensus.ts:45-48`](../packages/scoring/src/consensus.ts#L45-L48) · [`packages/api/routers/claims.ts:54`](../packages/api/routers/claims.ts#L54)
+- **Evidence:** [`packages/db/schema/scores.ts:8-12`](../packages/db/schema/scores.ts#L8-L12)
 
 <a id="two-verified-flags"></a>
 

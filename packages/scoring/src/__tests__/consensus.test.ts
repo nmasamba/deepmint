@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeConsensusSignal } from "../consensus";
+import { computeConsensusSignal, computeTargetStats } from "../consensus";
 import type { ClaimWithWeight } from "../consensus";
 
 describe("computeConsensusSignal", () => {
@@ -122,11 +122,71 @@ describe("computeConsensusSignal", () => {
       entityScore: 5,
       hasBrokerVerification: false,
       confidence: null,
-      horizonDays: 30,
+      horizonDays: 90, // still live at 30 days
       ageHours: 720, // 30 days old
     };
     const result = computeConsensusSignal([recent, old]);
     // Recent should dominate due to decay
     expect(result.direction).toBe("bullish");
+  });
+
+  it("skips claims whose horizon has passed", () => {
+    const base = {
+      entityType: "guide" as const,
+      entityScore: 5,
+      hasBrokerVerification: false,
+      confidence: null,
+    };
+    const result = computeConsensusSignal([
+      { ...base, direction: "long", horizonDays: 7, ageHours: 24 },
+      // An expired 1-day short, at any age past its horizon, must not count.
+      { ...base, direction: "short", horizonDays: 1, ageHours: 24 },
+      { ...base, direction: "short", horizonDays: 30, ageHours: 31 * 24 },
+    ]);
+    expect(result.longCount).toBe(1);
+    expect(result.shortCount).toBe(0);
+    expect(result.direction).toBe("bullish");
+    expect(result.bullishScore).toBe(1);
+  });
+});
+
+describe("computeTargetStats", () => {
+  const live = { horizonDays: 90, ageHours: 24 };
+
+  it("returns nulls when no live claim has a target", () => {
+    expect(
+      computeTargetStats([
+        { ...live, targetPriceCents: null },
+        { ...live, targetPriceCents: undefined },
+        { horizonDays: 1, ageHours: 48, targetPriceCents: 25000 }, // expired
+      ]),
+    ).toEqual({ avgTargetPriceCents: null, targetDispersionBps: null });
+  });
+
+  it("gives an average but no dispersion for a single target", () => {
+    expect(computeTargetStats([{ ...live, targetPriceCents: 30000 }])).toEqual({
+      avgTargetPriceCents: 30000,
+      targetDispersionBps: null,
+    });
+  });
+
+  it("averages live targets and reports their spread in bps of the mean", () => {
+    // Targets $200 and $220: mean $210, population sd $10 => 476 bps.
+    const stats = computeTargetStats([
+      { ...live, targetPriceCents: 20000 },
+      { ...live, targetPriceCents: 22000 },
+      { ...live, targetPriceCents: null },
+      { horizonDays: 7, ageHours: 7 * 24, targetPriceCents: 99900 }, // expired
+    ]);
+    expect(stats).toEqual({ avgTargetPriceCents: 21000, targetDispersionBps: 476 });
+  });
+
+  it("reports zero dispersion when every target agrees", () => {
+    expect(
+      computeTargetStats([
+        { ...live, targetPriceCents: 30000 },
+        { ...live, targetPriceCents: 30000 },
+      ]),
+    ).toEqual({ avgTargetPriceCents: 30000, targetDispersionBps: 0 });
   });
 });

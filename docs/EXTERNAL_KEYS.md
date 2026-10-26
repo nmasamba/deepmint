@@ -180,7 +180,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **If missing:** the client is null. `broker.initLink` throws `PRECONDITION_FAILED`, Settings shows "Broker verification is not configured on this deployment", and `broker-sync` returns `snaptrade-not-configured`.
 - **What a key actually turns on. Fix these before enabling it:**
   - "Verified" only means SnapTrade listed at least one account (`packages/api/routers/broker.ts:171-198`). Trades are never compared with claims.
-  - "Verified" earns a badge and ×1.5 consensus weight on all of the Player's claims from the last 90 days.
+  - "Verified" earns a badge and ×1.5 consensus weight on all of the Player's live claims.
   - Synced trades are stored but nothing reads them: they affect no score, rank or page.
   - The per-user SnapTrade `userSecret` is stored in plaintext in `broker_links.metadata`.
   - The first sync error leaves the link stuck in `error` with no recovery in the UI, while the badge and weight stay.

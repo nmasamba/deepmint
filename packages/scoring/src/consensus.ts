@@ -13,6 +13,8 @@ export interface ClaimWithWeight {
   confidence: number | null;
   horizonDays: number;
   ageHours: number;
+  /** Published price target, if any; read only by computeTargetStats. */
+  targetPriceCents?: number | null;
 }
 
 export interface ConsensusResult {
@@ -42,15 +44,22 @@ export interface ConsensusResult {
  * confidence is caller-supplied and unverifiable, so it must not be able to
  * outweigh broker verification.
  *
- * The clamp is load-bearing, not defensive: claims.confidence is a bare
- * integer column with no CHECK constraint and is writable through the tRPC
- * and MCP claim APIs, so an out-of-range value would otherwise buy unbounded
- * weight (confidence 10000 => 50.75× under the old form).
+ * The clamp is a backstop: every writer (tRPC and MCP submit, extraction)
+ * bounds confidence to 0-100, but claims.confidence is a bare integer column
+ * with no CHECK constraint, so a row written by direct SQL would otherwise buy
+ * unbounded weight (confidence 10000 => 50.75× under the old form).
  */
 export function confidenceMultiplier(confidence: number | null): number {
   if (confidence === null) return 1.0;
   const c = Math.max(0, Math.min(100, confidence));
   return 0.75 + c / 200;
+}
+
+/**
+ * A claim counts toward consensus only while its horizon is still running.
+ */
+export function isLiveClaim(claim: { ageHours: number; horizonDays: number }): boolean {
+  return claim.ageHours < claim.horizonDays * 24;
 }
 
 /**
@@ -88,6 +97,10 @@ export function computeConsensusSignal(
   let neutralCount = 0;
 
   for (const c of claims) {
+    // Backstop: the worker selects live claims, but an expired call is not a
+    // current view and must not count, at any weight.
+    if (!isLiveClaim(c)) continue;
+
     let weight = Math.max(c.entityScore, 1);
 
     // Guide bonus
@@ -149,5 +162,40 @@ export function computeConsensusSignal(
     longCount,
     shortCount,
     neutralCount,
+  };
+}
+
+export interface TargetStats {
+  /** Mean price target of the live claims that publish one, in cents. */
+  avgTargetPriceCents: number | null;
+  /** Standard deviation of those targets relative to their mean, in bps. */
+  targetDispersionBps: number | null;
+}
+
+/**
+ * Price-target statistics over the live claims that publish a target. One
+ * target gives an average but no dispersion; none gives neither.
+ */
+export function computeTargetStats(
+  claims: Pick<ClaimWithWeight, "ageHours" | "horizonDays" | "targetPriceCents">[],
+): TargetStats {
+  const targets = claims
+    .filter(isLiveClaim)
+    .map((c) => c.targetPriceCents)
+    .filter((t): t is number => t != null && t > 0);
+  if (targets.length === 0) {
+    return { avgTargetPriceCents: null, targetDispersionBps: null };
+  }
+
+  const mean = targets.reduce((a, b) => a + b, 0) / targets.length;
+  if (targets.length < 2) {
+    return { avgTargetPriceCents: Math.round(mean), targetDispersionBps: null };
+  }
+  const sd = Math.sqrt(
+    targets.reduce((acc, t) => acc + (t - mean) ** 2, 0) / targets.length,
+  );
+  return {
+    avgTargetPriceCents: Math.round(mean),
+    targetDispersionBps: Math.round((sd / mean) * 10000),
   };
 }

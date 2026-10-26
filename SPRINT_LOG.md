@@ -96,7 +96,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - "Regime-aware" EIV is not regime-aware in practice. The worker always passes an empty regime history, so the 0.4 penalty always applies and `eiv` equals `eiv_overall`.
   - Player metrics treat each claim's outcome as one daily return, whatever its horizon.
   - `polygonCache.ts` was meant to cache prices (1 h historical, 5 min current). In fact only regime indicators are cached (1 h, and only when Upstash is set); prices are never cached.
-  - Consensus covers every active instrument, not just the Mag 7, using active claims from the last 90 days.
+  - Consensus covers every active instrument, not just the Mag 7. It used active claims from the last 90 days, and every run failed on a bound date; since wave 1 it counts the claims whose horizon has not passed, and runs.
   - `leaderboard-refresh` only writes a log line.
   - Regime inputs were placeholders (VIX 18, S&P +1%) until Sprint 7.
 
@@ -119,7 +119,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - The live stats section (`SocialProof`) has been hidden before launch since PR #5.
   - The landing copy says AI grades the calls, but scoring is deterministic statistics.
   - The paper "Equity Curve" plots two points (start and now), and paper trades fill at the previous close.
-  - The ticker page's Avg Target and Dispersion panels never render, because the consensus worker never writes those fields. Its Top Guides and Top Players lists are global, not per ticker.
+  - The ticker page's Top Guides and Top Players lists are global, not per ticker. (Its Avg Target and Dispersion panels render since wave 1.)
   - CI failed at pnpm setup from August until PR #9 (2026-10-05).
 
 ## Sprint 5 — Signal Simulate, influence, regimes, notifications
