@@ -52,7 +52,7 @@ export function TrendingInfluencers() {
         {data.map((item) => (
           <Link
             key={item.entity.id}
-            href={`/guide/${item.entity.slug}`}
+            href={`/${item.entity.type}/${item.entity.slug}`}
             className="flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-bg-tertiary"
           >
             <Avatar className="h-7 w-7 shrink-0">

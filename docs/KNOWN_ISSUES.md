@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **86 open issues: no high, 22 medium and 64 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **85 open issues: no high, 21 medium and 64 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 8 | 19 | 27 |
+| [Product (web app)](#area-product) | 0 | 7 | 19 | 26 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 10 | 13 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **22** | **64** | **86** |
+| **All** | **0** | **21** | **64** | **85** |
 
 <a id="area-scoring"></a>
 
@@ -111,18 +111,8 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Medium** · bug · `leaderboard-regime-filter-empty`
 
 - **What's wrong:** The regime chips filter on `scores.regime_tag`, but only metric `eiv` is written with a tag. Every metric the page offers is written with a null tag.
-- **User impact:** Choosing Bull, Bear, High Vol, Low Vol or Rotation empties the table, which then says "No scores yet. AI will rank analysts once predictions are resolved", although scores exist. "All Regimes" and "Best in Current Conditions" work.
+- **User impact:** Choosing Bull, Bear, High Vol, Low Vol or Rotation empties the table, which then says "No scores yet. Rankings appear once claims are resolved against real market prices.", although scores exist. "All Regimes" and "Best in Current Conditions" work.
 - **Evidence:** [`apps/web/app/(app)/leaderboard/page.tsx:22-29`](../apps/web/app/%28app%29/leaderboard/page.tsx#L22-L29) · [`apps/web/app/(app)/leaderboard/page.tsx:157-160`](../apps/web/app/%28app%29/leaderboard/page.tsx#L157-L160) · [`packages/api/routers/leaderboard.ts:35-37`](../packages/api/routers/leaderboard.ts#L35-L37) · [`apps/worker/functions/score.ts:107-112`](../apps/worker/functions/score.ts#L107-L112) · [`apps/worker/functions/score.ts:198`](../apps/worker/functions/score.ts#L198)
-
-<a id="most-influential-tab-empty"></a>
-
-### "Most Influential" leaderboard tab is always empty
-
-**Medium** · bug · `most-influential-tab-empty`
-
-- **What's wrong:** The chip asks `leaderboard.top` for metric `influence_events_30d` in `scores`. That value is a column of `influence_scores`, written only by `influence-aggregate`.
-- **User impact:** The tab always shows the empty state, implying rankings will appear later. The same data does show in the dashboard's Trending Influencers.
-- **Evidence:** [`apps/web/app/(app)/leaderboard/page.tsx:19`](../apps/web/app/%28app%29/leaderboard/page.tsx#L19) · [`packages/api/routers/leaderboard.ts:47-59`](../packages/api/routers/leaderboard.ts#L47-L59) · [`packages/db/schema/influence.ts:25`](../packages/db/schema/influence.ts#L25) · [`apps/worker/functions/influence-aggregate.ts:61-64`](../apps/worker/functions/influence-aggregate.ts#L61-L64)
 
 <a id="guide-signup-path-missing"></a>
 
@@ -150,7 +140,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Medium** · feature-gap · `ai-scoring-copy-misleading`
 
-- **What's wrong:** Site metadata, the landing page, the leaderboard empty state, Learn and Settings say AI grades, scores, ranks or benchmarks calls. The only model is the extraction LLM; scoring, regime detection and consensus are fixed formulas. The paper portfolio page says "AI tracks and scores your performance", but paper trades feed no score. No feature compares a user with "Wall Street consensus". The digest Settings calls "AI-generated" is a plain template.
+- **What's wrong:** Site metadata, the landing page, Learn and Settings say AI grades, scores, ranks or benchmarks calls. The only model is the extraction LLM; scoring, regime detection and consensus are fixed formulas. The paper portfolio page says "AI tracks and scores your performance", but paper trades feed no score. No feature compares a user with "Wall Street consensus". The digest Settings calls "AI-generated" is a plain template.
 - **User impact:** Every visitor and search result is told something false about how the product works, in a product sold on trustworthy track records.
 - **Evidence:** [`apps/web/app/layout.tsx:18-42`](../apps/web/app/layout.tsx#L18-L42) · [`apps/web/components/landing/HowItWorks.tsx:12-20`](../apps/web/components/landing/HowItWorks.tsx#L12-L20) · [`apps/web/components/landing/ChoosePath.tsx:58`](../apps/web/components/landing/ChoosePath.tsx#L58) · [`apps/web/app/(app)/paper-portfolio/page.tsx:19`](../apps/web/app/%28app%29/paper-portfolio/page.tsx#L19) · [`apps/web/app/(app)/settings/page.tsx:51`](../apps/web/app/%28app%29/settings/page.tsx#L51) · [`apps/worker/functions/score.ts:135-239`](../apps/worker/functions/score.ts#L135-L239)
 

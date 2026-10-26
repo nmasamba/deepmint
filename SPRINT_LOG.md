@@ -137,7 +137,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - Only tRPC `claims.submit` (self-logged claims) emits `claims/created`. Ingested and admin-approved claims never do, so mirroring a Guide never logs a trade.
   - The regime filter chips always return an empty board, because only `eiv` rows carry a regime tag.
   - "Best in Current Conditions" returned no rows until it was repointed at the `eiv` rows on 2026-08-03.
-  - The "Most Influential" leaderboard tab is always empty. It reads `scores`, but the value lives only in `influence_scores`.
+  - Until wave 1 the "Most Influential" leaderboard tab was always empty: it read `scores`, but the value lives only in `influence_scores`. It now reads `influence.topInfluencers`, like the dashboard's Trending Influencers.
   - Until wave 1, `influence-track` threw on every claim from a Player who follows anyone (a date bound inside raw SQL), so no influence event was ever recorded. It now runs, counts only active claims by followed Guides, and measures the 48-hour window from the claim's own time.
   - Four notification types fire: `new_follower`, `signal_trade_logged`, and, since Sprint 7, `outcome_matured` and `rank_change`. `new_claim_from_follow` has a preference toggle but is never sent.
 

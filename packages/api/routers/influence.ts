@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../trpc";
-import { db, desc, eq, sql } from "@deepmint/db";
+import { db, desc, eq, and, sql, isNull } from "@deepmint/db";
 import { influenceScores, entities, follows, instruments } from "@deepmint/db/schema";
 
 /**
@@ -12,6 +12,8 @@ export const influenceRouter = router({
   topInfluencers: publicProcedure
     .input(
       z.object({
+        // Influence is recorded for Guides only; "player" yields an empty list.
+        entityType: z.enum(["player", "guide"]).optional(),
         limit: z.number().min(1).max(50).default(10),
       }),
     )
@@ -34,11 +36,19 @@ export const influenceRouter = router({
           topInstruments: influenceScores.topInstruments,
           entityName: entities.displayName,
           entitySlug: entities.slug,
+          entityType: entities.type,
           entityAvatar: entities.avatarUrl,
         })
         .from(influenceScores)
         .innerJoin(entities, eq(influenceScores.guideEntityId, entities.id))
-        .where(eq(influenceScores.asOfDate, latestDate.asOfDate))
+        .where(
+          and(
+            eq(influenceScores.asOfDate, latestDate.asOfDate),
+            // Soft-deleted entities must not be publicly ranked.
+            isNull(entities.deletedAt),
+            input.entityType ? eq(entities.type, input.entityType) : undefined,
+          ),
+        )
         .orderBy(desc(influenceScores.influenceEvents30d))
         .limit(input.limit);
 
@@ -64,6 +74,7 @@ export const influenceRouter = router({
           id: row.guideEntityId,
           displayName: row.entityName,
           slug: row.entitySlug,
+          type: row.entityType,
           avatarUrl: row.entityAvatar,
         },
         followerCount: row.followerCount,
