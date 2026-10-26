@@ -197,7 +197,7 @@ apps/
   worker/      The 16 Inngest functions (served by apps/web) and the backfill CLI
 packages/
   api/         tRPC routers
-  db/          Drizzle schema, migrations (drizzle/0000–0007), seed script
+  db/          Drizzle schema, migrations (drizzle/0000–0008), seed script
   ingestion/   Feed adapters, LLM extractor, content hashing
   scoring/     Pure scoring functions: hit rate, Brier, Sharpe, EIV, consensus, regime
   shared/      Polygon price client, Merkle tree, constants (Mag-7 list, horizons)
@@ -271,7 +271,7 @@ Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `
 pnpm --filter @deepmint/db db:migrate
 ```
 
-This applies the committed migrations 0000–0007. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
+This applies the committed migrations 0000–0008. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
 
 **4. Seed the local database (local only, once)**
 
@@ -332,15 +332,15 @@ In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`.
 
 ### Tests
 
-These results were measured on 2026-10-06 with no `.env.local`.
+These results were measured on 2026-10-26 with no `.env.local`.
 
 | Command | Result without keys | What enables more |
 |---|---|---|
-| `pnpm --filter @deepmint/scoring test` | 108 passed (7 files) | Nothing needed |
-| `pnpm --filter @deepmint/shared test` | 16 passed (2 files) | Nothing needed |
-| `pnpm --filter @deepmint/api test` | 5 passed (1 file) | Nothing needed |
-| `pnpm --filter @deepmint/ingestion test` | 56 passed, 6 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. |
-| `pnpm --filter @deepmint/web test` | 18 skipped (4 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. |
+| `pnpm --filter @deepmint/scoring test` | 114 passed (7 files) | Nothing needed |
+| `pnpm --filter @deepmint/shared test` | 23 passed, 2 skipped (3 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
+| `pnpm --filter @deepmint/api test` | 7 passed, 3 skipped (3 files) | `DATABASE_URL` in the root `.env.local` runs the 3 caller tests against that database (read-only). |
+| `pnpm --filter @deepmint/ingestion test` | 59 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
+| `pnpm --filter @deepmint/web test` | 26 skipped (4 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. |
 
 The worker has no tests.
 

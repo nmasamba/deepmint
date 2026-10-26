@@ -11,7 +11,7 @@ Entries before 0.8.0 are kept as history. Where one was wrong about the code at 
 
 ### Added
 - **`getLatestClose` and `getLatestCloses`** in `@deepmint/shared`: the latest close with its session date, memoised for 5 minutes per process, shared by concurrent callers, de-duplicated across tickers and cached in Upstash when configured. Meant for pages and valuations; ledger writers keep the uncached `getCurrentPrice` and `getEODPrice`. No caller uses them yet (`price-lookups-uncached-serial` stays open).
-- **Stored daily market regime.** A new `market_regimes` table (migration 0008) holds one snapshot per weekday, written by the new `market-regime-snapshot` job at 21:30 UTC (16 Inngest functions in total). Scoring reuses that day's snapshot. Each snapshot records its indicators in basis points and lists any that were unavailable in `defaulted_fields`; a day where all three are unavailable is not stored.
+- **Stored daily market regime.** A new `market_regimes` table (migration 0008) holds one snapshot per weekday, written by the new `market-regime-snapshot` job at 17:30 US Eastern (16 Inngest functions in total). Scoring reuses that day's snapshot. Each snapshot records its indicators in basis points and lists any that were unavailable in `defaulted_fields`; a day where all three are unavailable is not stored.
 
 ### Fixed
 - **MCP server answers at `/api/mcp`.** `createMcpHandler` had no `basePath`, so mcp-handler served only `/mcp` and every authenticated request returned 404; no agent tool had ever worked. It now passes `basePath: "/api"`. Closes `mcp-unreachable-basepath`.

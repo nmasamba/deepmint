@@ -4,6 +4,42 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-10-26 — Remediation Wave 1: Correctness, Data Integrity, Tooling
+
+Wave 1 of [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md): packages 1–16, one commit each, no migration and no product decision. It closes 22 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) entries and narrows 11 more; the register goes from 98 open issues (0 high, 26 medium, 72 low) to 76 (0 high, 20 medium, 56 low). Every package was re-verified against `c86b730` before it changed: line numbers had moved, but no package's approach did.
+
+- **Problem, in short.** Market-hours crons were on fixed UTC times that slip an hour in winter (from 2026-11-02). The Polygon throttle was not a queue, and a keyless deploy could write dev prices into the ledger. The tRPC routers' Inngest clients missed the integration's prefixed keys, and production bundled a stale compiled `inngest.js`. Several scoring and consensus rules were wrong or unenforced. Claim cards, the "Most Influential" tab, PWA assets, the admin gate and firm attribution each had user-visible defects, and lint, CI and turbo did not check what they claimed to.
+- **Found while verifying, and fixed in the same packages:**
+  - `consensus-signal` threw on every run. It bound a JS `Date` inside raw SQL, and drizzle's postgres-js driver leaves date parameters to its own column mappers, so the driver failed (`ERR_INVALID_ARG_TYPE`), as markout did until 0.8.0. Consensus was never computed; locally only the seed's 2026-04-01 rows existed, and production likely has none. Package 5's window, computed in SQL, removes the bound date.
+  - `influence-track` failed the same way on every claim whose author follows anyone, so no influence event was ever recorded; the aggregate's top-instruments query had the same fault. Fixed by package 6.
+  - Claim timelines never loaded. tRPC's `useInfiniteQuery` adds `direction: "forward"` to the input, which failed `claims.list`'s own `direction` enum, so profiles, ticker pages and My Claims always showed "No claims yet." Package 10 renames the unused filter to `claimDirection`.
+- **How it was verified.** Live, against the local Docker Postgres, the real Polygon and Hugging Face keys, and the local Next dev server. The Inngest dev server download (`npx inngest-cli`) was blocked in this session, so worker functions ran through their real handlers in a local harness that memoises `step.run` results and follows `step.sendEvent`. Test data was a set of `zz-w1-*` entities and claims in the local database. A real markout of 110 claims (23 minutes of throttled Polygon calls) produced their outcomes. Visual checks of pages behind sign-in used an uncommitted middleware tweak, because this session could not sign in to Clerk.
+  1. Crons: the SDK's registration config carries `TZ=America/New_York` crons, and their next fire times move from 20:30/21:00/21:30/22:00/12:00 UTC this week to 21:30/22:00/22:30/23:00/13:00 UTC from 2026-11-02.
+  2. Polygon: two lookups started together hit the network 12.5 s apart; `getLatestCloses(['AAPL','aapl','MSFT'])` made 2 requests, and a repeat returned from memory in under 50 ms; a keyless extraction of a rating dated 2026-10-20 stored a null entry instead of 22500.
+  3. Inngest: a new test imports a router with only the prefixed keys set and sees them mapped (it fails with the import removed); `next build` bundles the mapping in a chunk the tRPC, Inngest and MCP routes all load; `/api/inngest` serves 16 functions from source.
+  4. Scoring order: a test Player's outcomes came back in row order with a −9.62% loss first (max drawdown 0.0962); in exit order it is 0.0988, and two runs store identical values.
+  5. Consensus: `active_claims` matched a SQL count of live claims for all 6 instruments; two NVDA ratings extracted by the real model ($240, $195) gave average 21750 cents and dispersion 1034 bps through REST v1, tRPC and the ticker page.
+  6. Influence: one event for a followed Guide's active claim, none for its pending or rejected claims or a followed Player's; the Guide branch found a follower's claim 20 h later; repeats recorded nothing; with two invalid legacy-style rows added, the aggregate still counted only the 2 valid events and wrote no Player row.
+  7. Targets: a Guide with an 8.7% and a 0.43% target went from coverage 1.0 to 0.5.
+  8. EIV: a Guide scored at EIV 0 shows "No Edge" on its profile.
+  9. Leaderboard: the v1 suite passes 13/13 (8 new cases), max drawdown and Brier rank ascending, `12m` returns 400, v1 matches tRPC, and `npx @redocly/cli lint` reports the served spec valid.
+  10. Claim cards: a 1-day NVDA claim marked out on real Polygon shows ✗ −0.29%; a claim exiting today shows "Awaiting result"; api caller tests check `claims.list` and `social.feed` against SQL.
+  11. Most Influential: the chip and the dashboard's Trending Influencers list the same Guide with 2 events.
+  12. Profile actions: Follow while signed out now toasts the server's error.
+  13. Admin: 20 role lookups for one user made one Clerk `getUser` call (counted with a temporary log, since removed).
+  14. PWA: production returns 404 for `/manifest.json` and `/offline` today; a local production build serves both signed out, activates the service worker with `/offline` precached, and shows it when the server is down.
+  15. Resolver: a new database suite (a Clerk user holding a firm's slug gets a separate Guide at `-2`, names are capped, long slugs keep their suffix) fails 4 of 5 cases on the old code.
+  16. Tooling: `pnpm -r check` and `pnpm lint` pass; root `pnpm test` force-executes every test task and passes `TEST_API_KEY` through; the whole CI job, reproduced in a fresh clone under `env -i` with no `.env.local` and empty Clerk keys, passes.
+- **Not fixed.**
+  - The Polygon queue is per serverless instance (`polygon-throttle-not-serialized`, now low; D23, package 77). `getLatestClose` and `getLatestCloses` have no callers yet (packages 19, 20 and 37).
+  - An instrument whose live claims have all expired keeps its last stored consensus row until another run writes one; daily refresh is package 29.
+  - Not checked in a browser, for want of a Clerk session: your own profile hides Follow and Mirror; a mirrored profile reads "Mirroring"; a signed-in non-admin gets 404 on `/admin/*` while the admin keeps access.
+  - Lint passes with 12 warnings (unused variables, `console`, and `@next/next/no-assign-module-variable` on the Learn module page). The OpenAPI spec has no `license`; Redocly warns about it.
+  - Whether production ever lacked an unprefixed `INNGEST_EVENT_KEY` is unknown (listing Vercel env names was blocked in this session); the mapping is safe either way.
+- **Deadline.** Package 1 must be deployed before Monday 2026-11-02, when US daylight time has ended; if the wave slips, its commit can be cherry-picked alone.
+
+---
+
 ## 2026-10-06 — Next-Close Entry Prices; Holiday-Safe Markout
 
 Fixes the high-severity `self-logged-claim-lookahead` and the medium `markout-holiday-exit-never-priced`, and most of `fallback-prices-in-ledger`, from [KNOWN_ISSUES.md](KNOWN_ISSUES.md). The design was agreed with the maintainer: next close for all undated claims, with existing claims keeping their stored prices.

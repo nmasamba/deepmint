@@ -284,7 +284,7 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 - **Ingestion:** the weekday ingest does nothing unless one of the two lanes is configured:
   - RSS needs Guides with `is_allowlisted=true` and a `source_url`, set by hand in SQL;
   - the Polygon news lane needs `INGEST_POLYGON_NEWS=1`.
-- **Tests without keys:** scoring 108, shared 16, api 5, ingestion 56 (6 live LLM tests skip without `HF_API_KEY`), web 18 skipped.
+- **Tests without keys** (since wave 1): scoring 114, shared 23 (2 live Polygon tests skip), api 7 (3 database tests skip), ingestion 59 (6 live LLM and 5 database tests skip), web 26 skipped.
 - **Open issues to know first:**
   - Leaderboards have no minimum sample size.
   - `claims/created` fires only for self-logged claims.
