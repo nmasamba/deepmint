@@ -50,7 +50,7 @@ async function getSourceAdapters(): Promise<SourceAdapter[]> {
 }
 
 /**
- * Ingestion worker: runs on weekdays at 16:30 ET (20:30 UTC).
+ * Ingestion worker: runs on weekdays at 16:30 US Eastern, after the close.
  * Fetches content from all registered source adapters,
  * deduplicates by content hash, and stores new events.
  */
@@ -58,7 +58,7 @@ export const ingestFunction = inngest.createFunction(
   {
     id: "ingest-sources",
     retries: 3,
-    triggers: [{ cron: "30 20 * * 1-5" }],
+    triggers: [{ cron: "TZ=America/New_York 30 16 * * 1-5" }],
   },
   async ({ step }) => {
     const adapters = await getSourceAdapters();

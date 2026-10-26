@@ -5,14 +5,15 @@ import { createNotification } from "@deepmint/db/queries/createNotification";
 import { computeMarkoutForClaim, HORIZON_MAP, formatDate } from "./markoutClaim";
 
 /**
- * Markout worker: runs at 17:00 ET / 21:00 UTC on weekdays.
+ * Markout worker: runs at 17:00 US Eastern on weekdays, after the day's bar is
+ * final (16:30 ET).
  * Finds claims whose horizon has expired and computes exit prices + outcomes.
  */
 export const markoutFunction = inngest.createFunction(
   {
     id: "markout-computation",
     retries: 2,
-    triggers: [{ cron: "0 21 * * 1-5" }],
+    triggers: [{ cron: "TZ=America/New_York 0 17 * * 1-5" }],
   },
   async ({ step }) => {
     const result = await step.run("compute-markouts", async () => {

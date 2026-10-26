@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **98 open issues: no high, 26 medium and 72 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **97 open issues: no high, 26 medium and 71 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -29,12 +29,12 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 7 | 10 |
 | [Product (web app)](#area-product) | 0 | 9 | 19 | 28 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 12 | 15 |
-| [Workers and schedules](#area-workers) | 0 | 3 | 6 | 9 |
+| [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
 | [Data model and shared code](#area-data) | 0 | 1 | 6 | 7 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 5 | 10 | 15 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **26** | **72** | **98** |
+| **All** | **0** | **26** | **71** | **97** |
 
 <a id="area-scoring"></a>
 
@@ -598,7 +598,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Medium** · inert-integration · `digest-placeholder-recipient`
 
-- **What's wrong:** `daily-digest` never looks up a user's email. It sends from `digest@deepmint.app` to `user+<clerkUserId>@deepmint.app`, with links to `https://deepmint.app`. The Daily/Weekly choice in Settings (`digestFrequency`) is never read. A 24-hour lookback on a Mon–Fri 12:00 UTC cron misses Friday 12:00 to Sunday 12:00 UTC, including Friday's ingest and markout. Resend returns errors instead of throwing, so rejected sends count as sent.
+- **What's wrong:** `daily-digest` never looks up a user's email. It sends from `digest@deepmint.app` to `user+<clerkUserId>@deepmint.app`, with links to `https://deepmint.app`. The Daily/Weekly choice in Settings (`digestFrequency`) is never read. A 24-hour lookback on a Mon–Fri 08:00 ET cron misses Friday 08:00 to Sunday 08:00 ET, including Friday's ingest and markout. Resend returns errors instead of throwing, so rejected sends count as sent.
 - **User impact:** No user receives a digest. Today it skips entirely (`RESEND_API_KEY` last recorded empty). Setting the key would still reach nobody, and the run summary would count rejected sends as sent.
 - **Evidence:** [`apps/worker/functions/digest.ts:22`](../apps/worker/functions/digest.ts#L22) · [`apps/worker/functions/digest.ts:32-33`](../apps/worker/functions/digest.ts#L32-L33) · [`apps/worker/functions/digest.ts:56`](../apps/worker/functions/digest.ts#L56) · [`apps/worker/functions/digest.ts:156-173`](../apps/worker/functions/digest.ts#L156-L173)
 
@@ -631,16 +631,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Both sync paths pick only links with `sync_status='active'` and set `'error'` on any failure. Only `completeLink` sets `'active'` again; the cron's success path does not, so even an error that an Inngest retry recovers from sticks. The error state's Retry button only refetches. `completeLink` also sets `last_sync_at` to now, so trades from before the link are never fetched.
 - **User impact:** Dormant while SnapTrade is unconfigured. Once enabled, one error ends syncing for that Player while the Verified badge and ×1.5 weight stay.
 - **Evidence:** [`apps/worker/functions/broker-sync.ts:36-46`](../apps/worker/functions/broker-sync.ts#L36-L46) · [`apps/worker/functions/broker-sync.ts:118-137`](../apps/worker/functions/broker-sync.ts#L118-L137) · [`packages/api/routers/broker.ts:182-196`](../packages/api/routers/broker.ts#L182-L196) · [`apps/web/components/settings/BrokerVerification.tsx:149-169`](../apps/web/components/settings/BrokerVerification.tsx#L149-L169)
-
-<a id="cron-times-assume-edt"></a>
-
-### UTC crons drift an hour in winter: markout runs at the 16:00 ET close
-
-**Low** · bug · `cron-times-assume-edt`
-
-- **What's wrong:** The crons are UTC with no `TZ=` prefix, and comments give EDT times. From Monday 2026-11-02 until US daylight time resumes on 2027-03-14, `ingest-sources` (20:30 UTC) runs at 15:30 ET, before the close, and `markout-computation` (21:00 UTC) runs at exactly 16:00 ET.
-- **User impact:** In winter, every outcome whose exit is the run date lands one trading day late: a session's bar counts only from 16:30 ET, so the 16:00 ET run waits and the next run prices the same exit date.
-- **Evidence:** [`apps/worker/functions/ingest.ts:53-61`](../apps/worker/functions/ingest.ts#L53-L61) · [`apps/worker/functions/markout.ts:8-15`](../apps/worker/functions/markout.ts#L8-L15) · [`apps/worker/functions/markoutClaim.ts:85-88`](../apps/worker/functions/markoutClaim.ts#L85-L88) · [`packages/ingestion/src/extractor.ts:649-664`](../packages/ingestion/src/extractor.ts#L649-L664)
 
 <a id="merkle-audit-gaps"></a>
 
@@ -817,7 +807,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Medium** · data-integrity · `uniqueness-invariants-comment-only`
 
 - **What's wrong:** No migration creates the unique indexes the schema comments describe (one outcome per claim and horizon, one instrument per ticker and exchange, one score per entity, metric, horizon, regime and date), and `events.content_hash` is not unique. No trigger or permission enforces append-only. Dedupe is check-then-insert with no `ON CONFLICT` and no Inngest concurrency limit: markout checks every due claim first, then spends minutes pricing them before inserting. Derived tables are deleted and re-inserted outside a transaction.
-- **User impact:** Sequential retries are safe. A historical backfill overlapping the 21:00 UTC markout can write duplicate outcomes, which count twice in hit rate, returns and EIV and are never removed.
+- **User impact:** Sequential retries are safe. A historical backfill overlapping the 17:00 ET markout can write duplicate outcomes, which count twice in hit rate, returns and EIV and are never removed.
 - **Evidence:** [`packages/db/schema/outcomes.ts:21-22`](../packages/db/schema/outcomes.ts#L21-L22) · [`packages/db/schema/events.ts:9`](../packages/db/schema/events.ts#L9) · [`apps/worker/functions/markout.ts:44-61`](../apps/worker/functions/markout.ts#L44-L61) · [`apps/worker/functions/markout.ts:83-108`](../apps/worker/functions/markout.ts#L83-L108) · [`apps/worker/functions/score.ts:243-251`](../apps/worker/functions/score.ts#L243-L251)
 
 <a id="fallback-prices-in-ledger"></a>

@@ -12,14 +12,14 @@ import { Resend } from "resend";
 
 /**
  * Daily email digest worker.
- * Cron: noon UTC weekdays (~8am ET).
+ * Cron: 08:00 US Eastern on weekdays.
  * Gathers new claims, outcomes, and leaderboard moves from followed entities.
  */
 export const digestFunction = inngest.createFunction(
   {
     id: "daily-digest",
     retries: 1,
-    triggers: [{ cron: "0 12 * * 1-5" }],
+    triggers: [{ cron: "TZ=America/New_York 0 8 * * 1-5" }],
   },
   async ({ step }) => {
     const result = await step.run("send-digests", async () => {

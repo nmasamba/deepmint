@@ -4,7 +4,8 @@ import { claims, auditRoots } from "@deepmint/db/schema";
 import { computeClaimLeafHash, buildMerkleTree } from "@deepmint/shared";
 
 /**
- * Merkle Audit worker: runs daily at 22:00 UTC.
+ * Merkle Audit worker: runs daily at 22:00 UTC. Deliberately UTC, unlike the
+ * market-hours crons: its window is a UTC day, not a trading session.
  * Computes a Merkle root of all claims created during the previous (completed)
  * UTC day for immutability proof. Auditing the in-progress current day would
  * permanently miss claims created after this run fires (e.g. 22:00–24:00 UTC).

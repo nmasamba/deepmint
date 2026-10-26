@@ -17,7 +17,7 @@ function extractCreds(meta: unknown): SnapTradeUserCredentials | null {
 /**
  * Daily broker sync worker.
  *
- * Runs at 22:00 UTC on weekdays, after markout. For each active broker
+ * Runs at 18:00 US Eastern on weekdays, after markout. For each active broker
  * link, fetches recent trade activity from SnapTrade and inserts new
  * verified player_trades rows. Staggers requests to respect SnapTrade
  * rate limits.
@@ -26,7 +26,7 @@ export const brokerSyncFunction = inngest.createFunction(
   {
     id: "broker-sync",
     retries: 2,
-    triggers: [{ cron: "0 22 * * 1-5" }],
+    triggers: [{ cron: "TZ=America/New_York 0 18 * * 1-5" }],
   },
   async ({ step }) => {
     if (!getSnapTradeClient()) {

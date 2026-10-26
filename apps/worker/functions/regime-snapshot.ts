@@ -49,7 +49,7 @@ export async function ensureRegimeSnapshot(asOfDate: string) {
 }
 
 /**
- * Daily market-regime snapshot: 21:30 UTC on weekdays, after the US close.
+ * Daily market-regime snapshot: 17:30 US Eastern on weekdays, after the close.
  * Runs on its own clock so the regime stays current even on days when no claim
  * matures (scoring, which also uses the regime, runs only after a markout).
  */
@@ -57,7 +57,7 @@ export const regimeSnapshotFunction = inngest.createFunction(
   {
     id: "market-regime-snapshot",
     retries: 2,
-    triggers: [{ cron: "30 21 * * 1-5" }],
+    triggers: [{ cron: "TZ=America/New_York 30 17 * * 1-5" }],
   },
   async ({ step }) => {
     const snapshot = await step.run("snapshot", () =>

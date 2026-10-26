@@ -72,22 +72,21 @@ flowchart TD
 
 ## When do things happen?
 
-All schedules run in UTC. US Eastern time is UTC−4 until 2026-11-01 (EDT) and UTC−5 from then until 2027-03-14 (EST).
+The jobs tied to the US market run on US Eastern time (`TZ=America/New_York` in the cron), so they keep the same place relative to the 16:00 close all year. In UTC they run an hour later in winter: Eastern time is UTC−4 (EDT) until 2026-11-01 and UTC−5 (EST) from then until 2027-03-14. Only the Merkle audit runs on UTC, because it fingerprints a UTC day.
 
-| Job | What it does | UTC | Eastern (EDT / EST) | Days |
+| Job | What it does | Eastern | UTC (EDT / EST) | Days |
 |---|---|---|---|---|
-| Daily digest | Emails a summary of followed activity (not delivered today; see below) | 12:00 | 08:00 / 07:00 | Mon–Fri |
-| Ingest | Collects new Guide posts, then hands them to extraction | 20:30 | 16:30 / 15:30 | Mon–Fri |
-| Markout | Checks matured claims against closing prices | 21:00 | 17:00 / 16:00 | Mon–Fri |
-| Market regime | Records the day's market conditions (S&P 500 trend, VIX, sector spread) for the leaderboard | 21:30 | 17:30 / 16:30 | Mon–Fri |
-| Broker sync | Imports trades from linked brokerage accounts | 22:00 | 18:00 / 17:00 | Mon–Fri |
-| Merkle audit | Fingerprints the previous day's claims | 22:00 | 18:00 / 17:00 | Every day |
+| Daily digest | Emails a summary of followed activity (not delivered today; see below) | 08:00 | 12:00 / 13:00 | Mon–Fri |
+| Ingest | Collects new Guide posts, then hands them to extraction | 16:30 | 20:30 / 21:30 | Mon–Fri |
+| Markout | Checks matured claims against closing prices | 17:00 | 21:00 / 22:00 | Mon–Fri |
+| Market regime | Records the day's market conditions (S&P 500 trend, VIX, sector spread) for the leaderboard | 17:30 | 21:30 / 22:30 | Mon–Fri |
+| Broker sync | Imports trades from linked brokerage accounts | 18:00 | 22:00 / 23:00 | Mon–Fri |
+| Merkle audit | Fingerprints the previous UTC day's claims | 18:00 / 17:00 | 22:00 | Every day |
 
 Other jobs run in a chain rather than on a clock:
 
 - Extraction runs right after ingest, but only when ingest found new posts.
 - Scoring runs after the markout (or a backfill), but only if it wrote at least one outcome. Consensus and influence are recalculated after scoring. So **consensus is not refreshed on days when no claim matures**.
-- During EST the ingest run (15:30 ET) starts before the 16:00 US market close, and the markout runs at the close itself. A session counts only from 16:30 ET, so in winter every outcome whose exit is the run date lands one trading day later.
 
 **Horizons.** Every claim uses one of six horizons:
 

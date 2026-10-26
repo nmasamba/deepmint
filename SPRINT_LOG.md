@@ -51,7 +51,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - No page calls `detail` or `addNote`; only the MCP `add_note` tool calls `addNote`.
 - **Claim UI:** `SubmitClaimForm`, `ClaimCard` and `ClaimsTimeline` (infinite scroll). Claims appear on the dashboard ("Make a Prediction"), My Claims, profile and ticker pages. Claim cards never show outcomes, because no caller passes them.
 - **Content hashing** (`packages/ingestion/src/hasher.ts`): SHA-256 of `{url, text, ts}`. Ingest skips any capture whose hash is already in `events`.
-- **Inngest workers:** `ingest-sources` (weekdays 20:30 UTC), `extract-claims` (on `ingestion/completed`) and `merkle-audit` (daily 22:00 UTC).
+- **Inngest workers:** `ingest-sources` (weekdays 16:30 US Eastern; it ran at 20:30 UTC until wave 1), `extract-claims` (on `ingestion/completed`) and `merkle-audit` (daily 22:00 UTC).
 - **Merkle audit** (`packages/shared/src/merkle.ts`): `computeClaimLeafHash()` and `buildMerkleTree()`. Pairs are hashed level by level, duplicating the last node when a level is odd, and the root is stored in `audit_roots`.
   - Nothing reads `audit_roots`, and `bitcoin_tx_id` is never written.
   - Claims inserted with a backdated `created_at` (rating dates, backfill) are never covered by any root.
@@ -84,7 +84,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
 - **Goal:** turn matured claims into outcomes, scores, leaderboards and consensus signals.
 - **Shipped:**
   - The full Polygon (Massive.com) client in `packages/shared/src/polygon.ts` (Sprint 2's version had only a price helper), with a 12.5 s throttle per process for the 5 req/min plan.
-  - `markout-computation` (weekdays 21:00 UTC, which is 17:00 EDT and 16:00 EST). It writes one outcome per matured active claim, priced at the exit date's close.
+  - `markout-computation` (weekdays 21:00 UTC, which is 17:00 EDT and 16:00 EST). It writes one outcome per matured active claim, priced at the exit date's close. Superseded: 17:00 US Eastern all year (wave 1).
   - `packages/scoring`, pure statistical functions:
     - Player: Sharpe, max drawdown, Calmar, CVaR5, consistency.
     - Guide: hit rate, average return, z-test, Brier, target precision.
@@ -108,7 +108,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - `social` router: follows, social feed, watchlist and email preferences. Follow and Watch buttons.
   - Redesigned ticker page with a consensus breakdown and top Guides and Players. Non-Mag-7 symbols show "Coming soon".
   - Paper portfolios (up to 5 per entity) with trades and P&L (`paper` router).
-  - `daily-digest` email worker (weekdays 12:00 UTC, through Resend).
+  - `daily-digest` email worker (weekdays 12:00 UTC, through Resend). Superseded: 08:00 US Eastern (wave 1).
   - Learn: 5 static modules, 3 of them with quizzes; progress is kept in localStorage.
   - Landing page, rewritten in 0.4.1: ChoosePath Guide/Player cards, mint-green palette, logo and favicons. Also 404 and error pages.
   - The CI workflow, root `vercel.json` and the Sentry config files.
@@ -149,7 +149,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
     - Keys are Bearer `dm_live_` keys; only the SHA-256 hash and a 16-character prefix are stored.
     - Only admins can mint keys, at `/admin/api-keys`.
     - Each key gets an Upstash per-minute limit (default 60), which is a no-op without Upstash.
-  - Proof-of-Skin: read-only SnapTrade linking (`broker` router; `broker-sync` runs weekdays 22:00 UTC). Verified Players get ×1.5 weight in consensus.
+  - Proof-of-Skin: read-only SnapTrade linking (`broker` router; `broker-sync` runs weekdays at 18:00 US Eastern). Verified Players get ×1.5 weight in consensus.
   - Instrument expansion:
     - the `/admin/instruments` page and the `ticker_requests` table;
     - `SP500_TOP_50_EXPANSION`;
@@ -177,7 +177,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - Mobile hamburger navigation; the bottom bar was cut to 4 items.
   - PWA manifest, Serwist service worker and an `/offline` page.
 - **Status today:**
-  - Since 2026-10-06 the regime is a stored daily snapshot (`market_regimes`, migration 0008), written on weekdays at 21:30 UTC; pages read it instead of recomputing. The plan has no index data (`I:VIX` and `I:SPX` return 403), so the S&P 500 30-day return is measured on SPY and VIX is recorded as defaulted, never as a made-up value.
+  - Since 2026-10-06 the regime is a stored daily snapshot (`market_regimes`, migration 0008), written on weekdays at 17:30 US Eastern; pages read it instead of recomputing. The plan has no index data (`I:VIX` and `I:SPX` return 403), so the S&P 500 30-day return is measured on SPY and VIX is recorded as defaulted, never as a made-up value.
   - The web suite has 18 tests in 4 files; an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
   - `/docs/api` is shown to every signed-in user, but only admins can mint keys.
   - `/manifest.json` and `/offline` sit behind sign-in. The manifest returns 404, and the offline page is never precached, so neither works.
