@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import { db, eq } from "@deepmint/db";
 import { entities } from "@deepmint/db/schema";
 import { EntityProfileHeader } from "@/components/EntityProfileHeader";
@@ -26,9 +27,13 @@ export default async function GuideProfilePage({ params }: GuideProfilePageProps
     redirect(`/player/${entity.slug}`);
   }
 
+  // No Follow or Mirror on your own profile: the server rejects both.
+  const { userId } = await auth();
+  const isOwnProfile = !!userId && entity.clerkUserId === userId;
+
   return (
     <div className="mx-auto max-w-4xl">
-      <EntityProfileHeader entity={entity} />
+      <EntityProfileHeader entity={entity} hideFollow={isOwnProfile} />
       <EntityProfileTabs entityType="guide" entityId={entity.id} />
     </div>
   );

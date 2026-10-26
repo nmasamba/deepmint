@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **85 open issues: no high, 21 medium and 64 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **84 open issues: no high, 21 medium and 63 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 7 | 19 | 26 |
+| [Product (web app)](#area-product) | 0 | 7 | 18 | 25 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 10 | 13 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **21** | **64** | **85** |
+| **All** | **0** | **21** | **63** | **84** |
 
 <a id="area-scoring"></a>
 
@@ -263,16 +263,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** The top-bar instrument search shows a `/` key hint at desktop widths, but no code listens for the key.
 - **User impact:** Cosmetic: pressing `/` does nothing.
 - **Evidence:** [`apps/web/components/InstrumentSearch.tsx:111-120`](../apps/web/components/InstrumentSearch.tsx#L111-L120)
-
-<a id="follow-mirror-own-profile"></a>
-
-### Follow and Mirror buttons appear on your own profile and fail silently
-
-**Low** · bug · `follow-mirror-own-profile`
-
-- **What's wrong:** Profile pages never pass `hideFollow`, so Follow and Mirror Signals render on your own profile. The server rejects both, and rejects mirroring an entity you already mirror. The buttons have no error handler, so the message never shows.
-- **User impact:** Clicks appear to do nothing. No data is affected.
-- **Evidence:** [`apps/web/components/EntityProfileHeader.tsx:124-129`](../apps/web/components/EntityProfileHeader.tsx#L124-L129) · [`packages/api/routers/social.ts:35-40`](../packages/api/routers/social.ts#L35-L40) · [`packages/api/routers/signalSimulate.ts:24-62`](../packages/api/routers/signalSimulate.ts#L24-L62) · [`apps/web/components/FollowButton.tsx:18-30`](../apps/web/components/FollowButton.tsx#L18-L30)
 
 <a id="admin-pages-not-gated"></a>
 
