@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **82 open issues: no high, 21 medium and 61 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **81 open issues: no high, 21 medium and 60 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 7 | 17 | 24 |
+| [Product (web app)](#area-product) | 0 | 7 | 16 | 23 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 9 | 12 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **21** | **61** | **82** |
+| **All** | **0** | **21** | **60** | **81** |
 
 <a id="area-scoring"></a>
 
@@ -333,16 +333,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `claims.addNote` is called only by the MCP `add_note` tool, and no page shows notes; since wave 1 a claim card shows only how many it has.
 - **User impact:** Players cannot annotate or correct their own claims, though notes are the only correction mechanism for append-only claims.
 - **Evidence:** [`packages/api/routers/claims.ts:259-300`](../packages/api/routers/claims.ts#L259-L300) · [`apps/web/app/api/mcp/route.ts:167-203`](../apps/web/app/api/mcp/route.ts#L167-L203)
-
-<a id="pwa-assets-behind-auth"></a>
-
-### PWA manifest returns 404 and the offline page can never be served
-
-**Low** · bug · `pwa-assets-behind-auth`
-
-- **What's wrong:** The middleware matcher skips `.js` but not `.json`, so `/manifest.json` hits `auth.protect()`. The manifest link sends no cookies, so it returns a 404 for everyone. `/offline` is never precached, so the service worker's fallback cannot work. Precaching the 404ing manifest makes the service worker install fail for signed-out visitors.
-- **User impact:** No install-to-home-screen prompt in Chrome, and offline navigations show the browser's error page. iOS Add to Home Screen still works.
-- **Evidence:** [`apps/web/middleware.ts:39`](../apps/web/middleware.ts#L39) · [`apps/web/app/layout.tsx:24`](../apps/web/app/layout.tsx#L24) · [`apps/web/app/sw.ts:19-28`](../apps/web/app/sw.ts#L19-L28)
 
 <a id="area-api"></a>
 

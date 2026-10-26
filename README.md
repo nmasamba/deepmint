@@ -105,7 +105,7 @@ A claim's end date is its entry date plus the horizon in calendar days. (For old
 
 | Piece | Where | Who can use it |
 |---|---|---|
-| Web app | [www.deepmint.ai](https://www.deepmint.ai), hosted on Vercel. `deepmint.ai` redirects to `www`. | Only the landing, sign-in and sign-up pages are public. Every other page needs an account. |
+| Web app | [www.deepmint.ai](https://www.deepmint.ai), hosted on Vercel. `deepmint.ai` redirects to `www`. | Only the landing, sign-in, sign-up and offline pages (and the app manifest) are public. Every other page needs an account. |
 | REST API | `https://www.deepmint.ai/api/v1`: `GET /entities/{slug}/scores`, `GET /instruments/{ticker}/consensus`, `GET /leaderboard?metric=…`, plus the spec at `/openapi.json` | The three data endpoints need an API key (`Authorization: Bearer dm_live_…`), and only admins can create keys. The spec needs no key; signed-in users can also browse it at `/docs/api`. |
 | AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Read tools (regime, consensus, leaderboard, track record, instrument search) need the default read scopes; the write tools (`submit_claim`, `add_note`) need `claims:write` and currently act as the admin who created the key ([known issue](docs/KNOWN_ISSUES.md#mcp-acts-as-admin)). |
 | App API (tRPC) | `/api/trpc` | Used by the web app itself. Its read-only public calls answer without sign-in. |
