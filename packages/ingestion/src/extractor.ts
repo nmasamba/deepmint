@@ -173,6 +173,17 @@ export function parseConfidenceScore(value: unknown): number | null {
 }
 
 /**
+ * Accept a finite, strictly positive price target (a money field, in dollars)
+ * whose cents fit claims.target_price_cents, a 32-bit integer. A larger value
+ * would fail the post's single claims insert, losing every claim in it, so it
+ * is dropped instead.
+ */
+export function parseTargetPrice(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+  return Math.round(value * 100) <= 2_147_483_647 ? value : null;
+}
+
+/**
  * Grid durations an author can name outright, keyed by "<count> <unit>".
  * Approximations (4 weeks, 52 weeks, "a quarter") are deliberately absent.
  */
@@ -489,13 +500,7 @@ export async function extractClaims(
     validClaims.push({
       instrumentTicker: ticker,
       direction: direction as "long" | "short" | "neutral",
-      // Only accept a finite, strictly positive target price (a money field).
-      targetPrice:
-        typeof raw.target_price === "number" &&
-        Number.isFinite(raw.target_price) &&
-        raw.target_price > 0
-          ? raw.target_price
-          : null,
+      targetPrice: parseTargetPrice(raw.target_price),
       horizonDays,
       // Integer 0-100, the scale of the confidence column and the consensus
       // weight boost.

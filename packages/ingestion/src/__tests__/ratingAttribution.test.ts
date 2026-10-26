@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isValidAnalystFirm, parseRatingDate } from "../extractor";
+import { isValidAnalystFirm, parseRatingDate, parseTargetPrice } from "../extractor";
 
 /**
  * Deterministic tests for rating attribution validation.
@@ -96,5 +96,25 @@ describe("parseRatingDate", () => {
   it("rejects non-strings", () => {
     expect(parseRatingDate(null, now)).toBeNull();
     expect(parseRatingDate(20260728, now)).toBeNull();
+  });
+});
+
+describe("parseTargetPrice", () => {
+  it("keeps a finite, positive dollar target", () => {
+    expect(parseTargetPrice(250)).toBe(250);
+    expect(parseTargetPrice(0.5)).toBe(0.5);
+  });
+
+  it("drops non-numbers, non-finite and non-positive values", () => {
+    for (const value of ["250", null, undefined, NaN, Infinity, 0, -5]) {
+      expect(parseTargetPrice(value)).toBeNull();
+    }
+  });
+
+  it("drops a target whose cents overflow the integer column", () => {
+    // claims.target_price_cents is int4: at most 2,147,483,647 cents.
+    expect(parseTargetPrice(21_474_836.47)).toBe(21_474_836.47);
+    expect(parseTargetPrice(21_474_836.48)).toBeNull();
+    expect(parseTargetPrice(1e12)).toBeNull();
   });
 });

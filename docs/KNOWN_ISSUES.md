@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **81 open issues: no high, 21 medium and 60 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **79 open issues: no high, 20 medium and 59 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -30,11 +30,11 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Product (web app)](#area-product) | 0 | 7 | 16 | 23 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 9 | 12 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 1 | 10 | 11 |
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **21** | **60** | **81** |
+| **All** | **0** | **20** | **59** | **79** |
 
 <a id="area-scoring"></a>
 
@@ -425,7 +425,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Low** · bug · `identity-derivation-inconsistent`
 
 - **What's wrong:** The Clerk webhook names a user from first and last name, then "User"; the tRPC self-heal also tries the username. Players are slugged by `@deepmint/shared` `slugify` (deletes punctuation) and Guides by the resolver's own (turns punctuation into hyphens), in one shared slug namespace.
-- **User impact:** Mostly cosmetic: "J.P. Morgan" becomes `jp-morgan` as a Player and `j-p-morgan` as a Guide. The collision risk is [guide-resolver-matches-user-slug](#guide-resolver-matches-user-slug).
+- **User impact:** Mostly cosmetic: "J.P. Morgan" becomes `jp-morgan` as a Player and `j-p-morgan` as a Guide. (Since wave 1 a firm's ratings never resolve to a user's slug.)
 - **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts:61-64`](../apps/web/app/api/webhooks/clerk/route.ts#L61-L64) · [`apps/web/app/api/trpc/[trpc]/route.ts:38-41`](../apps/web/app/api/trpc/%5Btrpc%5D/route.ts#L38-L41) · [`packages/shared/src/utils.ts:1-8`](../packages/shared/src/utils.ts#L1-L8) · [`packages/ingestion/src/sources/resolver.ts:7-15`](../packages/ingestion/src/sources/resolver.ts#L7-L15)
 
 <a id="mcp-tool-contract-gaps"></a>
@@ -546,16 +546,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 ## Ingestion and extraction
 
-<a id="guide-resolver-matches-user-slug"></a>
-
-### Firm attribution can land on a signed-up user with the firm's slug
-
-**Medium** · data-integrity · `guide-resolver-matches-user-slug`
-
-- **What's wrong:** `resolveOrCreateGuide` falls back to matching any entity by slug, with no `type='guide'` or `clerk_user_id IS NULL` condition, and firm attribution calls it with no source URL. A user who signs up as, say, "Goldman Sachs" before that firm has a Guide gets slug `goldman-sachs`, and the firm's later ratings are credited to that Player.
-- **User impact:** Latent until a firm-attributing lane (RSS, Polygon news or backfill) runs. Any sign-up could then inherit an institution's ratings on purpose, and the firm would never appear as a Guide. Repair means rewriting `claims.entity_id`, against the append-only rule.
-- **Evidence:** [`packages/ingestion/src/sources/resolver.ts:49-55`](../packages/ingestion/src/sources/resolver.ts#L49-L55) · [`packages/ingestion/src/extractor.ts:625-637`](../packages/ingestion/src/extractor.ts#L625-L637) · [`packages/db/queries/ensureEntityForClerkUser.ts:42-62`](../packages/db/queries/ensureEntityForClerkUser.ts#L42-L62)
-
 <a id="extraction-failures-never-retried"></a>
 
 ### Failed extractions are never re-driven
@@ -645,16 +635,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** The pre-filter matches "GOOG", but validation accepts only `GOOGL`, with no mapping and no trimming of `$` or spaces. Off-grid horizons are rejected despite a "map to nearest" comment. A ticker with no instruments row is skipped and counted nowhere. Ingestion does not check `is_active`, so deactivated instruments still receive claims.
 - **User impact:** Calls on GOOG, or with 60-day or 2-year horizons, never reach the ledger. Rejection reasons are not logged, and backfill ignores even the counts.
 - **Evidence:** [`packages/ingestion/src/extractor.ts:320`](../packages/ingestion/src/extractor.ts#L320) · [`packages/ingestion/src/extractor.ts:466-487`](../packages/ingestion/src/extractor.ts#L466-L487) · [`packages/ingestion/src/extractor.ts:613-620`](../packages/ingestion/src/extractor.ts#L613-L620) · [`apps/worker/functions/backfill.ts:140-163`](../apps/worker/functions/backfill.ts#L140-L163)
-
-<a id="firm-guide-resolution-edge-cases"></a>
-
-### Long firm names fall back to the carrier, and failed inserts leave orphan Guides
-
-**Low** · bug · `firm-guide-resolution-edge-cases`
-
-- **What's wrong:** Firm names up to 200 characters pass validation, but `display_name` is `varchar(100)`, so creating a 101–200-character firm fails and the claim stays with the carrier. In the Polygon news lane (off by default), a publisher name over 100 characters would abort the whole ingest run. Firm Guides are created before the post's single claim insert, so a persistent insert failure (such as a target above $21,474,836.47 overflowing the integer column) loses the post's claims and leaves orphan Guides.
-- **User impact:** Rare. Orphan Guides are empty profiles, which `entity.search` (no UI caller) returns.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:139`](../packages/ingestion/src/extractor.ts#L139) · [`packages/db/schema/entities.ts:10`](../packages/db/schema/entities.ts#L10) · [`packages/ingestion/src/sources/resolver.ts:60-88`](../packages/ingestion/src/sources/resolver.ts#L60-L88) · [`packages/ingestion/src/sources/polygonNews.ts:77-86`](../packages/ingestion/src/sources/polygonNews.ts#L77-L86) · [`packages/ingestion/src/extractor.ts:494-498`](../packages/ingestion/src/extractor.ts#L494-L498)
 
 <a id="rationale-tags-vocabulary"></a>
 
