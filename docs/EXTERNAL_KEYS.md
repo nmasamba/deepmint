@@ -96,16 +96,16 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
   - the opt-in news lane (see [`INGEST_POLYGON_NEWS`](#flags-and-app-variables)).
 - **Required:** yes, in any environment that writes to a shared database.
 - **If missing:**
-  - Prices are hard-coded dev values for the 7 Mag-7 tickers (AAPL is 22500 cents), and any other ticker throws.
+  - `getCurrentPrice` (paper trades, Signal Simulate, the ticker page) returns hard-coded dev values for the 7 Mag-7 tickers (AAPL is 22500 cents), and any other ticker throws. `getEODPrice` and the cached `getLatestClose` throw.
   - Historical bars come back empty, so `backfill-prices` deactivates every newly added instrument.
   - No market-regime snapshot is stored: every indicator would be a dev constant, so each is marked defaulted and the snapshot job refuses to write one. The leaderboard shows no regime. The news lane returns nothing.
   - Markout writes no outcomes without a key (it gets no bars), so it never scores against dev prices.
-  - **Danger:** a rating-dated or backfilled claim stored without a key still gets a dev constant as its entry price, permanently. Never run a keyless deployment or worker against a shared database.
+  - A rating-dated or backfilled claim gets no entry price: `getEODPrice` throws, the claim is stored with a null entry, and markout prices it at the first close after `created_at` once a key is present. (Before wave 1 it stored the dev constant, permanently.)
 - **Behaviour with a key that callers should know about:**
   - The "current price" is the **previous session's close** (previous-day aggregate first, then the snapshot's `prevDay`; the code notes the snapshot endpoint returns 403 on the current plan). If both calls fail, the lookup throws; it never invents a price. Since the next-close entry change, claims never use it; it prices paper trades and the ticker page.
   - The plan has **no index data**: `I:VIX` and `I:SPX` return 403 NOT_AUTHORIZED (checked 2026-10-06). The regime's S&P 500 30-day return is therefore measured on SPY, and VIX is recorded as defaulted in every snapshot (`market_regimes.defaulted_fields`); it is never replaced by a made-up value. A plan with index data fills VIX in with no code change.
-  - Every call waits for a 12.5 s gap after the previous one, sized for a 5-requests-per-minute plan. The gap is per process and not a queue: calls started together (each `Promise.all` pair) fire together, and separate serverless instances do not share it.
-  - Prices are never cached. Only the regime indicators are, and only with Upstash.
+  - Every call takes the next slot in a queue spaced 12.5 s apart, sized for a 5-requests-per-minute plan, so calls started together run one after another. The queue is per process: separate serverless instances do not share it.
+  - `getLatestClose` and `getLatestCloses` (in `@deepmint/shared`) return the latest close with its session date, memoised for 5 minutes per process, shared by concurrent callers and cached in Upstash when configured. No caller uses them yet. `getCurrentPrice` and `getEODPrice` are never cached. The regime indicators are cached only with Upstash.
 - **Get it:** Massive (polygon.io) dashboard → API keys.
 - **Verify:** with the key exported in your shell, run `pnpm --filter @deepmint/worker exec tsx -e 'import("@deepmint/shared").then(async (m) => console.log(await m.getCurrentPrice("AAPL")))'`. It prints AAPL's previous close in cents; `22500` means the key was not read.
 - **Production:** set (last recorded).

@@ -10,6 +10,7 @@ Entries before 0.8.0 are kept as history. Where one was wrong about the code at 
 ## [Unreleased]
 
 ### Added
+- **`getLatestClose` and `getLatestCloses`** in `@deepmint/shared`: the latest close with its session date, memoised for 5 minutes per process, shared by concurrent callers, de-duplicated across tickers and cached in Upstash when configured. Meant for pages and valuations; ledger writers keep the uncached `getCurrentPrice` and `getEODPrice`. No caller uses them yet (`price-lookups-uncached-serial` stays open).
 - **Stored daily market regime.** A new `market_regimes` table (migration 0008) holds one snapshot per weekday, written by the new `market-regime-snapshot` job at 21:30 UTC (16 Inngest functions in total). Scoring reuses that day's snapshot. Each snapshot records its indicators in basis points and lists any that were unavailable in `defaulted_fields`; a day where all three are unavailable is not stored.
 
 ### Fixed
@@ -20,8 +21,11 @@ Entries before 0.8.0 are kept as history. Where one was wrong about the code at 
 - **Holiday exits.** An exit date on a market holiday had no bar, so the claim was retried on the same date for ever. Exits now roll to the next session with a bar. Closes `markout-holiday-exit-never-priced`.
 - **A failed entry lookup no longer stops a claim from scoring.** Extraction and backfill store null when the lookup fails, and markout now prices that entry like any other undated claim. Without a Polygon key, markout writes no outcomes rather than scoring against dev prices. `fallback-prices-in-ledger` is reduced to the keyless-deploy risk for dated and backfilled claims (now low).
 - **Market-hours jobs run on US Eastern time.** Ingest (16:30), markout (17:00), the market-regime snapshot (17:30), broker sync (18:00) and the daily digest (08:00) now use `TZ=America/New_York` crons instead of fixed UTC times. From 2026-11-02 (EST) the UTC crons would have started ingest at 15:30 ET, before the close, and run markout at 16:00 ET, before a session's bar counts as final (16:30 ET), so outcomes exiting that day would have landed a trading day late. The Merkle audit stays at 22:00 UTC, because it covers a UTC day. Closes `cron-times-assume-edt`.
+- **No dev prices in the ledger.** Without `POLYGON_API_KEY`, `getEODPrice` returned fixed dev prices, so a rating-dated or backfilled claim could store one as its entry price, permanently. It now throws; the claim is stored with no entry, which markout prices at the first close after `created_at` (checked live: a keyless extraction of a rating dated 2026-10-20 stored a null entry, not 22500). Closes `fallback-prices-in-ledger`.
+- **The Polygon throttle is a queue.** `polygonRateLimit` recorded the request time after sleeping, so calls started together computed the same wait and fired together (every `Promise.all` pair in the regime code sent two requests at once). Each caller now reserves its slot before sleeping, so they run 12.5 s apart. The queue is still per process, so `polygon-throttle-not-serialized` is reduced to overlapping serverless instances (now low).
 
 ### Changed
+- Removed the unused `getBatchEODPrices`, which filled failed lookups with dev prices, and the Polygon client's private copy of `dollarsToCents`.
 - Markout fetches one range of daily bars per claim instead of one or two calls, and skips the fetch until the exit session has closed. The pricing rules are pure, unit-tested functions in `packages/scoring/src/markout.ts`.
 - `claims.submit` no longer waits on a throttled price lookup (measured locally: 9 ms).
 - Claim cards for claims without a stored entry say "Entry: first close after claim"; the price used is recorded on the outcome. Signal Simulate mirroring retries instead of opening a paper trade at no price.

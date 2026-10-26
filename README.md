@@ -254,7 +254,7 @@ What happens when an optional key is missing:
 
 | Variable | Effect when unset |
 |---|---|
-| `POLYGON_API_KEY` | The Mag-7 get fixed dev prices and any other ticker fails. Regime detection uses default values. New instruments added by an admin are deactivated, because no price history comes back. |
+| `POLYGON_API_KEY` | The Mag-7 get fixed dev "current" prices and any other ticker fails. Dated entry prices are left empty rather than faked, and markout writes no outcomes. No market-regime snapshot is stored. New instruments added by an admin are deactivated, because no price history comes back. |
 | `HF_API_KEY` | Every extraction throws, so posts never get claims. |
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | No rate limits, and no follower-count or regime cache. Prices are never cached either way. |
 | `CLERK_WEBHOOK_SECRET` | Not needed locally. Your Player record is created on your first signed-in request. |

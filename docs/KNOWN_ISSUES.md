@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **97 open issues: no high, 26 medium and 71 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **96 open issues: no high, 25 medium and 71 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -31,10 +31,10 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 12 | 15 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
-| [Data model and shared code](#area-data) | 0 | 1 | 6 | 7 |
-| [Infrastructure, config and tooling](#area-infra) | 0 | 5 | 10 | 15 |
+| [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
+| [Infrastructure, config and tooling](#area-infra) | 0 | 4 | 11 | 15 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **26** | **71** | **97** |
+| **All** | **0** | **25** | **71** | **96** |
 
 <a id="area-scoring"></a>
 
@@ -230,9 +230,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Medium** · bug · `price-lookups-uncached-serial`
 
-- **What's wrong:** Prices are never cached (the cache-key helpers are dead code). `paper.portfolioPerformance` and `signalSimulate.comparison` await one throttled lookup per open position, one after another, and mirrored portfolios never close positions. The ticker page's server render awaits the price with no catch.
+- **What's wrong:** Since wave 1, `getLatestClose` and `getLatestCloses` in `@deepmint/shared` return the latest close with its date, cached for 5 minutes per process (and in Upstash when configured) and de-duplicated, but no caller uses them yet. `paper.portfolioPerformance` and `signalSimulate.comparison` still await one throttled `getCurrentPrice` per open position, one after another, and mirrored portfolios never close positions. The ticker page's server render awaits the price with no catch.
 - **User impact:** A portfolio with N open positions shows skeletons for about 12.5 s × (N−1), five positions taking about 50 s. If Polygon fails, the ticker page shows the generic error screen instead of degrading.
-- **Evidence:** [`packages/api/routers/paper.ts:349-359`](../packages/api/routers/paper.ts#L349-L359) · [`packages/api/routers/signalSimulate.ts:265-278`](../packages/api/routers/signalSimulate.ts#L265-L278) · [`packages/shared/src/polygonCache.ts:80-92`](../packages/shared/src/polygonCache.ts#L80-L92) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
+- **Evidence:** [`packages/api/routers/paper.ts:349-359`](../packages/api/routers/paper.ts#L349-L359) · [`packages/api/routers/signalSimulate.ts:265-278`](../packages/api/routers/signalSimulate.ts#L265-L278) · [`packages/shared/src/polygon.ts:292-327`](../packages/shared/src/polygon.ts#L292-L327) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
 
 <a id="instrument-universe-inconsistent"></a>
 
@@ -810,16 +810,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Sequential retries are safe. A historical backfill overlapping the 17:00 ET markout can write duplicate outcomes, which count twice in hit rate, returns and EIV and are never removed.
 - **Evidence:** [`packages/db/schema/outcomes.ts:21-22`](../packages/db/schema/outcomes.ts#L21-L22) · [`packages/db/schema/events.ts:9`](../packages/db/schema/events.ts#L9) · [`apps/worker/functions/markout.ts:44-61`](../apps/worker/functions/markout.ts#L44-L61) · [`apps/worker/functions/markout.ts:83-108`](../apps/worker/functions/markout.ts#L83-L108) · [`apps/worker/functions/score.ts:243-251`](../apps/worker/functions/score.ts#L243-L251)
 
-<a id="fallback-prices-in-ledger"></a>
-
-### A keyless deploy writes fake entry prices on dated and backfilled claims
-
-**Low** · data-integrity · `fallback-prices-in-ledger`
-
-- **What's wrong:** With no `POLYGON_API_KEY`, `getEODPrice` returns fixed dev prices (Mag 7 only), and a rating-dated extracted claim or a backfilled claim stores that as its entry price. (Fixed 2026-10-06: a failed entry lookup no longer leaves a claim that never scores, because markout prices a missing entry at the first close after the claim; and markout writes no outcomes without a key.)
-- **User impact:** Latent: a keyless deploy or worker writing to a shared database would store fake, undeletable entry prices on those claims.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:646-664`](../packages/ingestion/src/extractor.ts#L646-L664) · [`apps/worker/functions/backfill.ts:145-152`](../apps/worker/functions/backfill.ts#L145-L152) · [`packages/shared/src/polygon.ts:38-56`](../packages/shared/src/polygon.ts#L38-L56)
-
 <a id="soft-delete-half-implemented"></a>
 
 ### Soft delete is read in some places but never set
@@ -856,9 +846,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · dead-code · `dead-and-duplicated-shared-code`
 
-- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `dollarsToCents`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `CLAIM_RATE_LIMIT`, `Mag7Ticker`, `getBatchEODPrices`, the price cache-key helpers and four `components/ui` files. Duplicated: the claims rate limit (hard-coded 10/h), a 7-ticker list in `instruments.mag7`, the rating enums and `SourceKind` in the extractor, two `slugify`s, and two local copies of the shared `formatBps`.
+- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `CLAIM_RATE_LIMIT`, `Mag7Ticker`, `historicalCacheKey` with `TTL_HISTORICAL`, and four `components/ui` files. Duplicated: the claims rate limit (hard-coded 10/h), a 7-ticker list in `instruments.mag7`, the rating enums and `SourceKind` in the extractor, two `slugify`s, and two local copies of the shared `formatBps`.
 - **User impact:** None for users; noise for maintainers.
-- **Evidence:** [`packages/shared/src/errors.ts:1-45`](../packages/shared/src/errors.ts#L1-L45) · [`packages/shared/src/polygon.ts:468`](../packages/shared/src/polygon.ts#L468) · [`packages/shared/src/polygonCache.ts:80-94`](../packages/shared/src/polygonCache.ts#L80-L94) · [`packages/api/routers/claims.ts:34`](../packages/api/routers/claims.ts#L34)
+- **Evidence:** [`packages/shared/src/errors.ts:1-45`](../packages/shared/src/errors.ts#L1-L45) · [`packages/shared/src/polygonCache.ts:80-85`](../packages/shared/src/polygonCache.ts#L80-L85) · [`packages/api/routers/claims.ts:34`](../packages/api/routers/claims.ts#L34)
 
 <a id="asset-class-unpriceable"></a>
 
@@ -886,13 +876,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="polygon-throttle-not-serialized"></a>
 
-### The Polygon throttle is not a queue: concurrent calls fire together
+### The Polygon throttle queues calls only within one process
 
-**Medium** · bug · `polygon-throttle-not-serialized`
+**Low** · bug · `polygon-throttle-not-serialized`
 
-- **What's wrong:** `polygonRateLimit` sleeps first and records the request time afterwards, so callers that start together compute the same wait and fire together. Every `Promise.all` pair in the regime code sends two requests per interval. The state is per serverless instance, not per account.
-- **User impact:** Regime detection bursts at about 2× (4× when two lookups overlap) the 5 req/min plan. 429s are hidden by silent fallbacks (dropped sector ETFs, default dispersion 0.08, default S&P return, hard-coded SPX 5300) that can mislabel the regime, and overlapping requests can make claim submission fail.
-- **Evidence:** [`packages/shared/src/polygon.ts:76-94`](../packages/shared/src/polygon.ts#L76-L94) · [`packages/shared/src/polygon.ts:372-375`](../packages/shared/src/polygon.ts#L372-L375) · [`packages/shared/src/polygon.ts:434-437`](../packages/shared/src/polygon.ts#L434-L437)
+- **What's wrong:** Since wave 1, `polygonRateLimit` reserves each caller's slot before it sleeps, so calls within one process run 12.5 s apart, `Promise.all` pairs included. The queue is still per serverless instance, not per account: two instances calling Polygon at the same time (for example scoring computing the day's regime while a page view or a markout prices) together exceed the 5 req/min plan.
+- **User impact:** Overlapping jobs can still draw 429s. Regime detection hides them behind fallbacks (dropped sector ETFs, default dispersion 0.08) that can mislabel the regime, and an interactive price lookup that gets one fails.
+- **Evidence:** [`packages/shared/src/polygon.ts:76-96`](../packages/shared/src/polygon.ts#L76-L96) · [`packages/shared/src/polygon.ts:442-445`](../packages/shared/src/polygon.ts#L442-L445) · [`packages/shared/src/polygon.ts:527-537`](../packages/shared/src/polygon.ts#L527-L537)
 
 <a id="sentry-inert"></a>
 
