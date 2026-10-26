@@ -16,6 +16,7 @@ import {
   adminProcedure,
 } from "../trpc";
 import { VALID_HORIZONS, RATIONALE_TAGS } from "@deepmint/shared";
+import { enrichClaimRows } from "../lib/claimEnrichment";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { Inngest } from "inngest";
@@ -137,7 +138,9 @@ export const claimRouter = router({
       z.object({
         entityId: z.string().uuid().optional(),
         instrumentId: z.string().uuid().optional(),
-        direction: z.enum(["long", "short", "neutral"]).optional(),
+        // Not "direction": tRPC's useInfiniteQuery adds direction: "forward"
+        // to the input, which failed this enum, so every timeline page 400'd.
+        claimDirection: z.enum(["long", "short", "neutral"]).optional(),
         horizonDays: z.number().optional(),
         cursor: z.string().nullish(), // ISO timestamp of last item
         limit: z.number().min(1).max(100).default(20),
@@ -152,8 +155,8 @@ export const claimRouter = router({
       if (input.instrumentId) {
         conditions.push(eq(claims.instrumentId, input.instrumentId));
       }
-      if (input.direction) {
-        conditions.push(eq(claims.direction, input.direction));
+      if (input.claimDirection) {
+        conditions.push(eq(claims.direction, input.claimDirection));
       }
       if (input.horizonDays) {
         conditions.push(eq(claims.horizonDays, input.horizonDays));
@@ -189,7 +192,7 @@ export const claimRouter = router({
       const items = hasMore ? results.slice(0, -1) : results;
 
       return {
-        items,
+        items: await enrichClaimRows(items),
         nextCursor: hasMore
           ? items[items.length - 1]?.claim.createdAt.toISOString()
           : null,

@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **87 open issues: no high, 23 medium and 64 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **86 open issues: no high, 22 medium and 64 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 9 | 19 | 28 |
+| [Product (web app)](#area-product) | 0 | 8 | 19 | 27 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 10 | 13 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **23** | **64** | **87** |
+| **All** | **0** | **22** | **64** | **86** |
 
 <a id="area-scoring"></a>
 
@@ -103,16 +103,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 <a id="area-product"></a>
 
 ## Product (web app)
-
-<a id="claim-outcomes-not-shown"></a>
-
-### Claim cards never show a claim's result
-
-**Medium** · bug · `claim-outcomes-not-shown`
-
-- **What's wrong:** `ClaimCard` can render outcomes and a notes count, but its only callers, `ClaimsTimeline` and `SocialFeed`, pass neither, and `claims.list` and `social.feed` do not fetch them. After the horizon the card reads "Matured" whether or not an outcome exists. `claims.detail` returns outcomes, but no page calls it.
-- **User impact:** Users can see an author's aggregate scores but not which individual calls were right. The only per-claim result is the `outcome_matured` notification, which goes to the claim's own entity (so ingested Guide claims notify nobody), is not sent for backfills, and is not a link.
-- **Evidence:** [`apps/web/components/claims/ClaimCard.tsx:224-247`](../apps/web/components/claims/ClaimCard.tsx#L224-L247) · [`apps/web/components/claims/ClaimsTimeline.tsx:96-102`](../apps/web/components/claims/ClaimsTimeline.tsx#L96-L102) · [`apps/web/components/dashboard/SocialFeed.tsx:78-84`](../apps/web/components/dashboard/SocialFeed.tsx#L78-L84) · [`packages/api/routers/claims.ts:199-257`](../packages/api/routers/claims.ts#L199-L257)
 
 <a id="leaderboard-regime-filter-empty"></a>
 
@@ -370,9 +360,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · feature-gap · `claim-notes-no-ui`
 
-- **What's wrong:** `claims.addNote` is called only by the MCP `add_note` tool. `ClaimCard`'s notes count is never passed, and no page shows notes.
+- **What's wrong:** `claims.addNote` is called only by the MCP `add_note` tool, and no page shows notes; since wave 1 a claim card shows only how many it has.
 - **User impact:** Players cannot annotate or correct their own claims, though notes are the only correction mechanism for append-only claims.
-- **Evidence:** [`packages/api/routers/claims.ts:259-300`](../packages/api/routers/claims.ts#L259-L300) · [`apps/web/components/claims/ClaimCard.tsx:249`](../apps/web/components/claims/ClaimCard.tsx#L249) · [`apps/web/app/api/mcp/route.ts:167-203`](../apps/web/app/api/mcp/route.ts#L167-L203)
+- **Evidence:** [`packages/api/routers/claims.ts:259-300`](../packages/api/routers/claims.ts#L259-L300) · [`apps/web/app/api/mcp/route.ts:167-203`](../apps/web/app/api/mcp/route.ts#L167-L203)
 
 <a id="pwa-assets-behind-auth"></a>
 

@@ -49,7 +49,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - `submit` allows 10 claims per hour per entity through Upstash. Without Upstash the limit is skipped.
   - The only update to a claim is the admin status change `pending_review` → `active` or `rejected`. Application code enforces this; the database does not.
   - No page calls `detail` or `addNote`; only the MCP `add_note` tool calls `addNote`.
-- **Claim UI:** `SubmitClaimForm`, `ClaimCard` and `ClaimsTimeline` (infinite scroll). Claims appear on the dashboard ("Make a Prediction"), My Claims, profile and ticker pages. Claim cards never show outcomes, because no caller passes them.
+- **Claim UI:** `SubmitClaimForm`, `ClaimCard` and `ClaimsTimeline` (infinite scroll). Claims appear on the dashboard ("Make a Prediction"), My Claims, profile and ticker pages. Until wave 1 those timelines listed no claims at all (their query failed validation) and cards never showed outcomes; now each card shows its result, "Awaiting result" or when it matures.
 - **Content hashing** (`packages/ingestion/src/hasher.ts`): SHA-256 of `{url, text, ts}`. Ingest skips any capture whose hash is already in `events`.
 - **Inngest workers:** `ingest-sources` (weekdays 16:30 US Eastern; it ran at 20:30 UTC until wave 1), `extract-claims` (on `ingestion/completed`) and `merkle-audit` (daily 22:00 UTC).
 - **Merkle audit** (`packages/shared/src/merkle.ts`): `computeClaimLeafHash()` and `buildMerkleTree()`. Pairs are hashed level by level, duplicating the last node when a level is odd, and the root is stored in `audit_roots`.
