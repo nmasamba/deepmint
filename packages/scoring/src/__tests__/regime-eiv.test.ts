@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { detectRegime, toRegimeSnapshotValues, fromRegimeSnapshotValues } from "../regime";
-import { computeRegimeAwareEIV, formatEIVWithContext } from "../eiv";
+import { computeRegimeAwareEIV } from "../eiv";
 
 describe("detectRegime", () => {
   it("detects high_vol when VIX > 25", () => {
@@ -143,30 +143,6 @@ describe("computeRegimeAwareEIV", () => {
       "bull"
     );
     expect(result).toBeLessThanOrEqual(100);
-  });
-});
-
-describe("formatEIVWithContext", () => {
-  it("labels strong edge for EIV >= 60", () => {
-    const result = formatEIVWithContext(65, "bull", true);
-    expect(result.label).toBe("Strong Edge");
-    expect(result.warning).toBeNull();
-  });
-
-  it("labels moderate edge for EIV 30-59", () => {
-    const result = formatEIVWithContext(45, "bear", true);
-    expect(result.label).toBe("Moderate Edge");
-  });
-
-  it("warns when no regime data", () => {
-    const result = formatEIVWithContext(20, "high_vol", false);
-    expect(result.warning).toContain("high_vol");
-    expect(result.warning).toContain("shrinkage");
-  });
-
-  it("labels no edge for 0", () => {
-    const result = formatEIVWithContext(0, "bull", true);
-    expect(result.label).toBe("No Edge");
   });
 });
 

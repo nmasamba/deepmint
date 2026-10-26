@@ -96,9 +96,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · dead-code · `dead-scoring-code`
 
-- **What's wrong:** Six exported functions are called only by tests: `calmarRatio`, `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore`, `timeDecayedBrierScore` and `formatEIVWithContext`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
-- **User impact:** Maintainers may assume continuous Brier and MAE/MFE feed live scores. Because the profile copies the EIV thresholds instead of calling `formatEIVWithContext`, a scored entity with EIV 0 shows "No data yet" rather than "No Edge".
-- **Evidence:** [`packages/scoring/src/player.ts:23`](../packages/scoring/src/player.ts#L23) · [`packages/scoring/src/guide.ts:141-189`](../packages/scoring/src/guide.ts#L141-L189) · [`packages/scoring/src/eiv.ts:67`](../packages/scoring/src/eiv.ts#L67) · [`apps/web/components/EntityProfileTabs.tsx:104-112`](../apps/web/components/EntityProfileTabs.tsx#L104-L112) · [`apps/worker/functions/markoutClaim.ts:110-129`](../apps/worker/functions/markoutClaim.ts#L110-L129)
+- **What's wrong:** Five exported functions are called only by tests: `calmarRatio`, `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore` and `timeDecayedBrierScore`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
+- **User impact:** Maintainers may assume continuous Brier and MAE/MFE feed live scores.
+- **Evidence:** [`packages/scoring/src/player.ts:23`](../packages/scoring/src/player.ts#L23) · [`packages/scoring/src/guide.ts:141-189`](../packages/scoring/src/guide.ts#L141-L189) · [`apps/worker/functions/markoutClaim.ts:110-129`](../apps/worker/functions/markoutClaim.ts#L110-L129)
 
 <a id="area-product"></a>
 
