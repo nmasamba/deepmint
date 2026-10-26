@@ -138,6 +138,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - The regime filter chips always return an empty board, because only `eiv` rows carry a regime tag.
   - "Best in Current Conditions" returned no rows until it was repointed at the `eiv` rows on 2026-08-03.
   - The "Most Influential" leaderboard tab is always empty. It reads `scores`, but the value lives only in `influence_scores`.
+  - Until wave 1, `influence-track` threw on every claim from a Player who follows anyone (a date bound inside raw SQL), so no influence event was ever recorded. It now runs, counts only active claims by followed Guides, and measures the 48-hour window from the claim's own time.
   - Four notification types fire: `new_follower`, `signal_trade_logged`, and, since Sprint 7, `outcome_matured` and `rank_change`. `new_claim_from_follow` has a preference toggle but is never sent.
 
 ## Sprint 6 — B2B API, Proof-of-Skin, instrument expansion

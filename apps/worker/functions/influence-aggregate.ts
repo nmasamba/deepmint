@@ -1,6 +1,6 @@
 import { inngest } from "../inngest";
-import { db, eq, sql, gte } from "@deepmint/db";
-import { influenceEvents, influenceScores, entities } from "@deepmint/db/schema";
+import { db, eq, and, sql, gte } from "@deepmint/db";
+import { influenceEvents, influenceScores, entities, claims } from "@deepmint/db/schema";
 
 /**
  * Influence aggregation worker: triggered by scoring/completed event.
@@ -18,6 +18,16 @@ export const influenceAggregateFunction = inngest.createFunction(
       const today = new Date().toISOString().slice(0, 10);
       const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
 
+      // Events from the last 30 days that still count: both claims active and
+      // the credited entity a live Guide. Rows recorded before those rules
+      // were enforced may break them.
+      const counted = and(
+        gte(influenceEvents.detectedAt, thirtyDaysAgo),
+        sql`exists (select 1 from ${claims} where ${claims.id} = ${influenceEvents.guideClaimId} and ${claims.status} = 'active')`,
+        sql`(${influenceEvents.playerClaimId} is null or exists (select 1 from ${claims} where ${claims.id} = ${influenceEvents.playerClaimId} and ${claims.status} = 'active'))`,
+        sql`exists (select 1 from ${entities} where ${entities.id} = ${influenceEvents.guideEntityId} and ${entities.type} = 'guide' and ${entities.deletedAt} is null)`,
+      );
+
       // Get all guides who have influence events in last 30d
       const guideStats = await db
         .select({
@@ -27,7 +37,7 @@ export const influenceAggregateFunction = inngest.createFunction(
           avgLag: sql<string>`avg(${influenceEvents.lagHours})`,
         })
         .from(influenceEvents)
-        .where(gte(influenceEvents.detectedAt, thirtyDaysAgo))
+        .where(counted)
         .groupBy(influenceEvents.guideEntityId);
 
       let upserted = 0;
@@ -40,10 +50,7 @@ export const influenceAggregateFunction = inngest.createFunction(
             count: sql<number>`count(*)::int`,
           })
           .from(influenceEvents)
-          .where(
-            sql`${influenceEvents.guideEntityId} = ${stat.guideEntityId}
-                AND ${influenceEvents.detectedAt} >= ${thirtyDaysAgo}`,
-          )
+          .where(and(eq(influenceEvents.guideEntityId, stat.guideEntityId), counted))
           .groupBy(influenceEvents.instrumentId)
           .orderBy(sql`count(*) DESC`)
           .limit(5);

@@ -1,18 +1,23 @@
 import { inngest } from "../inngest";
-import { db, eq, sql, and, gte } from "@deepmint/db";
+import { db, eq, and, gt, gte, lt, lte, inArray, isNull } from "@deepmint/db";
 import {
   claims,
   follows,
   influenceEvents,
   entities,
 } from "@deepmint/db/schema";
+import { detectInfluenceEvents } from "@deepmint/scoring";
+import type { GuideClaimWindow, PlayerAction } from "@deepmint/scoring";
 
 const WINDOW_HOURS = 48;
 
 /**
  * Influence tracking worker: triggered by claims/created event.
- * Detects when a Player's action correlates with a followed Guide's claim
- * (or vice versa) within a 48-hour window.
+ * Records when a Player's claim follows, within 48 hours, an active claim on
+ * the same instrument by a Guide that Player follows. A Guide's claim looks
+ * forward to its Player followers' claims; a Player's claim looks back at
+ * the Guides it follows. Players follow only Guides here: following another
+ * Player records nothing.
  */
 export const influenceTrackFunction = inngest.createFunction(
   {
@@ -21,131 +26,187 @@ export const influenceTrackFunction = inngest.createFunction(
     triggers: [{ event: "claims/created" }],
   },
   async ({ event, step }) => {
-    const { claimId, entityId, instrumentId, direction } = event.data;
+    const { claimId, entityId } = event.data;
 
     const result = await step.run("detect-influence", async () => {
-      // Get entity type
       const [entity] = await db
         .select({ type: entities.type })
         .from(entities)
         .where(eq(entities.id, entityId))
         .limit(1);
 
-      if (!entity) return { eventsCreated: 0 };
+      // The stored claim anchors the window (not wall-clock now, which drifts
+      // with the delay before this worker runs). A claim held for review or
+      // rejected records no influence.
+      const [claim] = await db
+        .select({
+          instrumentId: claims.instrumentId,
+          direction: claims.direction,
+          status: claims.status,
+          createdAt: claims.createdAt,
+        })
+        .from(claims)
+        .where(eq(claims.id, claimId))
+        .limit(1);
 
-      const windowStart = new Date(Date.now() - WINDOW_HOURS * 3600 * 1000);
-      let eventsCreated = 0;
+      if (!entity || !claim || claim.status !== "active") {
+        return { eventsCreated: 0 };
+      }
+
+      const claimTime = new Date(claim.createdAt);
+      const windowMs = WINDOW_HOURS * 3600 * 1000;
+      const followGraph = new Map<string, Set<string>>();
+      let guideClaims: GuideClaimWindow[];
+      let playerActions: PlayerAction[];
 
       if (entity.type === "guide") {
-        // Guide made a claim — check if any following Players have claims
-        // on the same instrument in the last 48h AFTER this claim
-        // Since this event fires immediately, we check Players who acted
-        // on the same instrument recently (they may have anticipated the guide)
-        // Actually per spec: check if Players who follow this Guide have claims
-        // on same instrument in last 48h
-        const playerFollowers = await db
-          .select({ followerId: follows.followerId })
+        // Players following this Guide who made an active claim on the same
+        // instrument within 48 h after this one.
+        const followers = await db
+          .select({ id: follows.followerId })
           .from(follows)
-          .where(eq(follows.followedId, entityId));
+          .innerJoin(entities, eq(follows.followerId, entities.id))
+          .where(
+            and(
+              eq(follows.followedId, entityId),
+              eq(entities.type, "player"),
+              isNull(entities.deletedAt),
+            ),
+          );
+        if (followers.length === 0) return { eventsCreated: 0 };
+        for (const f of followers) followGraph.set(f.id, new Set([entityId]));
 
-        if (playerFollowers.length === 0) return { eventsCreated: 0 };
-
-        const followerIds = playerFollowers.map((f) => f.followerId);
-
-        // Find player claims on same instrument within window
-        const playerClaims = await db
-          .select()
+        guideClaims = [
+          {
+            claimId,
+            entityId,
+            instrumentId: claim.instrumentId,
+            direction: claim.direction,
+            createdAt: claimTime,
+          },
+        ];
+        const later = await db
+          .select({
+            id: claims.id,
+            entityId: claims.entityId,
+            direction: claims.direction,
+            createdAt: claims.createdAt,
+          })
           .from(claims)
           .where(
-            sql`${claims.entityId} IN (${sql.join(followerIds.map(id => sql`${id}`), sql`, `)})
-                AND ${claims.instrumentId} = ${instrumentId}
-                AND ${claims.createdAt} >= ${windowStart}
-                AND ${claims.id} != ${claimId}`
+            and(
+              inArray(claims.entityId, followers.map((f) => f.id)),
+              eq(claims.instrumentId, claim.instrumentId),
+              eq(claims.status, "active"),
+              gt(claims.createdAt, claimTime),
+              lte(claims.createdAt, new Date(claimTime.getTime() + windowMs)),
+            ),
           );
-
-        for (const pc of playerClaims) {
-          // Player acted after guide's claim? We use the claim's createdAt
-          const guideClaim = await db
-            .select({ createdAt: claims.createdAt })
-            .from(claims)
-            .where(eq(claims.id, claimId))
-            .limit(1);
-
-          if (!guideClaim[0]) continue;
-
-          const lagMs = new Date(pc.createdAt).getTime() - new Date(guideClaim[0].createdAt).getTime();
-          if (lagMs <= 0) continue;
-          const lagHours = lagMs / (1000 * 3600);
-          if (lagHours > WINDOW_HOURS) continue;
-
-          await db.insert(influenceEvents).values({
-            guideEntityId: entityId,
-            guideClaimId: claimId,
-            playerEntityId: pc.entityId,
-            playerClaimId: pc.id,
-            instrumentId,
-            lagHours: (Math.round(lagHours * 100) / 100).toString(),
-            directionMatch: direction === pc.direction,
-          });
-          eventsCreated++;
-        }
+        playerActions = later.map((c) => ({
+          entityId: c.entityId,
+          claimId: c.id,
+          instrumentId: claim.instrumentId,
+          direction: c.direction,
+          createdAt: new Date(c.createdAt),
+        }));
       } else {
-        // Player made a claim — check if any Guide they follow made a claim
-        // on same instrument in preceding 48h
-        const guidesFollowed = await db
-          .select({ followedId: follows.followedId })
+        // Guides this Player follows, and their active claims on the same
+        // instrument within 48 h before this one.
+        const guides = await db
+          .select({ id: follows.followedId })
           .from(follows)
-          .where(eq(follows.followerId, entityId));
+          .innerJoin(entities, eq(follows.followedId, entities.id))
+          .where(
+            and(
+              eq(follows.followerId, entityId),
+              eq(entities.type, "guide"),
+              isNull(entities.deletedAt),
+            ),
+          );
+        if (guides.length === 0) return { eventsCreated: 0 };
+        followGraph.set(entityId, new Set(guides.map((g) => g.id)));
 
-        if (guidesFollowed.length === 0) return { eventsCreated: 0 };
-
-        const guideIds = guidesFollowed.map((f) => f.followedId);
-
-        const guideClaims = await db
-          .select()
+        const earlier = await db
+          .select({
+            id: claims.id,
+            entityId: claims.entityId,
+            direction: claims.direction,
+            createdAt: claims.createdAt,
+          })
           .from(claims)
           .where(
-            sql`${claims.entityId} IN (${sql.join(guideIds.map(id => sql`${id}`), sql`, `)})
-                AND ${claims.instrumentId} = ${instrumentId}
-                AND ${claims.createdAt} >= ${windowStart}
-                AND ${claims.id} != ${claimId}`
+            and(
+              inArray(claims.entityId, guides.map((g) => g.id)),
+              eq(claims.instrumentId, claim.instrumentId),
+              eq(claims.status, "active"),
+              gte(claims.createdAt, new Date(claimTime.getTime() - windowMs)),
+              lt(claims.createdAt, claimTime),
+            ),
           );
+        guideClaims = earlier.map((c) => ({
+          claimId: c.id,
+          entityId: c.entityId,
+          instrumentId: claim.instrumentId,
+          direction: c.direction,
+          createdAt: new Date(c.createdAt),
+        }));
+        playerActions = [
+          {
+            entityId,
+            claimId,
+            instrumentId: claim.instrumentId,
+            direction: claim.direction,
+            createdAt: claimTime,
+          },
+        ];
+      }
 
-        // Use the player claim's stored createdAt — NOT wall-clock now() —
-        // so lag is measured between the two claims, not inflated by the
-        // (variable) delay between claim creation and this worker running.
-        const [playerClaim] = await db
-          .select({ createdAt: claims.createdAt })
-          .from(claims)
-          .where(eq(claims.id, claimId))
-          .limit(1);
-        if (!playerClaim) return { eventsCreated: 0 };
-        const playerClaimTime = new Date(playerClaim.createdAt);
+      const detected = detectInfluenceEvents(
+        guideClaims,
+        playerActions,
+        followGraph,
+        WINDOW_HOURS,
+      );
+      if (detected.length === 0) return { eventsCreated: 0 };
 
-        for (const gc of guideClaims) {
-          // Player acted after guide's claim
-          const lagMs = playerClaimTime.getTime() - new Date(gc.createdAt).getTime();
-          if (lagMs <= 0) continue;
-          const lagHours = lagMs / (1000 * 3600);
-          if (lagHours > WINDOW_HOURS) continue;
+      // Skip pairs already recorded: a retry of this run, or the same pair
+      // found earlier from the other claim's side.
+      const recorded = await db
+        .select({
+          guideClaimId: influenceEvents.guideClaimId,
+          playerClaimId: influenceEvents.playerClaimId,
+        })
+        .from(influenceEvents)
+        .where(
+          and(
+            inArray(influenceEvents.guideClaimId, detected.map((d) => d.guideClaimId)),
+            inArray(influenceEvents.playerClaimId, detected.map((d) => d.playerClaimId!)),
+          ),
+        );
+      const seen = new Set(recorded.map((r) => `${r.guideClaimId}|${r.playerClaimId}`));
+      const fresh = detected.filter(
+        (d) => !seen.has(`${d.guideClaimId}|${d.playerClaimId}`),
+      );
 
-          await db.insert(influenceEvents).values({
-            guideEntityId: gc.entityId,
-            guideClaimId: gc.id,
-            playerEntityId: entityId,
-            playerClaimId: claimId,
-            instrumentId,
-            lagHours: (Math.round(lagHours * 100) / 100).toString(),
-            directionMatch: direction === gc.direction,
-          });
-          eventsCreated++;
-        }
+      if (fresh.length > 0) {
+        await db.insert(influenceEvents).values(
+          fresh.map((d) => ({
+            guideEntityId: d.guideEntityId,
+            guideClaimId: d.guideClaimId,
+            playerEntityId: d.playerEntityId,
+            playerClaimId: d.playerClaimId ?? null,
+            instrumentId: d.instrumentId,
+            lagHours: d.lagHours.toString(),
+            directionMatch: d.directionMatch,
+          })),
+        );
       }
 
       console.log(
-        `[influence-track] ${eventsCreated} influence events detected for claim ${claimId}`,
+        `[influence-track] ${fresh.length} influence events recorded for claim ${claimId}` +
+          (fresh.length < detected.length ? ` (${detected.length - fresh.length} already recorded)` : ""),
       );
-      return { eventsCreated };
+      return { eventsCreated: fresh.length };
     });
 
     return result;

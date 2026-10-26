@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **91 open issues: no high, 23 medium and 68 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **90 open issues: no high, 23 medium and 67 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,7 +26,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 3 | 5 | 8 |
+| [Scoring and ranking](#area-scoring) | 0 | 3 | 4 | 7 |
 | [Product (web app)](#area-product) | 0 | 9 | 19 | 28 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 12 | 15 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
@@ -34,7 +34,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **23** | **68** | **91** |
+| **All** | **0** | **23** | **67** | **90** |
 
 <a id="area-scoring"></a>
 
@@ -80,16 +80,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Dormant while SnapTrade is unconfigured (last recorded). Once enabled, linking changes no score or rank.
 - **Evidence:** [`apps/worker/functions/score.ts:66-78`](../apps/worker/functions/score.ts#L66-L78) · [`packages/api/routers/broker.ts:171-196`](../packages/api/routers/broker.ts#L171-L196) · [`apps/web/components/landing/ChoosePath.tsx:118`](../apps/web/components/landing/ChoosePath.tsx#L118) · [`apps/web/components/settings/BrokerVerification.tsx:114-115`](../apps/web/components/settings/BrokerVerification.tsx#L114-L115)
 
-<a id="influence-pipeline-flaws"></a>
-
-### Influence tracking ignores claim status and entity type
-
-**Low** · bug · `influence-pipeline-flaws`
-
-- **What's wrong:** Only self-logged claims (always Players) emit `claims/created`, so `influence-track`'s Guide branch never runs. Its Player branch counts followed entities' claims of any status, including `pending_review` and `rejected`, and treats any followed entity, Players included, as the "guide". `follower_count` actually holds distinct acting Players over 30 days, and `player_trade_id` is never written.
-- **User impact:** A Guide's "Events (30d)" and "Followers Acting" can include reactions to unreviewed or rejected claims. A Player whom other Players follow can appear in Trending Influencers, linking to a profile with no Influence tab.
-- **Evidence:** [`apps/worker/functions/influence-track.ts:39`](../apps/worker/functions/influence-track.ts#L39) · [`apps/worker/functions/influence-track.ts:95-112`](../apps/worker/functions/influence-track.ts#L95-L112) · [`apps/worker/functions/influence-aggregate.ts:26`](../apps/worker/functions/influence-aggregate.ts#L26) · [`packages/api/routers/influence.ts:28-43`](../packages/api/routers/influence.ts#L28-L43)
-
 <a id="neutral-claim-scoring"></a>
 
 ### Neutral claims feed raw price drift into returns
@@ -116,9 +106,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · dead-code · `dead-scoring-code`
 
-- **What's wrong:** Seven exported functions are called only by tests: `detectInfluenceEvents`, `calmarRatio`, `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore`, `timeDecayedBrierScore` and `formatEIVWithContext`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
+- **What's wrong:** Six exported functions are called only by tests: `calmarRatio`, `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore`, `timeDecayedBrierScore` and `formatEIVWithContext`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
 - **User impact:** Maintainers may assume continuous Brier and MAE/MFE feed live scores. Because the profile copies the EIV thresholds instead of calling `formatEIVWithContext`, a scored entity with EIV 0 shows "No data yet" rather than "No Edge".
-- **Evidence:** [`packages/scoring/src/influence.ts:46`](../packages/scoring/src/influence.ts#L46) · [`packages/scoring/src/player.ts:23`](../packages/scoring/src/player.ts#L23) · [`packages/scoring/src/guide.ts:141-189`](../packages/scoring/src/guide.ts#L141-L189) · [`packages/scoring/src/eiv.ts:67`](../packages/scoring/src/eiv.ts#L67) · [`apps/web/components/EntityProfileTabs.tsx:104-112`](../apps/web/components/EntityProfileTabs.tsx#L104-L112) · [`apps/worker/functions/markoutClaim.ts:110-129`](../apps/worker/functions/markoutClaim.ts#L110-L129)
+- **Evidence:** [`packages/scoring/src/player.ts:23`](../packages/scoring/src/player.ts#L23) · [`packages/scoring/src/guide.ts:141-189`](../packages/scoring/src/guide.ts#L141-L189) · [`packages/scoring/src/eiv.ts:67`](../packages/scoring/src/eiv.ts#L67) · [`apps/web/components/EntityProfileTabs.tsx:104-112`](../apps/web/components/EntityProfileTabs.tsx#L104-L112) · [`apps/worker/functions/markoutClaim.ts:110-129`](../apps/worker/functions/markoutClaim.ts#L110-L129)
 
 <a id="area-product"></a>
 
