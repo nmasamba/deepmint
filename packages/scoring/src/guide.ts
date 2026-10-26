@@ -65,17 +65,39 @@ export function brierScore(
   return sum / predictions.length;
 }
 
+/** Smallest |target / entry - 1| that counts as a real price target (1%). */
+export const TARGET_MIN_MOVE_FRAC = 0.01;
+
+/**
+ * True when a published target is more than `minMoveFrac` away from the entry
+ * price. A 1-cent target on a $100 stock is not a forecast: it scores a
+ * trivial 1.000 on any move in its direction.
+ */
+export function isUsableTarget(
+  targetPriceCents: number | null,
+  entryPriceCents: number,
+  minMoveFrac: number = TARGET_MIN_MOVE_FRAC
+): boolean {
+  if (targetPriceCents === null || entryPriceCents === 0) return false;
+  return (
+    Math.abs(targetPriceCents - entryPriceCents) >
+    minMoveFrac * Math.abs(entryPriceCents)
+  );
+}
+
 /**
  * Fraction of outcomes that carry a usable published price target.
  * Reported separately so a Guide who publishes targets on 3 of 100 calls is
- * distinguishable from one who publishes them on all 100.
+ * distinguishable from one who publishes them on all 100. Targets too close
+ * to entry to score (see isUsableTarget) do not count.
  */
 export function targetCoverage(
-  outcomes: { targetPriceCents: number | null }[]
+  outcomes: { targetPriceCents: number | null; entryPriceCents: number }[]
 ): number {
   if (outcomes.length === 0) return 0;
   return (
-    outcomes.filter((o) => o.targetPriceCents !== null).length / outcomes.length
+    outcomes.filter((o) => isUsableTarget(o.targetPriceCents, o.entryPriceCents))
+      .length / outcomes.length
   );
 }
 
@@ -98,10 +120,10 @@ export function targetCoverage(
  *    ratio reproduces the correct cases exactly (exit 120 -> 1.0, exit 110 ->
  *    0.5) and returns 0 for a wrong-way move.
  *
- * `minMoveFrac` is the smallest |target/entry - 1| that counts as a real
- * target. Without it a 1-cent target on a $100 stock scores a trivial 1.000.
- * Outcomes below the floor are EXCLUDED (there is no target worth scoring)
- * rather than scored 0.
+ * `minMoveFrac` (default TARGET_MIN_MOVE_FRAC) is the smallest
+ * |target/entry - 1| that counts as a real target. Without it a 1-cent target
+ * on a $100 stock scores a trivial 1.000. Outcomes below the floor are
+ * EXCLUDED (there is no target worth scoring) rather than scored 0.
  */
 export function targetPrecision(
   outcomes: {
@@ -114,10 +136,9 @@ export function targetPrecision(
   const precisions: number[] = [];
   for (const o of outcomes) {
     if (o.targetPriceCents === null) continue;
-    if (o.entryPriceCents === 0) continue;
+    // Degenerate / trivial target (or no entry price): nothing to score.
+    if (!isUsableTarget(o.targetPriceCents, o.entryPriceCents, o.minMoveFrac)) continue;
     const targetMove = o.targetPriceCents - o.entryPriceCents; // SIGNED
-    const floor = (o.minMoveFrac ?? 0) * Math.abs(o.entryPriceCents);
-    if (Math.abs(targetMove) <= floor) continue; // degenerate / trivial target
     const actualMove = o.exitPriceCents - o.entryPriceCents; // SIGNED
     precisions.push(Math.max(0, Math.min(1, actualMove / targetMove)));
   }

@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **90 open issues: no high, 23 medium and 67 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **89 open issues: no high, 23 medium and 66 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,7 +26,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 3 | 4 | 7 |
+| [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
 | [Product (web app)](#area-product) | 0 | 9 | 19 | 28 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 12 | 15 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
@@ -34,7 +34,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 10 | 12 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **23** | **67** | **90** |
+| **All** | **0** | **23** | **66** | **89** |
 
 <a id="area-scoring"></a>
 
@@ -89,16 +89,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Markout negates the return only for shorts, so a neutral claim stores the raw price move as `return_bps`. That value feeds `avg_return_bps`, EIV and every Player risk metric. (The ±2% threshold differs from `computeSliceOutcome`, but that function is test-only.)
 - **User impact:** Market drift is credited or charged to neutral calls: a wrong neutral call before a +10% move adds +1000 bps to the author's average return.
 - **Evidence:** [`apps/worker/functions/markoutClaim.ts:102-108`](../apps/worker/functions/markoutClaim.ts#L102-L108) · [`apps/worker/functions/score.ts:139`](../apps/worker/functions/score.ts#L139) · [`apps/worker/functions/score.ts:202`](../apps/worker/functions/score.ts#L202)
-
-<a id="target-precision-floor-inactive"></a>
-
-### Target precision's minimum-move floor is never applied
-
-**Low** · bug · `target-precision-floor-inactive`
-
-- **What's wrong:** `targetPrecision` skips near-entry targets only when `minMoveFrac` is passed, and the scorer never passes it, so the floor is 0. `targetCoverage` counts targets that precision skips.
-- **User impact:** A 1-cent target on a $100 stock scores 1.000 if the price moves the right way. Only the Guide Stats tab and the APIs show `target_precision`; EIV and the leaderboard UI do not use it.
-- **Evidence:** [`packages/scoring/src/guide.ts:101-126`](../packages/scoring/src/guide.ts#L101-L126) · [`apps/worker/functions/score.ts:159-174`](../apps/worker/functions/score.ts#L159-L174)
 
 <a id="dead-scoring-code"></a>
 
