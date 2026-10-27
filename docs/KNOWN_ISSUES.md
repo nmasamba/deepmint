@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **71 open issues: no high, 19 medium and 52 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **69 open issues: no high, 18 medium and 51 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 7 | 16 | 23 |
+| [Product (web app)](#area-product) | 0 | 6 | 15 | 21 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 6 | 8 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 1 | 10 | 11 |
 | [Data model and shared code](#area-data) | 0 | 1 | 4 | 5 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **19** | **52** | **71** |
+| **All** | **0** | **18** | **51** | **69** |
 
 <a id="area-scoring"></a>
 
@@ -166,13 +166,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="price-lookups-uncached-serial"></a>
 
-### Price lookups are uncached and serial on user-facing paths
+### Mirror valuations look up a price for every ticker ever mirrored
 
-**Medium** · bug · `price-lookups-uncached-serial`
+**Low** · bug · `price-lookups-uncached-serial`
 
-- **What's wrong:** The ticker page's server render awaits an uncached `getCurrentPrice` with no catch, and `ticker.overview` makes a second lookup the client ignores. Mirrored portfolios never close positions. (Since wave 2, paper and Signal Simulate valuations look up each distinct open ticker once through the cached `getLatestCloses`, and paper trades fill through `getLatestClose`.)
-- **User impact:** If Polygon fails, the ticker page shows the generic error screen instead of degrading, and each ticker view spends Polygon requests on prices nobody sees. A mirrored portfolio's open positions grow without bound, and with them the time to value it.
-- **Evidence:** [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53) · [`packages/api/routers/ticker.ts:40-52`](../packages/api/routers/ticker.ts#L40-L52) · [`apps/worker/functions/signal-simulate.ts:78-104`](../apps/worker/functions/signal-simulate.ts#L78-L104)
+- **What's wrong:** Mirrored portfolios never close positions ([mirror-portfolio-behaviour](#mirror-portfolio-behaviour)), so the Signal Simulate comparison must price every ticker a mirror has ever traded. (Since wave 2, paper and Signal Simulate valuations look up each distinct open ticker once through the cached `getLatestCloses`, paper trades fill through `getLatestClose`, and the ticker page reads a cached close and renders without one.)
+- **User impact:** Small while only the Mag 7 exist: a cold comparison takes at most 7 throttled lookups (about 75 s), then 5 minutes of cache.
+- **Evidence:** [`apps/worker/functions/signal-simulate.ts:78-104`](../apps/worker/functions/signal-simulate.ts#L78-L104) · [`packages/api/routers/signalSimulate.ts`](../packages/api/routers/signalSimulate.ts)
 
 <a id="instrument-universe-inconsistent"></a>
 
@@ -184,35 +184,15 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Latent while only the Mag 7 exist, as in production since 2026-08-11, and Mag-7 only is the deliberate scope for now. Once an admin adds instruments (for example with the S&P button), users can claim and trade tickers whose pages say "Coming soon", and ingestion never produces Guide claims for them. Make every surface agree before expanding.
 - **Evidence:** [`packages/ingestion/src/extractor.ts:461-472`](../packages/ingestion/src/extractor.ts#L461-L472) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:18-30`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L18-L30) · [`packages/api/routers/claims.ts:73-91`](../packages/api/routers/claims.ts#L73-L91) · [`packages/api/routers/paper.ts:138-150`](../packages/api/routers/paper.ts#L138-L150) · [`apps/web/app/api/mcp/route.ts:66-67`](../apps/web/app/api/mcp/route.ts#L66-L67)
 
-<a id="ticker-top-lists-global"></a>
-
-### Ticker pages' Top Guides and Top Players ignore the ticker
-
-**Low** · bug · `ticker-top-lists-global`
-
-- **What's wrong:** `ticker.overview` ranks Guides by EIV and Players by Sharpe with no instrument filter; `scores` has no instrument column. `leaderboard.byTicker` ignores its `ticker` argument (nothing calls it).
-- **User impact:** All seven ticker pages show the same global lists, implying specialists on that stock.
-- **Evidence:** [`packages/api/routers/ticker.ts:54-119`](../packages/api/routers/ticker.ts#L54-L119) · [`packages/db/schema/scores.ts:4-16`](../packages/db/schema/scores.ts#L4-L16) · [`packages/api/routers/leaderboard.ts:104-146`](../packages/api/routers/leaderboard.ts#L104-L146)
-
-<a id="ticker-page-dead-fragile-wiring"></a>
-
-### Ticker page: a wasteful overview query, and no loading or error states
-
-**Low** · bug · `ticker-page-dead-fragile-wiring`
-
-- **What's wrong:** `ticker.overview` fetches a price and claim stats the client ignores, so each page view makes two uncached price lookups. The client ignores loading and error states. (Since wave 1 the consensus worker writes the Avg Target and Target Dispersion figures.)
-- **User impact:** Each view spends at least 2 requests of the 5 req/min Polygon plan. Top Guides and Top Players say "No data yet." while loading or after a failed second lookup, and a full Polygon outage errors the whole page.
-- **Evidence:** [`apps/web/app/(app)/ticker/[symbol]/TickerClientSection.tsx:31-64`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/TickerClientSection.tsx#L31-L64) · [`packages/api/routers/ticker.ts:40-52`](../packages/api/routers/ticker.ts#L40-L52) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
-
 <a id="current-price-is-previous-close"></a>
 
 ### "Current price" is the previous session's close
 
 **Low** · bug · `current-price-is-previous-close`
 
-- **What's wrong:** `getCurrentPrice` returns the previous close by design. The ticker page shows it with no label or date, paper trades open, close and mark to it, and Learn says paper trades execute "at the current market price". (Since the next-close entry change, claims no longer use it for entry prices.)
-- **User impact:** The header price can be a session old but reads as live. Paper P&L is off and can be gamed by trading after an intraday move, but only in the user's own sandbox.
-- **Evidence:** [`packages/shared/src/polygon.ts:101-131`](../packages/shared/src/polygon.ts#L101-L131) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:93-97`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L93-L97) · [`packages/api/routers/paper.ts:153`](../packages/api/routers/paper.ts#L153) · [`packages/api/routers/paper.ts:350`](../packages/api/routers/paper.ts#L350) · [`apps/web/lib/learnModules.ts:273`](../apps/web/lib/learnModules.ts#L273)
+- **What's wrong:** Paper trades open, close and mark to the latest close (the previous session's close during market hours), and Learn says paper trades execute "at the current market price". (Since wave 2 the ticker page labels its price "Last close" with the session date, or says "Price unavailable"; since the next-close entry change, claims no longer use it for entry prices.)
+- **User impact:** Paper P&L is off and can be gamed by trading after an intraday move, but only in the user's own sandbox.
+- **Evidence:** [`packages/api/routers/paper.ts:153`](../packages/api/routers/paper.ts#L153) · [`apps/web/lib/learnModules.ts:273`](../apps/web/lib/learnModules.ts#L273)
 
 <a id="mirror-portfolio-behaviour"></a>
 

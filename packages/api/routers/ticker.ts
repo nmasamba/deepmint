@@ -1,19 +1,14 @@
 import { z } from "zod";
-import { eq, and, desc, sql, isNull } from "@deepmint/db";
-import {
-  instruments,
-  consensusSignals,
-  claims,
-  entities,
-  scores,
-} from "@deepmint/db/schema";
+import { eq, desc } from "@deepmint/db";
+import { instruments, consensusSignals } from "@deepmint/db/schema";
 import { router, publicProcedure } from "../trpc";
-import { MAG7_TICKERS, getCurrentPrice } from "@deepmint/shared";
+import { MAG7_TICKERS } from "@deepmint/shared";
+import { topByInstrument } from "../lib/topByInstrument";
 
 export const tickerRouter = router({
   /**
-   * Aggregated overview for a single ticker:
-   * instrument, consensus signal, current price, top guides, top players.
+   * Aggregated overview for a single ticker: instrument, consensus signal,
+   * and the top Guides and Players on that ticker.
    */
   overview: publicProcedure
     .input(z.object({ ticker: z.string().min(1).max(10) }))
@@ -36,116 +31,28 @@ export const tickerRouter = router({
         return { isMag7: false as const, ticker };
       }
 
-      // Parallel fetches
-      const [consensus, priceCents, topGuides, topPlayers, claimStats] =
-        await Promise.all([
-          // Latest consensus signal
-          ctx.db
-            .select()
-            .from(consensusSignals)
-            .where(eq(consensusSignals.instrumentId, instrument.id))
-            .orderBy(desc(consensusSignals.asOfDate))
-            .limit(1)
-            .then((rows: Array<typeof consensusSignals.$inferSelect>) => rows[0] ?? null),
+      const [consensus, topGuides, topPlayers] = await Promise.all([
+        // Latest consensus signal
+        ctx.db
+          .select()
+          .from(consensusSignals)
+          .where(eq(consensusSignals.instrumentId, instrument.id))
+          .orderBy(desc(consensusSignals.asOfDate))
+          .limit(1)
+          .then((rows: Array<typeof consensusSignals.$inferSelect>) => rows[0] ?? null),
 
-          // Current price
-          getCurrentPrice(ticker),
-
-          // Top 5 Guides by EIV for this ticker
-          ctx.db
-            .select({
-              entity: {
-                id: entities.id,
-                displayName: entities.displayName,
-                slug: entities.slug,
-                type: entities.type,
-                avatarUrl: entities.avatarUrl,
-                isVerified: entities.isVerified,
-                brokerLinkStatus: entities.brokerLinkStatus,
-              },
-              eiv: scores.value,
-            })
-            .from(scores)
-            .innerJoin(entities, eq(scores.entityId, entities.id))
-            .where(
-              and(
-                eq(entities.type, "guide"),
-                eq(scores.metric, "eiv"),
-                // Pin to one row per entity. `scores` holds a row per entity
-                // per metric per horizon per regime per DATE, so without these
-                // a guide scored on 30 days appeared 30 times and limit(5)
-                // could return the same guide five times over.
-                eq(scores.horizon, "all"),
-                eq(
-                  scores.asOfDate,
-                  sql`(SELECT MAX(${scores.asOfDate}) FROM ${scores} WHERE ${scores.metric} = 'eiv')`,
-                ),
-                isNull(entities.deletedAt),
-              ),
-            )
-            .orderBy(desc(scores.value))
-            .limit(5),
-
-          // Top 5 Players by Sharpe
-          ctx.db
-            .select({
-              entity: {
-                id: entities.id,
-                displayName: entities.displayName,
-                slug: entities.slug,
-                type: entities.type,
-                avatarUrl: entities.avatarUrl,
-                isVerified: entities.isVerified,
-                brokerLinkStatus: entities.brokerLinkStatus,
-              },
-              sharpe: scores.value,
-            })
-            .from(scores)
-            .innerJoin(entities, eq(scores.entityId, entities.id))
-            .where(
-              and(
-                eq(entities.type, "player"),
-                eq(scores.metric, "sharpe"),
-                // Same one-row-per-entity pinning as topGuides above.
-                eq(scores.horizon, "all"),
-                eq(
-                  scores.asOfDate,
-                  sql`(SELECT MAX(${scores.asOfDate}) FROM ${scores} WHERE ${scores.metric} = 'sharpe')`,
-                ),
-                isNull(entities.deletedAt),
-              ),
-            )
-            .orderBy(desc(scores.value))
-            .limit(5),
-
-          // Claim stats for this instrument
-          ctx.db
-            .select({
-              count: sql<number>`count(*)::int`,
-              avgTargetCents: sql<number>`avg(target_price_cents)::int`,
-            })
-            .from(claims)
-            .where(
-              and(
-                eq(claims.instrumentId, instrument.id),
-                eq(claims.status, "active"),
-              ),
-            )
-            .then((rows: Array<{ count: number; avgTargetCents: number }>) => rows[0]),
-        ]);
+        // Top 5 Guides and Players by hit rate on this instrument
+        topByInstrument(ctx.db, instrument.id, { entityType: "guide", limit: 5 }),
+        topByInstrument(ctx.db, instrument.id, { entityType: "player", limit: 5 }),
+      ]);
 
       return {
         isMag7: true as const,
         ticker,
         instrument,
         consensus,
-        priceCents,
         topGuides,
         topPlayers,
-        claimStats: {
-          count: claimStats?.count ?? 0,
-          avgTargetCents: claimStats?.avgTargetCents ?? null,
-        },
       };
     }),
 });

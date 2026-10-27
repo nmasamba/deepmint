@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
 import { db, desc, asc, eq, and, sql, isNull } from "@deepmint/db";
-import { scores, entities } from "@deepmint/db/schema";
+import { scores, entities, instruments } from "@deepmint/db/schema";
 import { LOWER_IS_BETTER_METRICS } from "@deepmint/shared";
 import { getLatestMarketRegime } from "../lib/marketRegime";
+import { topByInstrument } from "../lib/topByInstrument";
 
 export const leaderboardRouter = router({
   /**
@@ -105,50 +106,30 @@ export const leaderboardRouter = router({
     }),
 
   /**
-   * Top entities for a specific instrument by hit rate.
+   * Top entities for a specific instrument by hit rate on it, with at least
+   * MIN_TICKER_SAMPLE outcomes there (see topByInstrument).
    */
   byTicker: publicProcedure
     .input(
       z.object({
         ticker: z.string().min(1),
+        entityType: z.enum(["player", "guide"]).optional(),
         limit: z.number().min(1).max(50).default(10),
       })
     )
     .query(async ({ input }) => {
-      // This requires joining through claims → outcomes → entities → scores
-      // For now, return top entities by overall hit_rate.
-      // Restrict to the latest as_of_date and the "all" horizon so each entity
-      // appears once with its current value (the scores table holds one row per
-      // entity per metric per horizon per regime per date).
-      const [latestDate] = await db
-        .select({ asOfDate: scores.asOfDate })
-        .from(scores)
-        .where(and(eq(scores.metric, "hit_rate"), eq(scores.horizon, "all")))
-        .orderBy(desc(scores.asOfDate))
+      const [instrument] = await db
+        .select({ id: instruments.id })
+        .from(instruments)
+        .where(eq(instruments.ticker, input.ticker.toUpperCase()))
         .limit(1);
 
-      if (!latestDate) return [];
+      if (!instrument) return [];
 
-      return db
-        .select({
-          entityId: scores.entityId,
-          value: scores.value,
-          entityName: entities.displayName,
-          entitySlug: entities.slug,
-          entityType: entities.type,
-        })
-        .from(scores)
-        .innerJoin(entities, eq(scores.entityId, entities.id))
-        .where(
-          and(
-            eq(scores.metric, "hit_rate"),
-            eq(scores.horizon, "all"),
-            eq(scores.asOfDate, latestDate.asOfDate),
-            isNull(entities.deletedAt)
-          )
-        )
-        .orderBy(desc(scores.value))
-        .limit(input.limit);
+      return topByInstrument(db, instrument.id, {
+        entityType: input.entityType,
+        limit: input.limit,
+      });
     }),
 
   /**

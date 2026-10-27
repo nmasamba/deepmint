@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import { db, eq, desc } from "@deepmint/db";
 import { instruments, consensusSignals } from "@deepmint/db/schema";
-import { MAG7_TICKERS } from "@deepmint/shared";
-import { getCurrentPrice } from "@deepmint/shared";
+import { MAG7_TICKERS, getLatestClose } from "@deepmint/shared";
 import { TickerClaimsSection } from "./TickerClaimsSection";
 import { TickerClientSection } from "./TickerClientSection";
 
@@ -40,8 +39,9 @@ export default async function TickerPage({ params }: TickerPageProps) {
     notFound();
   }
 
-  // Parallel SSR fetches
-  const [consensus, priceCents] = await Promise.all([
+  // Parallel SSR fetches. The price is the latest session close, and the
+  // page still renders without it.
+  const [consensus, lastClose] = await Promise.all([
     db
       .select()
       .from(consensusSignals)
@@ -49,8 +49,13 @@ export default async function TickerPage({ params }: TickerPageProps) {
       .orderBy(desc(consensusSignals.asOfDate))
       .limit(1)
       .then((rows: Array<typeof consensusSignals.$inferSelect>) => rows[0] ?? null),
-    getCurrentPrice(ticker),
+    getLatestClose(ticker).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn(`[ticker] latest close unavailable for ${ticker}:`, err instanceof Error ? err.message : err);
+      return null;
+    }),
   ]);
+  const priceCents = lastClose?.closeCents ?? null;
 
   const consensusColor =
     consensus?.direction === "bullish"
@@ -90,9 +95,18 @@ export default async function TickerPage({ params }: TickerPageProps) {
 
         {/* Price */}
         <div className="text-right">
-          <p className="font-mono text-2xl font-bold text-text-primary">
-            ${(priceCents / 100).toFixed(2)}
-          </p>
+          {lastClose ? (
+            <>
+              <p className="font-mono text-2xl font-bold text-text-primary">
+                ${(lastClose.closeCents / 100).toFixed(2)}
+              </p>
+              <p className="text-xs text-text-secondary">
+                Last close · {lastClose.sessionDate}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-text-secondary">Price unavailable</p>
+          )}
           {consensus && (
             <p className="mt-1 text-xs text-text-secondary">
               Based on {consensus.activeClaims} active claim{consensus.activeClaims !== 1 ? "s" : ""}
