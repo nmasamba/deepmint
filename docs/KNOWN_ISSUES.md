@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **66 open issues: no high, 18 medium and 48 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **65 open issues: no high, 18 medium and 47 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 6 | 15 | 21 |
+| [Product (web app)](#area-product) | 0 | 6 | 14 | 20 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 4 | 6 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 1 | 9 | 10 |
 | [Data model and shared code](#area-data) | 0 | 1 | 4 | 5 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **18** | **48** | **66** |
+| **All** | **0** | **18** | **47** | **65** |
 
 <a id="area-scoring"></a>
 
@@ -186,13 +186,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="current-price-is-previous-close"></a>
 
-### "Current price" is the previous session's close
+### Paper trades fill at the previous session's close
 
 **Low** · bug · `current-price-is-previous-close`
 
-- **What's wrong:** Paper trades open, close and mark to the latest close (the previous session's close during market hours), and Learn says paper trades execute "at the current market price". (Since wave 2 the ticker page labels its price "Last close" with the session date, or says "Price unavailable"; since the next-close entry change, claims no longer use it for entry prices.)
+- **What's wrong:** Paper trades open, close and mark to the latest close, which during market hours is the previous session's. (Since wave 2 the ticker page labels its price "Last close" with the session date, and Learn says paper trades fill at the latest close; since the next-close entry change, claims no longer use it for entry prices.)
 - **User impact:** Paper P&L is off and can be gamed by trading after an intraday move, but only in the user's own sandbox.
-- **Evidence:** [`packages/api/routers/paper.ts:153`](../packages/api/routers/paper.ts#L153) · [`apps/web/lib/learnModules.ts:273`](../apps/web/lib/learnModules.ts#L273)
+- **Evidence:** [`packages/api/routers/paper.ts:153`](../packages/api/routers/paper.ts#L153)
 
 <a id="mirror-portfolio-behaviour"></a>
 
@@ -253,16 +253,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Clicking a notification only marks it read; the stored `claimId`, ticker and rank metadata are never used to link anywhere. Outcome, rank-change and new-follower notifications are also written for ingested Guides, which have no user. (Since wave 2 the "New claim from followed" switch works: `notify-followers-new-claim` notifies followers of each active claim at most 2 days old that emits `claims/created`, which today means self-logged claims only; see [claims-created-only-self-logged](#claims-created-only-self-logged).)
 - **User impact:** No notification leads to the claim, ticker or follower it describes.
 - **Evidence:** [`apps/web/components/notifications/NotificationItem.tsx:40-50`](../apps/web/components/notifications/NotificationItem.tsx#L40-L50) · [`apps/worker/functions/markout.ts:111-117`](../apps/worker/functions/markout.ts#L111-L117)
-
-<a id="learn-content-drift"></a>
-
-### Learn modules contradict how scoring works
-
-**Low** · docs-drift · `learn-content-drift`
-
-- **What's wrong:** Learn defines Sharpe as return above the risk-free rate (none is subtracted) and implies Player Sharpe and drawdown come from a portfolio (they come from claim outcomes). It says Guides "submit confidence levels" (Guides never submit; their confidence is extracted by the LLM). Its calibration module implies a user's stated confidence is graded, but Players never get a calibration score: confidence only scales a claim's consensus weight (0.75–1.25×). It also says paper trades fill "at the current market price".
-- **User impact:** Users form a wrong model of their score, especially around the confidence slider.
-- **Evidence:** [`apps/web/lib/learnModules.ts:48`](../apps/web/lib/learnModules.ts#L48) · [`apps/web/lib/learnModules.ts:210`](../apps/web/lib/learnModules.ts#L210) · [`apps/web/lib/learnModules.ts:273`](../apps/web/lib/learnModules.ts#L273) · [`packages/scoring/src/player.ts:12-18`](../packages/scoring/src/player.ts#L12-L18) · [`apps/worker/functions/score.ts:200-239`](../apps/worker/functions/score.ts#L200-L239)
 
 <a id="terminology-inconsistent"></a>
 

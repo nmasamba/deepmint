@@ -69,6 +69,7 @@ Entries before 0.8.0 are kept as history. Where one was wrong about the code at 
 - Markout fetches one range of daily bars per claim instead of one or two calls, and skips the fetch until the exit session has closed. The pricing rules are pure, unit-tested functions in `packages/scoring/src/markout.ts`.
 - `claims.submit` no longer waits on a throttled price lookup (measured locally: 9 ms).
 - Claim cards for claims without a stored entry say "Entry: first close after claim"; the price used is recorded on the outcome. Signal Simulate mirroring retries instead of opening a paper trade at no price.
+- **Learn describes the scoring Deepmint does.** It defined Sharpe as return above the risk-free rate (none is subtracted), implied Player Sharpe and drawdown come from a portfolio (they come from claim outcomes), said Guides "submit" confidence (the extractor reads it from their text), implied a Player's stated confidence is graded (it only scales the claim's consensus weight, 0.75–1.25×), and said paper trades fill "at the current market price". Each passage now states the formula the code uses, and the paper guide says trades fill at the latest close and that shorts need cash. Closes `learn-content-drift`; part of `current-price-is-previous-close`.
 
 ### Migration
 - `0008_fixed_valeria_richards.sql`: `CREATE TABLE market_regimes`. No existing rows are touched. Apply it to Supabase before this ships.
