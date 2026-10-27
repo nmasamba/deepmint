@@ -109,7 +109,7 @@ A claim's end date is its entry date plus the horizon in calendar days. (For old
 | REST API | `https://www.deepmint.ai/api/v1`: `GET /entities/{slug}/scores`, `GET /instruments/{ticker}/consensus`, `GET /leaderboard?metric=…`, plus the spec at `/openapi.json` | The three data endpoints need an API key (`Authorization: Bearer dm_live_…`), and only admins can create keys. The spec needs no key; signed-in users can also browse it at `/docs/api`. |
 | AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Read tools (regime, consensus, leaderboard, track record, instrument search) need the default read scopes; the write tools (`submit_claim`, `add_note`) need `claims:write` and currently act as the admin who created the key ([known issue](docs/KNOWN_ISSUES.md#mcp-acts-as-admin)). |
 | App API (tRPC) | `/api/trpc` | Used by the web app itself. Its read-only public calls answer without sign-in. |
-| Background jobs | 16 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
+| Background jobs | 17 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
 | Database | PostgreSQL on Supabase | Operators only |
 | Outside services | Clerk (sign-in), Polygon (end-of-day stock prices), Hugging Face router (the extraction model) | — |
 
@@ -182,7 +182,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui components, Serwist (PWA) |
 | API | tRPC v11 (15 routers, 72 procedures), REST `/api/v1`, MCP via `mcp-handler` |
 | Database | PostgreSQL (16 in Docker locally, Supabase in production) with Drizzle ORM 0.41 |
-| Background jobs | Inngest 4 (16 functions) |
+| Background jobs | Inngest 4 (17 functions) |
 | Auth | Clerk (`@clerk/nextjs` 7) |
 | Market data | Polygon.io through `@massive.com/client-js` (US stock endpoints only) |
 | Extraction LLM | OpenAI SDK pointed at the Hugging Face router: `openai/gpt-oss-120b:fastest`, with fallback `meta-llama/Llama-3.3-70B-Instruct:fastest` |
@@ -194,7 +194,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 ```
 apps/
   web/         Next.js app: pages, /api/trpc, /api/v1, /api/mcp, Clerk webhook, /api/inngest
-  worker/      The 16 Inngest functions (served by apps/web) and the backfill CLI
+  worker/      The 17 Inngest functions (served by apps/web) and the backfill CLI
 packages/
   api/         tRPC routers
   db/          Drizzle schema, migrations (drizzle/0000–0009), seed script

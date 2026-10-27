@@ -8,7 +8,7 @@ Docs it points to: [README](../README.md) · [KNOWN_ISSUES](KNOWN_ISSUES.md) · 
 
 ```text
 You are picking up Deepmint: a pnpm/Turborepo monorepo with apps/web (Next.js 15),
-apps/worker (16 Inngest functions, served by apps/web at /api/inngest) and
+apps/worker (17 Inngest functions, served by apps/web at /api/inngest) and
 packages/{api,db,ingestion,scoring,shared}. State below is as of 2026-10-05, main = cd63901.
 
 READ FIRST

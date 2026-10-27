@@ -10,6 +10,7 @@ import { signalSimulateFunction } from "../functions/signal-simulate";
 import { influenceTrackFunction } from "../functions/influence-track";
 import { influenceAggregateFunction } from "../functions/influence-aggregate";
 import { notifyNewFollowerFunction } from "../functions/notify-new-follower";
+import { notifyFollowersNewClaimFunction } from "../functions/notify-followers-new-claim";
 import { backfillPricesFunction } from "../functions/backfill-prices";
 import { brokerSyncFunction } from "../functions/broker-sync";
 import { backfillFunction } from "../functions/backfill";
@@ -29,6 +30,7 @@ export const inngestFunctions = [
   influenceTrackFunction,
   influenceAggregateFunction,
   notifyNewFollowerFunction,
+  notifyFollowersNewClaimFunction,
   backfillPricesFunction,
   brokerSyncFunction,
   backfillFunction,

@@ -246,13 +246,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="notifications-dead-ends"></a>
 
-### Notifications are dead ends, and one preference does nothing
+### Notifications are dead ends
 
 **Low** · feature-gap · `notifications-dead-ends`
 
-- **What's wrong:** Clicking a notification only marks it read; the stored `claimId`, ticker and rank metadata are never used to link anywhere. The "New claim from followed" switch saves a preference for a notification type nothing sends. Outcome, rank-change and new-follower notifications are also written for ingested Guides, which have no user.
-- **User impact:** No notification leads to the claim, ticker or follower it describes, and one of the five notification switches in Settings changes nothing.
-- **Evidence:** [`apps/web/components/notifications/NotificationItem.tsx:40-50`](../apps/web/components/notifications/NotificationItem.tsx#L40-L50) · [`packages/db/queries/createNotification.ts:9`](../packages/db/queries/createNotification.ts#L9) · [`apps/worker/functions/markout.ts:111-117`](../apps/worker/functions/markout.ts#L111-L117)
+- **What's wrong:** Clicking a notification only marks it read; the stored `claimId`, ticker and rank metadata are never used to link anywhere. Outcome, rank-change and new-follower notifications are also written for ingested Guides, which have no user. (Since wave 2 the "New claim from followed" switch works: `notify-followers-new-claim` notifies followers of each active claim at most 2 days old that emits `claims/created`, which today means self-logged claims only; see [claims-created-only-self-logged](#claims-created-only-self-logged).)
+- **User impact:** No notification leads to the claim, ticker or follower it describes.
+- **Evidence:** [`apps/web/components/notifications/NotificationItem.tsx:40-50`](../apps/web/components/notifications/NotificationItem.tsx#L40-L50) · [`apps/worker/functions/markout.ts:111-117`](../apps/worker/functions/markout.ts#L111-L117)
 
 <a id="learn-content-drift"></a>
 
