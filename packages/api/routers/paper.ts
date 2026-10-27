@@ -7,22 +7,23 @@ import {
 } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
-import { getCurrentPrice } from "@deepmint/shared";
+import { getLatestClose, getLatestCloses } from "@deepmint/shared";
+import {
+  PAPER_STARTING_BALANCE_CENTS,
+  availableCashCents,
+  closeFor,
+  realizedPnlCents,
+  valuePortfolio,
+} from "../lib/paperAccounting";
 
 const MAX_PORTFOLIOS = 5;
 
 export const paperRouter = router({
-  /** Create a new paper portfolio. Max 5 per entity. */
+  /** Create a new paper portfolio, with $100,000. Max 5 per entity. */
   createPortfolio: protectedProcedure
     .input(
       z.object({
         name: z.string().min(1).max(100),
-        startingBalanceCents: z
-          .number()
-          .int()
-          .positive()
-          .optional()
-          .default(10_000_000), // $100,000
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -44,7 +45,7 @@ export const paperRouter = router({
         .values({
           entityId: ctx.entity.id,
           name: input.name,
-          startingBalanceCents: input.startingBalanceCents,
+          startingBalanceCents: PAPER_STARTING_BALANCE_CENTS,
         })
         .returning();
 
@@ -74,24 +75,11 @@ export const paperRouter = router({
           (t: typeof paperTrades.$inferSelect) => t.closedAt !== null,
         );
 
-        // Realized P&L from closed trades
-        let realizedPnlCents = 0;
-        for (const t of closedTrades) {
-          const qty = Number(t.quantity);
-          const entry = t.entryPriceCents;
-          const exit = t.exitPriceCents ?? 0;
-          const pnl =
-            t.side === "buy"
-              ? (exit - entry) * qty
-              : (entry - exit) * qty;
-          realizedPnlCents += Math.round(pnl);
-        }
-
         return {
           ...portfolio,
           openTradeCount: openTrades.length,
           closedTradeCount: closedTrades.length,
-          realizedPnlCents,
+          realizedPnlCents: realizedPnlCents(closedTrades),
         };
       }),
     );
@@ -149,26 +137,24 @@ export const paperRouter = router({
         });
       }
 
-      // Get current price
-      const priceCents = await getCurrentPrice(instrument.ticker);
+      // Trades fill at the latest close
+      const { closeCents: priceCents } = await getLatestClose(instrument.ticker);
 
       // Calculate cost
       const qty = Number(input.quantity);
       const costCents = Math.round(priceCents * qty);
 
-      // Check available cash for buy orders
-      if (input.side === "buy") {
-        const availableCash = await getAvailableCash(
-          ctx.db,
-          portfolio.id,
-          portfolio.startingBalanceCents,
-        );
-        if (costCents > availableCash) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: `Insufficient funds. Available: $${(availableCash / 100).toFixed(2)}, Cost: $${(costCents / 100).toFixed(2)}`,
-          });
-        }
+      // Either side needs the cash: a short sets aside its value as collateral
+      const availableCash = await getAvailableCash(
+        ctx.db,
+        portfolio.id,
+        portfolio.startingBalanceCents,
+      );
+      if (costCents > availableCash) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Insufficient funds. Available: $${(availableCash / 100).toFixed(2)}, Cost: $${(costCents / 100).toFixed(2)}`,
+        });
       }
 
       const [trade] = await ctx.db
@@ -226,7 +212,7 @@ export const paperRouter = router({
         });
       }
 
-      const exitPriceCents = await getCurrentPrice(trade.ticker);
+      const { closeCents: exitPriceCents } = await getLatestClose(trade.ticker);
 
       const [updated] = await ctx.db
         .update(paperTrades)
@@ -320,79 +306,25 @@ export const paperRouter = router({
         .innerJoin(instruments, eq(paperTrades.instrumentId, instruments.id))
         .where(eq(paperTrades.portfolioId, input.portfolioId));
 
-      // Compute realized P&L
-      let realizedPnlCents = 0;
-      const closedTrades = trades.filter(
-        (t: { trade: typeof paperTrades.$inferSelect }) => t.trade.closedAt !== null,
-      );
-      for (const t of closedTrades) {
-        const qty = Number(t.trade.quantity);
-        const entry = t.trade.entryPriceCents;
-        const exit = t.trade.exitPriceCents ?? 0;
-        const pnl =
-          t.trade.side === "buy"
-            ? (exit - entry) * qty
-            : (entry - exit) * qty;
-        realizedPnlCents += Math.round(pnl);
-      }
-
-      // Compute unrealized P&L and open position value together. Fetch each
-      // position's current price ONCE so unrealizedPnl and openPositionValue
-      // (and therefore totalEquity) stay mutually consistent, and to avoid
-      // doubling the rate-limited price lookups.
-      let unrealizedPnlCents = 0;
-      let openPositionValue = 0;
-      const openTrades = trades.filter(
-        (t: { trade: typeof paperTrades.$inferSelect }) => t.trade.closedAt === null,
-      );
-
-      for (const t of openTrades) {
-        const currentPrice = await getCurrentPrice(t.ticker);
-        const qty = Number(t.trade.quantity);
-        const entry = t.trade.entryPriceCents;
-        const pnl =
-          t.trade.side === "buy"
-            ? (currentPrice - entry) * qty
-            : (entry - currentPrice) * qty;
-        unrealizedPnlCents += Math.round(pnl);
-        openPositionValue += Math.round(currentPrice * qty);
-      }
-
-      // Available cash
-      const availableCash = await getAvailableCash(
-        ctx.db,
-        portfolio.id,
+      // One latest-close lookup per distinct open ticker
+      const openTickers = trades
+        .filter((t) => t.trade.closedAt === null)
+        .map((t) => t.ticker);
+      const closes = await getLatestCloses(openTickers);
+      const valuation = valuePortfolio(
         portfolio.startingBalanceCents,
+        trades.map((t) => ({ ...t.trade, ticker: t.ticker })),
+        (t) => closeFor(closes, t.ticker),
       );
-
-      const totalEquityCents = availableCash + openPositionValue;
-      const totalReturnBps =
-        portfolio.startingBalanceCents > 0
-          ? Math.round(
-              ((totalEquityCents - portfolio.startingBalanceCents) /
-                portfolio.startingBalanceCents) *
-                10000,
-            )
-          : 0;
 
       return {
         startingBalanceCents: portfolio.startingBalanceCents,
-        availableCashCents: availableCash,
-        openPositionValueCents: openPositionValue,
-        totalEquityCents,
-        realizedPnlCents,
-        unrealizedPnlCents,
-        totalReturnBps,
-        openTradeCount: openTrades.length,
-        closedTradeCount: closedTrades.length,
+        ...valuation,
       };
     }),
 });
 
-/**
- * Calculate available cash in a portfolio.
- * Cash = starting balance - cost of open buys + proceeds from closed trades.
- */
+/** Available cash in a portfolio, under the collateral model (paperAccounting). */
 async function getAvailableCash(
   db: typeof import("@deepmint/db").db,
   portfolioId: string,
@@ -403,26 +335,5 @@ async function getAvailableCash(
     .from(paperTrades)
     .where(eq(paperTrades.portfolioId, portfolioId));
 
-  let cash = startingBalanceCents;
-
-  for (const t of trades) {
-    const qty = Number(t.quantity);
-    if (t.side === "buy") {
-      // Spent cash to buy
-      cash -= Math.round(t.entryPriceCents * qty);
-      // If closed, got cash back
-      if (t.closedAt && t.exitPriceCents) {
-        cash += Math.round(t.exitPriceCents * qty);
-      }
-    } else {
-      // Sell (short): received cash at entry
-      cash += Math.round(t.entryPriceCents * qty);
-      // If closed, paid cash to cover
-      if (t.closedAt && t.exitPriceCents) {
-        cash -= Math.round(t.exitPriceCents * qty);
-      }
-    }
-  }
-
-  return cash;
+  return availableCashCents(startingBalanceCents, trades);
 }

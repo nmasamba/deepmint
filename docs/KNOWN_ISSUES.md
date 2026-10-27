@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **73 open issues: no high, 20 medium and 53 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **71 open issues: no high, 19 medium and 52 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -28,13 +28,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
 | [Product (web app)](#area-product) | 0 | 7 | 16 | 23 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 7 | 10 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 6 | 8 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 1 | 10 | 11 |
 | [Data model and shared code](#area-data) | 0 | 1 | 4 | 5 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **20** | **53** | **73** |
+| **All** | **0** | **19** | **52** | **71** |
 
 <a id="area-scoring"></a>
 
@@ -170,9 +170,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Medium** · bug · `price-lookups-uncached-serial`
 
-- **What's wrong:** Since wave 1, `getLatestClose` and `getLatestCloses` in `@deepmint/shared` return the latest close with its date, cached for 5 minutes per process (and in Upstash when configured) and de-duplicated, but no caller uses them yet. `paper.portfolioPerformance` and `signalSimulate.comparison` still await one throttled `getCurrentPrice` per open position, one after another, and mirrored portfolios never close positions. The ticker page's server render awaits the price with no catch.
-- **User impact:** A portfolio with N open positions shows skeletons for about 12.5 s × (N−1), five positions taking about 50 s. If Polygon fails, the ticker page shows the generic error screen instead of degrading.
-- **Evidence:** [`packages/api/routers/paper.ts:349-359`](../packages/api/routers/paper.ts#L349-L359) · [`packages/api/routers/signalSimulate.ts:265-278`](../packages/api/routers/signalSimulate.ts#L265-L278) · [`packages/shared/src/polygon.ts:292-327`](../packages/shared/src/polygon.ts#L292-L327) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
+- **What's wrong:** The ticker page's server render awaits an uncached `getCurrentPrice` with no catch, and `ticker.overview` makes a second lookup the client ignores. Mirrored portfolios never close positions. (Since wave 2, paper and Signal Simulate valuations look up each distinct open ticker once through the cached `getLatestCloses`, and paper trades fill through `getLatestClose`.)
+- **User impact:** If Polygon fails, the ticker page shows the generic error screen instead of degrading, and each ticker view spends Polygon requests on prices nobody sees. A mirrored portfolio's open positions grow without bound, and with them the time to value it.
+- **Evidence:** [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53) · [`packages/api/routers/ticker.ts:40-52`](../packages/api/routers/ticker.ts#L40-L52) · [`apps/worker/functions/signal-simulate.ts:78-104`](../apps/worker/functions/signal-simulate.ts#L78-L104)
 
 <a id="instrument-universe-inconsistent"></a>
 
@@ -358,16 +358,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Nothing is affected until a `claims:write` key exists (production had 0 API keys on 2026-08-03). After that, every agent claim lands permanently on the admin's own Player record and scores, agents can add notes to the admin's own claims, and agents cannot be told apart. With Upstash they would also share the admin's 10 claims/hour.
 - **Evidence:** [`packages/api/routers/apiKeys.ts:17-43`](../packages/api/routers/apiKeys.ts#L17-L43) · [`apps/web/app/api/mcp/route.ts:139-145`](../apps/web/app/api/mcp/route.ts#L139-L145) · [`apps/web/app/api/mcp/route.ts:220`](../apps/web/app/api/mcp/route.ts#L220) · [`packages/api/routers/claims.ts:282`](../packages/api/routers/claims.ts#L282)
 
-<a id="paper-short-equity-overstated"></a>
-
-### Paper and Signal Simulate equity double-counts open shorts
-
-**Medium** · bug · `paper-short-equity-overstated`
-
-- **What's wrong:** Opening a short adds the sale proceeds to cash, and equity then adds `currentPrice × qty` for every open trade whatever its side. Each open short overstates equity by 2 × price × quantity, in paper portfolios and in the Signal Simulate comparison.
-- **User impact:** Total Equity, Total Return and the equity curve are too high while a short is open: a flat $1,000 short on $100,000 shows +2.00%. Each open mirrored short adds about +2% to the mirror's return. Simulated money only.
-- **Evidence:** [`packages/api/routers/paper.ts:349-368`](../packages/api/routers/paper.ts#L349-L368) · [`packages/api/routers/paper.ts:417-419`](../packages/api/routers/paper.ts#L417-L419) · [`packages/api/routers/signalSimulate.ts:277-297`](../packages/api/routers/signalSimulate.ts#L277-L297)
-
 <a id="broker-verified-means-any-account"></a>
 
 ### Broker "verified" only proves that some brokerage account is linked
@@ -387,16 +377,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `initLink` stores the SnapTrade `userSecret` unencrypted in `broker_links.metadata`, and `broker-sync` returns whole rows from a step, so Inngest run state keeps a copy.
 - **User impact:** None today: no secrets are stored. Once enabled, database or Inngest read access exposes them; using them also needs the partner consumer key, which lives in Vercel env.
 - **Evidence:** [`packages/api/routers/broker.ts:110-127`](../packages/api/routers/broker.ts#L110-L127) · [`apps/worker/functions/broker-sync.ts:36-46`](../apps/worker/functions/broker-sync.ts#L36-L46)
-
-<a id="paper-short-cash-bypass"></a>
-
-### Paper "Sell" opens shorts of any size
-
-**Low** · bug · `paper-short-cash-bypass`
-
-- **What's wrong:** `addTrade` checks cash only for buys, so a sell opens a short of any size, and its proceeds then fund more buys. `createPortfolio` accepts any starting balance (the UI does not offer one). Signal Simulate sizes trades at 1% and is not affected.
-- **User impact:** A user can inflate their own paper equity without limit, and pressing Sell to close a long opens a short instead. Private to that user; feeds no score.
-- **Evidence:** [`packages/api/routers/paper.ts:158-170`](../packages/api/routers/paper.ts#L158-L170) · [`packages/api/routers/paper.ts:20-26`](../packages/api/routers/paper.ts#L20-L26) · [`apps/worker/functions/signal-simulate.ts:78-104`](../apps/worker/functions/signal-simulate.ts#L78-L104)
 
 <a id="identity-derivation-inconsistent"></a>
 

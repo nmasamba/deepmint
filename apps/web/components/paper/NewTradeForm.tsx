@@ -123,7 +123,7 @@ export function NewTradeForm({ portfolioId }: NewTradeFormProps) {
                     : "border-border text-text-secondary"
                 }
               >
-                Sell
+                Sell short
               </Button>
             </div>
           </div>
@@ -171,7 +171,7 @@ export function NewTradeForm({ portfolioId }: NewTradeFormProps) {
             {addTradeMutation.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : null}
-            Place {side === "buy" ? "Buy" : "Sell"} Order
+            Place {side === "buy" ? "Buy" : "Short"} Order
           </Button>
         </div>
       </DialogContent>
