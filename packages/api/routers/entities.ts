@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, ilike, asc, sql, isNull } from "@deepmint/db";
 import { entities, claims, outcomes } from "@deepmint/db/schema";
+import { publicEntityColumns } from "@deepmint/db/queries/publicEntity";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 
 export const entityRouter = router({
@@ -21,7 +22,7 @@ export const entityRouter = router({
     .input(z.object({ slug: z.string() }))
     .query(async ({ ctx, input }) => {
       const [entity] = await ctx.db
-        .select()
+        .select(publicEntityColumns)
         .from(entities)
         .where(eq(entities.slug, input.slug))
         .limit(1);
@@ -78,10 +79,12 @@ export const entityRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
+      // Escape LIKE wildcards so `%` and `_` match themselves.
+      const pattern = input.q.replace(/[\\%_]/g, "\\$&");
       const results = await ctx.db
-        .select()
+        .select(publicEntityColumns)
         .from(entities)
-        .where(ilike(entities.displayName, `%${input.q}%`))
+        .where(ilike(entities.displayName, `%${pattern}%`))
         .orderBy(asc(entities.displayName))
         .limit(input.limit);
 

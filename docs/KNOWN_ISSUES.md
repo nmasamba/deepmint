@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **75 open issues: no high, 20 medium and 55 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **73 open issues: no high, 20 medium and 53 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -28,13 +28,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
 | [Product (web app)](#area-product) | 0 | 7 | 16 | 23 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 9 | 12 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 7 | 10 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 1 | 10 | 11 |
 | [Data model and shared code](#area-data) | 0 | 1 | 4 | 5 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **20** | **55** | **75** |
+| **All** | **0** | **20** | **53** | **73** |
 
 <a id="area-scoring"></a>
 
@@ -367,26 +367,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Opening a short adds the sale proceeds to cash, and equity then adds `currentPrice × qty` for every open trade whatever its side. Each open short overstates equity by 2 × price × quantity, in paper portfolios and in the Signal Simulate comparison.
 - **User impact:** Total Equity, Total Return and the equity curve are too high while a short is open: a flat $1,000 short on $100,000 shows +2.00%. Each open mirrored short adds about +2% to the mirror's return. Simulated money only.
 - **Evidence:** [`packages/api/routers/paper.ts:349-368`](../packages/api/routers/paper.ts#L349-L368) · [`packages/api/routers/paper.ts:417-419`](../packages/api/routers/paper.ts#L417-L419) · [`packages/api/routers/signalSimulate.ts:277-297`](../packages/api/routers/signalSimulate.ts#L277-L297)
-
-<a id="entity-endpoints-leak-private-fields"></a>
-
-### Public entity endpoints return internal columns
-
-**Low** · security · `entity-endpoints-leak-private-fields`
-
-- **What's wrong:** Public `entity.bySlug` and `entity.search` return whole `entities` rows, including `clerk_user_id`, `snaptrade_user_id`, `is_allowlisted` and `deleted_at`, to signed-out callers. `search` does not escape `%` or `_`, so `q=%` lists every entity, 50 per call.
-- **User impact:** Anyone can list every user's Clerk user ID and timestamps. Clerk IDs are not credentials, so this is a data-minimisation gap, but any column added later leaks automatically.
-- **Evidence:** [`packages/api/routers/entities.ts:20-27`](../packages/api/routers/entities.ts#L20-L27) · [`packages/api/routers/entities.ts:73-88`](../packages/api/routers/entities.ts#L73-L88) · [`apps/web/middleware.ts:14`](../apps/web/middleware.ts#L14)
-
-<a id="claims-detail-any-status"></a>
-
-### `claims.detail` is public and returns pending and rejected claims
-
-**Low** · security · `claims-detail-any-status`
-
-- **What's wrong:** `claims.detail` looks a claim up by id alone and returns it in any status, with outcomes and notes. Every other public claim read filters to `active`.
-- **User impact:** Small: ids are random UUIDs, and no public endpoint returns the id of a non-active claim.
-- **Evidence:** [`packages/api/routers/claims.ts:199-224`](../packages/api/routers/claims.ts#L199-L224) · [`packages/api/routers/claims.ts:146`](../packages/api/routers/claims.ts#L146)
 
 <a id="broker-verified-means-any-account"></a>
 
