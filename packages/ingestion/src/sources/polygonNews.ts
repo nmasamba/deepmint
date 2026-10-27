@@ -76,12 +76,21 @@ export class PolygonNewsSourceAdapter extends SourceAdapter {
 
         let entityId = publisherEntities.get(publisherName);
         if (!entityId) {
-          entityId = await resolveOrCreateGuide({
-            handle: publisherName,
-            displayName: publisherName,
-            sourceUrl: article.publisher?.homepage_url?.trim() || undefined,
-            allowlisted: false, // never auto-scraped as a Guide feed
-          });
+          try {
+            entityId = await resolveOrCreateGuide({
+              handle: publisherName,
+              displayName: publisherName,
+              sourceUrl: article.publisher?.homepage_url?.trim() || undefined,
+              allowlisted: false, // never auto-scraped as a Guide feed
+            });
+          } catch (err) {
+            // One unresolvable publisher must not abort the whole ingest run.
+            console.warn(
+              `[polygon-news] skipping article: could not resolve publisher "${publisherName}":`,
+              err instanceof Error ? err.message : err,
+            );
+            continue;
+          }
           publisherEntities.set(publisherName, entityId);
         }
 

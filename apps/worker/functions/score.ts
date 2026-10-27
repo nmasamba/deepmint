@@ -49,12 +49,11 @@ export const scoreFunction = inngest.createFunction(
         });
       }
 
-      // Get all entities that have outcomes
+      // Every entity; those with no outcome on an active claim are skipped below.
       const entityRows = await db
         .select({
           id: entities.id,
           type: entities.type,
-          brokerLinkStatus: entities.brokerLinkStatus,
         })
         .from(entities);
 
@@ -77,7 +76,13 @@ export const scoreFunction = inngest.createFunction(
           })
           .from(outcomes)
           .innerJoin(claims, eq(outcomes.claimId, claims.id))
-          .where(and(eq(claims.entityId, entity.id), eq(claims.status, "active")));
+          .where(and(eq(claims.entityId, entity.id), eq(claims.status, "active")))
+          // A time series: drawdown, Calmar and consistency depend on order,
+          // so take outcomes in exit order (ties by claim id), not row order.
+          .orderBy(
+            sql`${claims.createdAt} + ${claims.horizonDays} * interval '1 day'`,
+            outcomes.claimId,
+          );
 
         if (entityOutcomes.length === 0) {
           skipped++;

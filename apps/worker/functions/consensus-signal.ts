@@ -1,5 +1,5 @@
 import { inngest } from "../inngest";
-import { db, eq, sql, gte, desc } from "@deepmint/db";
+import { db, eq, and, sql, desc } from "@deepmint/db";
 import {
   claims,
   entities,
@@ -7,7 +7,7 @@ import {
   scores,
   consensusSignals,
 } from "@deepmint/db/schema";
-import { computeConsensusSignal } from "@deepmint/scoring";
+import { computeConsensusSignal, computeTargetStats } from "@deepmint/scoring";
 import type { ClaimWithWeight } from "@deepmint/scoring";
 
 /**
@@ -34,20 +34,26 @@ export const consensusSignalFunction = inngest.createFunction(
       let computed = 0;
 
       for (const instrument of allInstruments) {
-        // Get active claims for this instrument (from last 90 days)
-        const ninetyDaysAgo = new Date(today.getTime() - 90 * 86400000);
-
+        // Active claims whose horizon is still running. The cutoff is computed
+        // in SQL: a JS Date bound inside raw SQL bypasses drizzle's column
+        // mapping and fails in the driver (this query used to bind one, so
+        // every run threw).
         const activeClaims = await db
           .select({
             direction: claims.direction,
             entityId: claims.entityId,
             confidence: claims.confidence,
             horizonDays: claims.horizonDays,
+            targetPriceCents: claims.targetPriceCents,
             createdAt: claims.createdAt,
           })
           .from(claims)
           .where(
-            sql`${claims.instrumentId} = ${instrument.id} AND ${claims.status} = 'active' AND ${claims.createdAt} >= ${ninetyDaysAgo}`
+            and(
+              eq(claims.instrumentId, instrument.id),
+              eq(claims.status, "active"),
+              sql`${claims.createdAt} + ${claims.horizonDays} * interval '1 day' > now()`,
+            ),
           );
 
         if (activeClaims.length === 0) continue;
@@ -100,10 +106,12 @@ export const consensusSignalFunction = inngest.createFunction(
             confidence: c.confidence,
             horizonDays: c.horizonDays,
             ageHours,
+            targetPriceCents: c.targetPriceCents,
           };
         });
 
         const signal = computeConsensusSignal(weightedClaims);
+        const targets = computeTargetStats(weightedClaims);
 
         // Upsert consensus signal
         // Delete existing signal for this instrument+date, then insert
@@ -123,7 +131,10 @@ export const consensusSignalFunction = inngest.createFunction(
           weightedBearishScore: signal.bearishScore.toFixed(6),
           weightedNeutralScore: signal.neutralScore.toFixed(6),
           convictionStrength: signal.convictionStrength.toFixed(4),
-          activeClaims: weightedClaims.length,
+          avgTargetPriceCents: targets.avgTargetPriceCents,
+          targetDispersionBps: targets.targetDispersionBps,
+          // The claims the signal actually counted.
+          activeClaims: signal.longCount + signal.shortCount + signal.neutralCount,
           asOfDate: todayStr,
         });
 

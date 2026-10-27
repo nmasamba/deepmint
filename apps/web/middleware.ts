@@ -5,6 +5,10 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  // PWA assets: the manifest link sends no cookies, and the service worker
+  // precaches both, so they must load signed out.
+  "/manifest.json",
+  "/offline",
   "/api/webhooks(.*)",
   // tRPC — auth is enforced per-procedure (protectedProcedure checks the
   // session in context). Without this, clerkMiddleware's auth.protect()

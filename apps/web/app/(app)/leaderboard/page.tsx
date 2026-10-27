@@ -32,6 +32,7 @@ function formatScore(metric: string, value: number): string {
   if (metric === "hit_rate") return `${(value * 100).toFixed(1)}%`;
   if (metric === "avg_return_bps") return `${value.toFixed(0)} bps`;
   if (metric === "eiv_overall") return value.toFixed(1);
+  if (metric === "influence_events_30d") return value.toFixed(0);
   return value.toFixed(2);
 }
 
@@ -44,12 +45,32 @@ export default function LeaderboardPage() {
 
   const { data: currentRegime } = trpc.regime.current.useQuery();
 
-  const { data, isLoading } = trpc.leaderboard.top.useQuery({
-    metric,
-    entityType,
-    regimeTag: regimeFilter || undefined,
-    limit: 50,
-  });
+  // Influence is aggregated per Guide in influence_scores, not in scores, so
+  // that chip reads its own procedure (the same one as the dashboard's
+  // Trending Influencers). It has no regime dimension.
+  const isInfluence = metric === "influence_events_30d";
+  const scoresQuery = trpc.leaderboard.top.useQuery(
+    {
+      metric,
+      entityType,
+      regimeTag: regimeFilter || undefined,
+      limit: 50,
+    },
+    { enabled: !isInfluence },
+  );
+  const influenceQuery = trpc.influence.topInfluencers.useQuery(
+    { entityType, limit: 50 },
+    { enabled: isInfluence },
+  );
+  const data = isInfluence
+    ? influenceQuery.data?.map((row) => ({
+        rank: row.rank,
+        entity: { ...row.entity, brokerLinkStatus: null },
+        score: row.influenceEvents30d,
+        horizon: "30d",
+      }))
+    : scoresQuery.data;
+  const isLoading = isInfluence ? influenceQuery.isLoading : scoresQuery.isLoading;
 
   return (
     <div className="space-y-6">
@@ -169,7 +190,9 @@ export default function LeaderboardPage() {
           </div>
         ) : !data || data.length === 0 ? (
           <div className="px-4 py-12 text-center text-text-secondary">
-            No scores yet. AI will rank analysts once predictions are resolved against real outcomes.
+            {isInfluence
+              ? "No influence recorded in the last 30 days."
+              : "No scores yet. Rankings appear once claims are resolved against real market prices."}
           </div>
         ) : (
           <div className="divide-y divide-border">

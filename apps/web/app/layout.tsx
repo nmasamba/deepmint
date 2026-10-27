@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   description:
     "Build a verifiable track record as a Guide or follow the best analysts as a Player. AI scores every prediction against real outcomes and ranks who's actually good.",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://deepmint.app",
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://www.deepmint.ai",
   ),
   manifest: "/manifest.json",
   themeColor: "#080C14",

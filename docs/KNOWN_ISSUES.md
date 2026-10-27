@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **98 open issues: no high, 26 medium and 72 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **76 open issues: no high, 20 medium and 56 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,15 +26,15 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 3 | 7 | 10 |
-| [Product (web app)](#area-product) | 0 | 9 | 19 | 28 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 12 | 15 |
-| [Workers and schedules](#area-workers) | 0 | 3 | 6 | 9 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 2 | 11 | 13 |
-| [Data model and shared code](#area-data) | 0 | 1 | 6 | 7 |
-| [Infrastructure, config and tooling](#area-infra) | 0 | 5 | 10 | 15 |
+| [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
+| [Product (web app)](#area-product) | 0 | 7 | 16 | 23 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 9 | 12 |
+| [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 1 | 10 | 11 |
+| [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
+| [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **26** | **72** | **98** |
+| **All** | **0** | **20** | **56** | **76** |
 
 <a id="area-scoring"></a>
 
@@ -42,13 +42,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="leaderboard-no-minimum-sample"></a>
 
-### Leaderboards have no minimum sample or significance gate, and always sort descending
+### Leaderboards have no minimum sample or significance gate
 
 **Medium** · bug · `leaderboard-no-minimum-sample`
 
-- **What's wrong:** `leaderboard.top`, `bestInCurrentConditions`, `byTicker` and `GET /api/v1/leaderboard` apply no outcome-count or significance filter, and all sort `scores.value DESC`. The scorer writes scores after one outcome. `hit_rate` and `avg_return_bps` have no sample adjustment, and Sharpe has no floor above n=2. EIV's `n/(n+20)` shrinkage is too weak: with the fixed Brier of 0.5 that every Player gets, 1/1 correct at +800 bps scores 0.8, above 120/200 at +150 bps (0.5). The z-test's `isSignificant` flag (p<0.05, n≥15) is discarded, and `checkAntiGaming` is never called. `calibration_brier` and `max_drawdown` are lower-is-better, yet tRPC, MCP and v1 return them worst first.
+- **What's wrong:** `leaderboard.top` (and so the web, MCP and REST v1 boards), `bestInCurrentConditions` and `byTicker` apply no outcome-count or significance filter. The scorer writes scores after one outcome. `hit_rate` and `avg_return_bps` have no sample adjustment, and Sharpe has no floor above n=2. EIV's `n/(n+20)` shrinkage is too weak: with the fixed Brier of 0.5 that every Player gets, 1/1 correct at +800 bps scores 0.8, above 120/200 at +150 bps (0.5). The z-test's `isSignificant` flag (p<0.05, n≥15) is discarded, and `checkAntiGaming` is never called.
 - **User impact:** Once outcomes exist, a Player whose first call lands shows 100% on the default board (Hit Rate, All), above long records, and the page shows no sample count. Latent while there is little scored data.
-- **Evidence:** [`packages/api/routers/leaderboard.ts:28-42`](../packages/api/routers/leaderboard.ts#L28-L42) · [`packages/api/routers/leaderboard.ts:79`](../packages/api/routers/leaderboard.ts#L79) · [`apps/web/app/api/v1/leaderboard/route.ts:90`](../apps/web/app/api/v1/leaderboard/route.ts#L90) · [`apps/worker/functions/score.ts:80-83`](../apps/worker/functions/score.ts#L80-L83) · [`apps/worker/functions/score.ts:137-142`](../apps/worker/functions/score.ts#L137-L142) · [`apps/web/app/(app)/leaderboard/page.tsx:42`](../apps/web/app/%28app%29/leaderboard/page.tsx#L42)
+- **Evidence:** [`packages/api/routers/leaderboard.ts:28-42`](../packages/api/routers/leaderboard.ts#L28-L42) · [`apps/worker/functions/score.ts:80-83`](../apps/worker/functions/score.ts#L80-L83) · [`apps/worker/functions/score.ts:137-142`](../apps/worker/functions/score.ts#L137-L142) · [`apps/web/app/(app)/leaderboard/page.tsx:42`](../apps/web/app/%28app%29/leaderboard/page.tsx#L42)
 
 <a id="eiv-not-regime-aware"></a>
 
@@ -70,16 +70,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Player Sharpe and Calmar on profiles, the Sharpe board and the ticker page's Top Players have no financial meaning. Three 1-year claims of +10%, +12% and +8% give a Sharpe of about 79, and long-horizon claimants are inflated by up to √252 against 1-day claimants.
 - **Evidence:** [`apps/worker/functions/score.ts:201-221`](../apps/worker/functions/score.ts#L201-L221) · [`packages/scoring/src/player.ts:12-18`](../packages/scoring/src/player.ts#L12-L18)
 
-<a id="score-outcomes-unordered"></a>
-
-### Drawdown, Calmar and consistency depend on arbitrary row order
-
-**Low** · bug · `score-outcomes-unordered`
-
-- **What's wrong:** The Player outcome query has no `ORDER BY`, yet `max_drawdown` (and so Calmar) and `consistency` (from 64 outcomes) treat the rows as a time series.
-- **User impact:** Max Drawdown and Calmar on a Player profile can change between runs with no new data. The web leaderboard does not rank on these metrics.
-- **Evidence:** [`apps/worker/functions/score.ts:66-78`](../apps/worker/functions/score.ts#L66-L78) · [`apps/worker/functions/score.ts:206-221`](../apps/worker/functions/score.ts#L206-L221) · [`packages/scoring/src/player.ts:63-75`](../packages/scoring/src/player.ts#L63-L75)
-
 <a id="broker-trades-never-scored"></a>
 
 ### Broker-synced trades never affect scores or ranks
@@ -89,26 +79,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Synced `player_trades` rows are read only by the two sync paths' duplicate checks. Linking a broker only sets `broker_link_status='verified'`, which gives a badge and a ×1.5 consensus weight on claims. The landing page says linking lets you "verify trades and climb the ranks", and Settings says "verified trades" get the multiplier.
 - **User impact:** Dormant while SnapTrade is unconfigured (last recorded). Once enabled, linking changes no score or rank.
 - **Evidence:** [`apps/worker/functions/score.ts:66-78`](../apps/worker/functions/score.ts#L66-L78) · [`packages/api/routers/broker.ts:171-196`](../packages/api/routers/broker.ts#L171-L196) · [`apps/web/components/landing/ChoosePath.tsx:118`](../apps/web/components/landing/ChoosePath.tsx#L118) · [`apps/web/components/settings/BrokerVerification.tsx:114-115`](../apps/web/components/settings/BrokerVerification.tsx#L114-L115)
-
-<a id="influence-pipeline-flaws"></a>
-
-### Influence tracking ignores claim status and entity type
-
-**Low** · bug · `influence-pipeline-flaws`
-
-- **What's wrong:** Only self-logged claims (always Players) emit `claims/created`, so `influence-track`'s Guide branch never runs. Its Player branch counts followed entities' claims of any status, including `pending_review` and `rejected`, and treats any followed entity, Players included, as the "guide". `follower_count` actually holds distinct acting Players over 30 days, and `player_trade_id` is never written.
-- **User impact:** A Guide's "Events (30d)" and "Followers Acting" can include reactions to unreviewed or rejected claims. A Player whom other Players follow can appear in Trending Influencers, linking to a profile with no Influence tab.
-- **Evidence:** [`apps/worker/functions/influence-track.ts:39`](../apps/worker/functions/influence-track.ts#L39) · [`apps/worker/functions/influence-track.ts:95-112`](../apps/worker/functions/influence-track.ts#L95-L112) · [`apps/worker/functions/influence-aggregate.ts:26`](../apps/worker/functions/influence-aggregate.ts#L26) · [`packages/api/routers/influence.ts:28-43`](../packages/api/routers/influence.ts#L28-L43)
-
-<a id="consensus-includes-expired-claims"></a>
-
-### Consensus counts claims whose horizon has passed
-
-**Low** · bug · `consensus-includes-expired-claims`
-
-- **What's wrong:** Consensus uses every active claim from the last 90 days and never checks whether its horizon has ended. `horizonDays` is passed in but unused. Live 180- and 365-day claims older than 90 days drop out.
-- **User impact:** "Based on N active claims" counts expired calls at full weight. In the weighting, an expired 1-day call still carries about 41% of a fresh call's weight at 30 days.
-- **Evidence:** [`apps/worker/functions/consensus-signal.ts:38-51`](../apps/worker/functions/consensus-signal.ts#L38-L51) · [`packages/scoring/src/consensus.ts:90-116`](../packages/scoring/src/consensus.ts#L90-L116) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:98`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L98)
 
 <a id="neutral-claim-scoring"></a>
 
@@ -120,39 +90,19 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Market drift is credited or charged to neutral calls: a wrong neutral call before a +10% move adds +1000 bps to the author's average return.
 - **Evidence:** [`apps/worker/functions/markoutClaim.ts:102-108`](../apps/worker/functions/markoutClaim.ts#L102-L108) · [`apps/worker/functions/score.ts:139`](../apps/worker/functions/score.ts#L139) · [`apps/worker/functions/score.ts:202`](../apps/worker/functions/score.ts#L202)
 
-<a id="target-precision-floor-inactive"></a>
-
-### Target precision's minimum-move floor is never applied
-
-**Low** · bug · `target-precision-floor-inactive`
-
-- **What's wrong:** `targetPrecision` skips near-entry targets only when `minMoveFrac` is passed, and the scorer never passes it, so the floor is 0. `targetCoverage` counts targets that precision skips.
-- **User impact:** A 1-cent target on a $100 stock scores 1.000 if the price moves the right way. Only the Guide Stats tab and the APIs show `target_precision`; EIV and the leaderboard UI do not use it.
-- **Evidence:** [`packages/scoring/src/guide.ts:101-126`](../packages/scoring/src/guide.ts#L101-L126) · [`apps/worker/functions/score.ts:159-174`](../apps/worker/functions/score.ts#L159-L174)
-
 <a id="dead-scoring-code"></a>
 
 ### Unused scoring functions and outcome columns
 
 **Low** · dead-code · `dead-scoring-code`
 
-- **What's wrong:** Seven exported functions are called only by tests: `detectInfluenceEvents`, `calmarRatio`, `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore`, `timeDecayedBrierScore` and `formatEIVWithContext`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
-- **User impact:** Maintainers may assume continuous Brier and MAE/MFE feed live scores. Because the profile copies the EIV thresholds instead of calling `formatEIVWithContext`, a scored entity with EIV 0 shows "No data yet" rather than "No Edge".
-- **Evidence:** [`packages/scoring/src/influence.ts:46`](../packages/scoring/src/influence.ts#L46) · [`packages/scoring/src/player.ts:23`](../packages/scoring/src/player.ts#L23) · [`packages/scoring/src/guide.ts:141-189`](../packages/scoring/src/guide.ts#L141-L189) · [`packages/scoring/src/eiv.ts:67`](../packages/scoring/src/eiv.ts#L67) · [`apps/web/components/EntityProfileTabs.tsx:104-112`](../apps/web/components/EntityProfileTabs.tsx#L104-L112) · [`apps/worker/functions/markoutClaim.ts:110-129`](../apps/worker/functions/markoutClaim.ts#L110-L129)
+- **What's wrong:** Five exported functions are called only by tests: `calmarRatio`, `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore` and `timeDecayedBrierScore`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
+- **User impact:** Maintainers may assume continuous Brier and MAE/MFE feed live scores.
+- **Evidence:** [`packages/scoring/src/player.ts:23`](../packages/scoring/src/player.ts#L23) · [`packages/scoring/src/guide.ts:141-189`](../packages/scoring/src/guide.ts#L141-L189) · [`apps/worker/functions/markoutClaim.ts:110-129`](../apps/worker/functions/markoutClaim.ts#L110-L129)
 
 <a id="area-product"></a>
 
 ## Product (web app)
-
-<a id="claim-outcomes-not-shown"></a>
-
-### Claim cards never show a claim's result
-
-**Medium** · bug · `claim-outcomes-not-shown`
-
-- **What's wrong:** `ClaimCard` can render outcomes and a notes count, but its only callers, `ClaimsTimeline` and `SocialFeed`, pass neither, and `claims.list` and `social.feed` do not fetch them. After the horizon the card reads "Matured" whether or not an outcome exists. `claims.detail` returns outcomes, but no page calls it.
-- **User impact:** Users can see an author's aggregate scores but not which individual calls were right. The only per-claim result is the `outcome_matured` notification, which goes to the claim's own entity (so ingested Guide claims notify nobody), is not sent for backfills, and is not a link.
-- **Evidence:** [`apps/web/components/claims/ClaimCard.tsx:224-247`](../apps/web/components/claims/ClaimCard.tsx#L224-L247) · [`apps/web/components/claims/ClaimsTimeline.tsx:96-102`](../apps/web/components/claims/ClaimsTimeline.tsx#L96-L102) · [`apps/web/components/dashboard/SocialFeed.tsx:78-84`](../apps/web/components/dashboard/SocialFeed.tsx#L78-L84) · [`packages/api/routers/claims.ts:199-257`](../packages/api/routers/claims.ts#L199-L257)
 
 <a id="leaderboard-regime-filter-empty"></a>
 
@@ -161,18 +111,8 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Medium** · bug · `leaderboard-regime-filter-empty`
 
 - **What's wrong:** The regime chips filter on `scores.regime_tag`, but only metric `eiv` is written with a tag. Every metric the page offers is written with a null tag.
-- **User impact:** Choosing Bull, Bear, High Vol, Low Vol or Rotation empties the table, which then says "No scores yet. AI will rank analysts once predictions are resolved", although scores exist. "All Regimes" and "Best in Current Conditions" work.
+- **User impact:** Choosing Bull, Bear, High Vol, Low Vol or Rotation empties the table, which then says "No scores yet. Rankings appear once claims are resolved against real market prices.", although scores exist. "All Regimes" and "Best in Current Conditions" work.
 - **Evidence:** [`apps/web/app/(app)/leaderboard/page.tsx:22-29`](../apps/web/app/%28app%29/leaderboard/page.tsx#L22-L29) · [`apps/web/app/(app)/leaderboard/page.tsx:157-160`](../apps/web/app/%28app%29/leaderboard/page.tsx#L157-L160) · [`packages/api/routers/leaderboard.ts:35-37`](../packages/api/routers/leaderboard.ts#L35-L37) · [`apps/worker/functions/score.ts:107-112`](../apps/worker/functions/score.ts#L107-L112) · [`apps/worker/functions/score.ts:198`](../apps/worker/functions/score.ts#L198)
-
-<a id="most-influential-tab-empty"></a>
-
-### "Most Influential" leaderboard tab is always empty
-
-**Medium** · bug · `most-influential-tab-empty`
-
-- **What's wrong:** The chip asks `leaderboard.top` for metric `influence_events_30d` in `scores`. That value is a column of `influence_scores`, written only by `influence-aggregate`.
-- **User impact:** The tab always shows the empty state, implying rankings will appear later. The same data does show in the dashboard's Trending Influencers.
-- **Evidence:** [`apps/web/app/(app)/leaderboard/page.tsx:19`](../apps/web/app/%28app%29/leaderboard/page.tsx#L19) · [`packages/api/routers/leaderboard.ts:47-59`](../packages/api/routers/leaderboard.ts#L47-L59) · [`packages/db/schema/influence.ts:25`](../packages/db/schema/influence.ts#L25) · [`apps/worker/functions/influence-aggregate.ts:61-64`](../apps/worker/functions/influence-aggregate.ts#L61-L64)
 
 <a id="guide-signup-path-missing"></a>
 
@@ -200,7 +140,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Medium** · feature-gap · `ai-scoring-copy-misleading`
 
-- **What's wrong:** Site metadata, the landing page, the leaderboard empty state, Learn and Settings say AI grades, scores, ranks or benchmarks calls. The only model is the extraction LLM; scoring, regime detection and consensus are fixed formulas. The paper portfolio page says "AI tracks and scores your performance", but paper trades feed no score. No feature compares a user with "Wall Street consensus". The digest Settings calls "AI-generated" is a plain template.
+- **What's wrong:** Site metadata, the landing page, Learn and Settings say AI grades, scores, ranks or benchmarks calls. The only model is the extraction LLM; scoring, regime detection and consensus are fixed formulas. The paper portfolio page says "AI tracks and scores your performance", but paper trades feed no score. No feature compares a user with "Wall Street consensus". The digest Settings calls "AI-generated" is a plain template.
 - **User impact:** Every visitor and search result is told something false about how the product works, in a product sold on trustworthy track records.
 - **Evidence:** [`apps/web/app/layout.tsx:18-42`](../apps/web/app/layout.tsx#L18-L42) · [`apps/web/components/landing/HowItWorks.tsx:12-20`](../apps/web/components/landing/HowItWorks.tsx#L12-L20) · [`apps/web/components/landing/ChoosePath.tsx:58`](../apps/web/components/landing/ChoosePath.tsx#L58) · [`apps/web/app/(app)/paper-portfolio/page.tsx:19`](../apps/web/app/%28app%29/paper-portfolio/page.tsx#L19) · [`apps/web/app/(app)/settings/page.tsx:51`](../apps/web/app/%28app%29/settings/page.tsx#L51) · [`apps/worker/functions/score.ts:135-239`](../apps/worker/functions/score.ts#L135-L239)
 
@@ -230,9 +170,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Medium** · bug · `price-lookups-uncached-serial`
 
-- **What's wrong:** Prices are never cached (the cache-key helpers are dead code). `paper.portfolioPerformance` and `signalSimulate.comparison` await one throttled lookup per open position, one after another, and mirrored portfolios never close positions. The ticker page's server render awaits the price with no catch.
+- **What's wrong:** Since wave 1, `getLatestClose` and `getLatestCloses` in `@deepmint/shared` return the latest close with its date, cached for 5 minutes per process (and in Upstash when configured) and de-duplicated, but no caller uses them yet. `paper.portfolioPerformance` and `signalSimulate.comparison` still await one throttled `getCurrentPrice` per open position, one after another, and mirrored portfolios never close positions. The ticker page's server render awaits the price with no catch.
 - **User impact:** A portfolio with N open positions shows skeletons for about 12.5 s × (N−1), five positions taking about 50 s. If Polygon fails, the ticker page shows the generic error screen instead of degrading.
-- **Evidence:** [`packages/api/routers/paper.ts:349-359`](../packages/api/routers/paper.ts#L349-L359) · [`packages/api/routers/signalSimulate.ts:265-278`](../packages/api/routers/signalSimulate.ts#L265-L278) · [`packages/shared/src/polygonCache.ts:80-92`](../packages/shared/src/polygonCache.ts#L80-L92) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
+- **Evidence:** [`packages/api/routers/paper.ts:349-359`](../packages/api/routers/paper.ts#L349-L359) · [`packages/api/routers/signalSimulate.ts:265-278`](../packages/api/routers/signalSimulate.ts#L265-L278) · [`packages/shared/src/polygon.ts:292-327`](../packages/shared/src/polygon.ts#L292-L327) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
 
 <a id="instrument-universe-inconsistent"></a>
 
@@ -256,13 +196,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="ticker-page-dead-fragile-wiring"></a>
 
-### Ticker page panels that never render, and a wasteful overview query
+### Ticker page: a wasteful overview query, and no loading or error states
 
 **Low** · bug · `ticker-page-dead-fragile-wiring`
 
-- **What's wrong:** The consensus worker never writes `avg_target_price_cents` or `target_dispersion_bps`, so the Avg Target and Target Dispersion blocks never render, and REST v1 always returns them null. `ticker.overview` also fetches a price and claim stats the client ignores, so each page view makes two uncached price lookups. The client ignores loading and error states.
-- **User impact:** No ticker page shows target data. Each view spends at least 2 requests of the 5 req/min Polygon plan. Top Guides and Top Players say "No data yet." while loading or after a failed second lookup, and a full Polygon outage errors the whole page.
-- **Evidence:** [`apps/web/components/ticker/ConsensusBreakdown.tsx:136-172`](../apps/web/components/ticker/ConsensusBreakdown.tsx#L136-L172) · [`apps/worker/functions/consensus-signal.ts:116-128`](../apps/worker/functions/consensus-signal.ts#L116-L128) · [`apps/web/app/(app)/ticker/[symbol]/TickerClientSection.tsx:31-64`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/TickerClientSection.tsx#L31-L64) · [`packages/api/routers/ticker.ts:40-52`](../packages/api/routers/ticker.ts#L40-L52) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
+- **What's wrong:** `ticker.overview` fetches a price and claim stats the client ignores, so each page view makes two uncached price lookups. The client ignores loading and error states. (Since wave 1 the consensus worker writes the Avg Target and Target Dispersion figures.)
+- **User impact:** Each view spends at least 2 requests of the 5 req/min Polygon plan. Top Guides and Top Players say "No data yet." while loading or after a failed second lookup, and a full Polygon outage errors the whole page.
+- **Evidence:** [`apps/web/app/(app)/ticker/[symbol]/TickerClientSection.tsx:31-64`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/TickerClientSection.tsx#L31-L64) · [`packages/api/routers/ticker.ts:40-52`](../packages/api/routers/ticker.ts#L40-L52) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
 
 <a id="current-price-is-previous-close"></a>
 
@@ -323,26 +263,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** The top-bar instrument search shows a `/` key hint at desktop widths, but no code listens for the key.
 - **User impact:** Cosmetic: pressing `/` does nothing.
 - **Evidence:** [`apps/web/components/InstrumentSearch.tsx:111-120`](../apps/web/components/InstrumentSearch.tsx#L111-L120)
-
-<a id="follow-mirror-own-profile"></a>
-
-### Follow and Mirror buttons appear on your own profile and fail silently
-
-**Low** · bug · `follow-mirror-own-profile`
-
-- **What's wrong:** Profile pages never pass `hideFollow`, so Follow and Mirror Signals render on your own profile. The server rejects both, and rejects mirroring an entity you already mirror. The buttons have no error handler, so the message never shows.
-- **User impact:** Clicks appear to do nothing. No data is affected.
-- **Evidence:** [`apps/web/components/EntityProfileHeader.tsx:124-129`](../apps/web/components/EntityProfileHeader.tsx#L124-L129) · [`packages/api/routers/social.ts:35-40`](../packages/api/routers/social.ts#L35-L40) · [`packages/api/routers/signalSimulate.ts:24-62`](../packages/api/routers/signalSimulate.ts#L24-L62) · [`apps/web/components/FollowButton.tsx:18-30`](../apps/web/components/FollowButton.tsx#L18-L30)
-
-<a id="admin-pages-not-gated"></a>
-
-### Admin pages render for any signed-in user with a false empty state
-
-**Low** · bug · `admin-pages-not-gated`
-
-- **What's wrong:** `/admin/review`, `/admin/instruments` and `/admin/api-keys` are client pages with no role check. Their data calls return FORBIDDEN, but the pages ignore the error and show "No claims pending review", "No instruments yet" or "No API keys yet", with action buttons enabled.
-- **User impact:** A non-admin who opens an admin URL sees a misleading empty admin screen. No data leaks and no action succeeds.
-- **Evidence:** [`apps/web/app/(app)/admin/review/page.tsx:13`](../apps/web/app/%28app%29/admin/review/page.tsx#L13) · [`apps/web/app/(app)/admin/instruments/page.tsx:18-19`](../apps/web/app/%28app%29/admin/instruments/page.tsx#L18-L19) · [`apps/web/app/(app)/admin/api-keys/page.tsx:44`](../apps/web/app/%28app%29/admin/api-keys/page.tsx#L44) · [`packages/api/trpc.ts:50-62`](../packages/api/trpc.ts#L50-L62)
 
 <a id="notifications-dead-ends"></a>
 
@@ -410,19 +330,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · feature-gap · `claim-notes-no-ui`
 
-- **What's wrong:** `claims.addNote` is called only by the MCP `add_note` tool. `ClaimCard`'s notes count is never passed, and no page shows notes.
+- **What's wrong:** `claims.addNote` is called only by the MCP `add_note` tool, and no page shows notes; since wave 1 a claim card shows only how many it has.
 - **User impact:** Players cannot annotate or correct their own claims, though notes are the only correction mechanism for append-only claims.
-- **Evidence:** [`packages/api/routers/claims.ts:259-300`](../packages/api/routers/claims.ts#L259-L300) · [`apps/web/components/claims/ClaimCard.tsx:249`](../apps/web/components/claims/ClaimCard.tsx#L249) · [`apps/web/app/api/mcp/route.ts:167-203`](../apps/web/app/api/mcp/route.ts#L167-L203)
-
-<a id="pwa-assets-behind-auth"></a>
-
-### PWA manifest returns 404 and the offline page can never be served
-
-**Low** · bug · `pwa-assets-behind-auth`
-
-- **What's wrong:** The middleware matcher skips `.js` but not `.json`, so `/manifest.json` hits `auth.protect()`. The manifest link sends no cookies, so it returns a 404 for everyone. `/offline` is never precached, so the service worker's fallback cannot work. Precaching the 404ing manifest makes the service worker install fail for signed-out visitors.
-- **User impact:** No install-to-home-screen prompt in Chrome, and offline navigations show the browser's error page. iOS Add to Home Screen still works.
-- **Evidence:** [`apps/web/middleware.ts:39`](../apps/web/middleware.ts#L39) · [`apps/web/app/layout.tsx:24`](../apps/web/app/layout.tsx#L24) · [`apps/web/app/sw.ts:19-28`](../apps/web/app/sw.ts#L19-L28)
+- **Evidence:** [`packages/api/routers/claims.ts:259-300`](../packages/api/routers/claims.ts#L259-L300) · [`apps/web/app/api/mcp/route.ts:167-203`](../apps/web/app/api/mcp/route.ts#L167-L203)
 
 <a id="area-api"></a>
 
@@ -485,7 +395,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Low** · data-integrity · `broker-verified-means-any-account`
 
 - **What's wrong:** `completeLink` sets `broker_link_status='verified'` once SnapTrade lists any account, keeps only `accounts[0]`, and checks no trades. A later sync failure sets only `broker_links.sync_status='error'`, so the flag is never withdrawn.
-- **User impact:** Dormant while SnapTrade is unconfigured (last recorded). Once enabled, linking any account, even an empty one, earns a public Verified badge and ×1.5 consensus weight on all claims from the last 90 days, and both survive a broken link. Fix before adding SnapTrade keys.
+- **User impact:** Dormant while SnapTrade is unconfigured (last recorded). Once enabled, linking any account, even an empty one, earns a public Verified badge and ×1.5 consensus weight on all of the Player's live claims, and both survive a broken link. Fix before adding SnapTrade keys.
 - **Evidence:** [`packages/api/routers/broker.ts:170-198`](../packages/api/routers/broker.ts#L170-L198) · [`packages/api/routers/broker.ts:384-392`](../packages/api/routers/broker.ts#L384-L392) · [`packages/scoring/src/consensus.ts:97`](../packages/scoring/src/consensus.ts#L97) · [`apps/worker/functions/consensus-signal.ts:99`](../apps/worker/functions/consensus-signal.ts#L99)
 
 <a id="snaptrade-secret-plaintext"></a>
@@ -515,18 +425,8 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Low** · bug · `identity-derivation-inconsistent`
 
 - **What's wrong:** The Clerk webhook names a user from first and last name, then "User"; the tRPC self-heal also tries the username. Players are slugged by `@deepmint/shared` `slugify` (deletes punctuation) and Guides by the resolver's own (turns punctuation into hyphens), in one shared slug namespace.
-- **User impact:** Mostly cosmetic: "J.P. Morgan" becomes `jp-morgan` as a Player and `j-p-morgan` as a Guide. The collision risk is [guide-resolver-matches-user-slug](#guide-resolver-matches-user-slug).
+- **User impact:** Mostly cosmetic: "J.P. Morgan" becomes `jp-morgan` as a Player and `j-p-morgan` as a Guide. (Since wave 1 a firm's ratings never resolve to a user's slug.)
 - **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts:61-64`](../apps/web/app/api/webhooks/clerk/route.ts#L61-L64) · [`apps/web/app/api/trpc/[trpc]/route.ts:38-41`](../apps/web/app/api/trpc/%5Btrpc%5D/route.ts#L38-L41) · [`packages/shared/src/utils.ts:1-8`](../packages/shared/src/utils.ts#L1-L8) · [`packages/ingestion/src/sources/resolver.ts:7-15`](../packages/ingestion/src/sources/resolver.ts#L7-L15)
-
-<a id="v1-leaderboard-missing-fixes"></a>
-
-### REST `/api/v1/leaderboard` lacks the tRPC leaderboard's fixes
-
-**Low** · bug · `v1-leaderboard-missing-fixes`
-
-- **What's wrong:** With no `horizon` given, the route does not default to `all`, so `metric=hit_rate` lists a Guide up to 7 times (pooled plus one row per outcome horizon). Its latest-date probe ignores the horizon, so a horizon with no rows on the newest date returns an empty board. It has no `deleted_at` filter (latent: nothing sets it).
-- **User impact:** API callers get duplicate rows and a ranking that differs from the web and MCP boards. Keys are admin-issued and no external consumer is known.
-- **Evidence:** [`apps/web/app/api/v1/leaderboard/route.ts:46-65`](../apps/web/app/api/v1/leaderboard/route.ts#L46-L65) · [`packages/api/routers/leaderboard.ts:21`](../packages/api/routers/leaderboard.ts#L21) · [`packages/api/routers/leaderboard.ts:47-57`](../packages/api/routers/leaderboard.ts#L47-L57)
 
 <a id="mcp-tool-contract-gaps"></a>
 
@@ -538,16 +438,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** An agent asking for a track record gets no claims, outcomes or scores, and tool descriptions promise Mag-7 while any instrument resolves.
 - **Evidence:** [`apps/web/app/api/mcp/route.ts:36-43`](../apps/web/app/api/mcp/route.ts#L36-L43) · [`apps/web/app/api/mcp/route.ts:93-98`](../apps/web/app/api/mcp/route.ts#L93-L98) · [`apps/web/app/api/mcp/route.ts:113-123`](../apps/web/app/api/mcp/route.ts#L113-L123) · [`apps/web/app/api/mcp/route.ts:214`](../apps/web/app/api/mcp/route.ts#L214)
 
-<a id="openapi-spec-drift"></a>
-
-### The OpenAPI spec disagrees with what the v1 API returns
-
-**Low** · docs-drift · `openapi-spec-drift`
-
-- **What's wrong:** The spec's leaderboard `horizon` enum offers `12m`, which is never written, and omits `1y`; the route does not validate horizon, so `12m` returns an empty 200. The spec documents no 403 and no per-endpoint scope, omits `assetClass` from the consensus instrument object, uses OpenAPI 3.0's `nullable` under `openapi: 3.1.0`, and gives `https://deepmint.app` as the contact URL.
-- **User impact:** Clients built from the spec get empty boards, undocumented 403s and dropped or mistyped fields.
-- **Evidence:** [`apps/web/app/api/v1/openapi.json/route.ts:31`](../apps/web/app/api/v1/openapi.json/route.ts#L31) · [`apps/web/app/api/v1/openapi.json/route.ts:121-127`](../apps/web/app/api/v1/openapi.json/route.ts#L121-L127) · [`apps/web/app/api/v1/openapi.json/route.ts:232-239`](../apps/web/app/api/v1/openapi.json/route.ts#L232-L239) · [`apps/web/app/api/v1/lib/auth.ts:88-98`](../apps/web/app/api/v1/lib/auth.ts#L88-L98)
-
 <a id="clerk-webhook-fragile"></a>
 
 ### Clerk webhook verifies a re-serialised body
@@ -557,16 +447,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** The webhook verifies `JSON.stringify(await req.json())` instead of the raw request body. Payloads whose bytes change when re-serialised (an escaped `/`, an escaped `&`, `1.0`) fail with 400 "Invalid signature".
 - **User impact:** None today: maintainer notes (2026-08-11, unverified) say no production webhook endpoint is registered, and the tRPC self-heal creates entities either way. Once registered, some sign-ups would get 400s and Svix retries.
 - **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts:42-54`](../apps/web/app/api/webhooks/clerk/route.ts#L42-L54)
-
-<a id="clerk-getuser-per-request"></a>
-
-### Every non-admin request calls Clerk's backend `getUser`
-
-**Low** · bug · `clerk-getuser-per-request`
-
-- **What's wrong:** For signed-in users whose session claim does not say admin, which is every non-admin, the tRPC context and the `(app)` layout both call `users.getUser` to read the role: once per tRPC HTTP request and once per full page render.
-- **User impact:** Each such request waits on a Clerk round trip. A Clerk development instance allows 100 backend requests per 10 s; past that, admins lose admin access for that request with nothing logged, and new users' self-heal fails for that request (this one is logged).
-- **Evidence:** [`apps/web/app/api/trpc/[trpc]/route.ts:64-81`](../apps/web/app/api/trpc/%5Btrpc%5D/route.ts#L64-L81) · [`apps/web/app/(app)/layout.tsx:19-38`](../apps/web/app/%28app%29/layout.tsx#L19-L38)
 
 <a id="unused-trpc-procedures"></a>
 
@@ -598,7 +478,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Medium** · inert-integration · `digest-placeholder-recipient`
 
-- **What's wrong:** `daily-digest` never looks up a user's email. It sends from `digest@deepmint.app` to `user+<clerkUserId>@deepmint.app`, with links to `https://deepmint.app`. The Daily/Weekly choice in Settings (`digestFrequency`) is never read. A 24-hour lookback on a Mon–Fri 12:00 UTC cron misses Friday 12:00 to Sunday 12:00 UTC, including Friday's ingest and markout. Resend returns errors instead of throwing, so rejected sends count as sent.
+- **What's wrong:** `daily-digest` never looks up a user's email. It sends from `digest@deepmint.app` to `user+<clerkUserId>@deepmint.app`, with links to `https://deepmint.app`. The Daily/Weekly choice in Settings (`digestFrequency`) is never read. A 24-hour lookback on a Mon–Fri 08:00 ET cron misses Friday 08:00 to Sunday 08:00 ET, including Friday's ingest and markout. Resend returns errors instead of throwing, so rejected sends count as sent.
 - **User impact:** No user receives a digest. Today it skips entirely (`RESEND_API_KEY` last recorded empty). Setting the key would still reach nobody, and the run summary would count rejected sends as sent.
 - **Evidence:** [`apps/worker/functions/digest.ts:22`](../apps/worker/functions/digest.ts#L22) · [`apps/worker/functions/digest.ts:32-33`](../apps/worker/functions/digest.ts#L32-L33) · [`apps/worker/functions/digest.ts:56`](../apps/worker/functions/digest.ts#L56) · [`apps/worker/functions/digest.ts:156-173`](../apps/worker/functions/digest.ts#L156-L173)
 
@@ -609,7 +489,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Medium** · bug · `aggregates-refresh-only-after-markout`
 
 - **What's wrong:** `consensus-signal` and `influence-aggregate` run only on `scoring/completed`, which follows `markouts/completed`, which is sent only when markout (or a backfill) writes an outcome. No cron recomputes them.
-- **User impact:** On days when no claim matures, consensus and influence are not recomputed, however many claims arrived; the 90-day window and decay freeze too. The UI shows no as-of date, so stale signals look current. If no claim has ever matured, no consensus row exists.
+- **User impact:** On days when no claim matures, consensus and influence are not recomputed, however many claims arrived; the live-claim window and decay freeze too, so claims whose horizon has passed keep counting in the last stored signal. The UI shows no as-of date, so stale signals look current. If no claim has ever matured, no consensus row exists.
 - **Evidence:** [`apps/worker/functions/markout.ts:136-144`](../apps/worker/functions/markout.ts#L136-L144) · [`apps/worker/functions/score.ts:323-331`](../apps/worker/functions/score.ts#L323-L331) · [`apps/worker/functions/consensus-signal.ts:21`](../apps/worker/functions/consensus-signal.ts#L21) · [`apps/worker/functions/influence-aggregate.ts:14`](../apps/worker/functions/influence-aggregate.ts#L14)
 
 <a id="backfill-prices-deactivates-on-error"></a>
@@ -631,16 +511,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Both sync paths pick only links with `sync_status='active'` and set `'error'` on any failure. Only `completeLink` sets `'active'` again; the cron's success path does not, so even an error that an Inngest retry recovers from sticks. The error state's Retry button only refetches. `completeLink` also sets `last_sync_at` to now, so trades from before the link are never fetched.
 - **User impact:** Dormant while SnapTrade is unconfigured. Once enabled, one error ends syncing for that Player while the Verified badge and ×1.5 weight stay.
 - **Evidence:** [`apps/worker/functions/broker-sync.ts:36-46`](../apps/worker/functions/broker-sync.ts#L36-L46) · [`apps/worker/functions/broker-sync.ts:118-137`](../apps/worker/functions/broker-sync.ts#L118-L137) · [`packages/api/routers/broker.ts:182-196`](../packages/api/routers/broker.ts#L182-L196) · [`apps/web/components/settings/BrokerVerification.tsx:149-169`](../apps/web/components/settings/BrokerVerification.tsx#L149-L169)
-
-<a id="cron-times-assume-edt"></a>
-
-### UTC crons drift an hour in winter: markout runs at the 16:00 ET close
-
-**Low** · bug · `cron-times-assume-edt`
-
-- **What's wrong:** The crons are UTC with no `TZ=` prefix, and comments give EDT times. From Monday 2026-11-02 until US daylight time resumes on 2027-03-14, `ingest-sources` (20:30 UTC) runs at 15:30 ET, before the close, and `markout-computation` (21:00 UTC) runs at exactly 16:00 ET.
-- **User impact:** In winter, every outcome whose exit is the run date lands one trading day late: a session's bar counts only from 16:30 ET, so the 16:00 ET run waits and the next run prices the same exit date.
-- **Evidence:** [`apps/worker/functions/ingest.ts:53-61`](../apps/worker/functions/ingest.ts#L53-L61) · [`apps/worker/functions/markout.ts:8-15`](../apps/worker/functions/markout.ts#L8-L15) · [`apps/worker/functions/markoutClaim.ts:85-88`](../apps/worker/functions/markoutClaim.ts#L85-L88) · [`packages/ingestion/src/extractor.ts:649-664`](../packages/ingestion/src/extractor.ts#L649-L664)
 
 <a id="merkle-audit-gaps"></a>
 
@@ -668,23 +538,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · docs-drift · `worker-stale-docstrings`
 
-- **What's wrong:** `getSourceAdapters`' docstring says it falls back to the demo adapter; the body has no fallback, as its own note says, and `DemoSourceAdapter` is used only by a test. `score.ts` comments "entities that have outcomes" over a query of all entities and selects an unused `brokerLinkStatus`. `ingest-sources` returns `totalProcessed` as the number of adapters, not captures.
+- **What's wrong:** `getSourceAdapters`' docstring says it falls back to the demo adapter; the body has no fallback, as its own note says, and `DemoSourceAdapter` is used only by a test. `ingest-sources` returns `totalProcessed` as the number of adapters, not captures.
 - **User impact:** Maintainers only.
-- **Evidence:** [`apps/worker/functions/ingest.ts:11-15`](../apps/worker/functions/ingest.ts#L11-L15) · [`apps/worker/functions/ingest.ts:46-49`](../apps/worker/functions/ingest.ts#L46-L49) · [`apps/worker/functions/ingest.ts:133`](../apps/worker/functions/ingest.ts#L133) · [`apps/worker/functions/score.ts:50-57`](../apps/worker/functions/score.ts#L50-L57)
+- **Evidence:** [`apps/worker/functions/ingest.ts:11-15`](../apps/worker/functions/ingest.ts#L11-L15) · [`apps/worker/functions/ingest.ts:46-49`](../apps/worker/functions/ingest.ts#L46-L49) · [`apps/worker/functions/ingest.ts:133`](../apps/worker/functions/ingest.ts#L133)
 
 <a id="area-ingestion"></a>
 
 ## Ingestion and extraction
-
-<a id="guide-resolver-matches-user-slug"></a>
-
-### Firm attribution can land on a signed-up user with the firm's slug
-
-**Medium** · data-integrity · `guide-resolver-matches-user-slug`
-
-- **What's wrong:** `resolveOrCreateGuide` falls back to matching any entity by slug, with no `type='guide'` or `clerk_user_id IS NULL` condition, and firm attribution calls it with no source URL. A user who signs up as, say, "Goldman Sachs" before that firm has a Guide gets slug `goldman-sachs`, and the firm's later ratings are credited to that Player.
-- **User impact:** Latent until a firm-attributing lane (RSS, Polygon news or backfill) runs. Any sign-up could then inherit an institution's ratings on purpose, and the firm would never appear as a Guide. Repair means rewriting `claims.entity_id`, against the append-only rule.
-- **Evidence:** [`packages/ingestion/src/sources/resolver.ts:49-55`](../packages/ingestion/src/sources/resolver.ts#L49-L55) · [`packages/ingestion/src/extractor.ts:625-637`](../packages/ingestion/src/extractor.ts#L625-L637) · [`packages/db/queries/ensureEntityForClerkUser.ts:42-62`](../packages/db/queries/ensureEntityForClerkUser.ts#L42-L62)
 
 <a id="extraction-failures-never-retried"></a>
 
@@ -776,16 +636,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Calls on GOOG, or with 60-day or 2-year horizons, never reach the ledger. Rejection reasons are not logged, and backfill ignores even the counts.
 - **Evidence:** [`packages/ingestion/src/extractor.ts:320`](../packages/ingestion/src/extractor.ts#L320) · [`packages/ingestion/src/extractor.ts:466-487`](../packages/ingestion/src/extractor.ts#L466-L487) · [`packages/ingestion/src/extractor.ts:613-620`](../packages/ingestion/src/extractor.ts#L613-L620) · [`apps/worker/functions/backfill.ts:140-163`](../apps/worker/functions/backfill.ts#L140-L163)
 
-<a id="firm-guide-resolution-edge-cases"></a>
-
-### Long firm names fall back to the carrier, and failed inserts leave orphan Guides
-
-**Low** · bug · `firm-guide-resolution-edge-cases`
-
-- **What's wrong:** Firm names up to 200 characters pass validation, but `display_name` is `varchar(100)`, so creating a 101–200-character firm fails and the claim stays with the carrier. In the Polygon news lane (off by default), a publisher name over 100 characters would abort the whole ingest run. Firm Guides are created before the post's single claim insert, so a persistent insert failure (such as a target above $21,474,836.47 overflowing the integer column) loses the post's claims and leaves orphan Guides.
-- **User impact:** Rare. Orphan Guides are empty profiles, which `entity.search` (no UI caller) returns.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:139`](../packages/ingestion/src/extractor.ts#L139) · [`packages/db/schema/entities.ts:10`](../packages/db/schema/entities.ts#L10) · [`packages/ingestion/src/sources/resolver.ts:60-88`](../packages/ingestion/src/sources/resolver.ts#L60-L88) · [`packages/ingestion/src/sources/polygonNews.ts:77-86`](../packages/ingestion/src/sources/polygonNews.ts#L77-L86) · [`packages/ingestion/src/extractor.ts:494-498`](../packages/ingestion/src/extractor.ts#L494-L498)
-
 <a id="rationale-tags-vocabulary"></a>
 
 ### Extracted rationale tags accept any string
@@ -817,18 +667,8 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Medium** · data-integrity · `uniqueness-invariants-comment-only`
 
 - **What's wrong:** No migration creates the unique indexes the schema comments describe (one outcome per claim and horizon, one instrument per ticker and exchange, one score per entity, metric, horizon, regime and date), and `events.content_hash` is not unique. No trigger or permission enforces append-only. Dedupe is check-then-insert with no `ON CONFLICT` and no Inngest concurrency limit: markout checks every due claim first, then spends minutes pricing them before inserting. Derived tables are deleted and re-inserted outside a transaction.
-- **User impact:** Sequential retries are safe. A historical backfill overlapping the 21:00 UTC markout can write duplicate outcomes, which count twice in hit rate, returns and EIV and are never removed.
+- **User impact:** Sequential retries are safe. A historical backfill overlapping the 17:00 ET markout can write duplicate outcomes, which count twice in hit rate, returns and EIV and are never removed.
 - **Evidence:** [`packages/db/schema/outcomes.ts:21-22`](../packages/db/schema/outcomes.ts#L21-L22) · [`packages/db/schema/events.ts:9`](../packages/db/schema/events.ts#L9) · [`apps/worker/functions/markout.ts:44-61`](../apps/worker/functions/markout.ts#L44-L61) · [`apps/worker/functions/markout.ts:83-108`](../apps/worker/functions/markout.ts#L83-L108) · [`apps/worker/functions/score.ts:243-251`](../apps/worker/functions/score.ts#L243-L251)
-
-<a id="fallback-prices-in-ledger"></a>
-
-### A keyless deploy writes fake entry prices on dated and backfilled claims
-
-**Low** · data-integrity · `fallback-prices-in-ledger`
-
-- **What's wrong:** With no `POLYGON_API_KEY`, `getEODPrice` returns fixed dev prices (Mag 7 only), and a rating-dated extracted claim or a backfilled claim stores that as its entry price. (Fixed 2026-10-06: a failed entry lookup no longer leaves a claim that never scores, because markout prices a missing entry at the first close after the claim; and markout writes no outcomes without a key.)
-- **User impact:** Latent: a keyless deploy or worker writing to a shared database would store fake, undeletable entry prices on those claims.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:646-664`](../packages/ingestion/src/extractor.ts#L646-L664) · [`apps/worker/functions/backfill.ts:145-152`](../apps/worker/functions/backfill.ts#L145-L152) · [`packages/shared/src/polygon.ts:38-56`](../packages/shared/src/polygon.ts#L38-L56)
 
 <a id="soft-delete-half-implemented"></a>
 
@@ -842,13 +682,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="stale-schema-and-scoring-comments"></a>
 
-### Schema and consensus comments describe behaviour that does not exist
+### The `scores` schema comment describes metrics that are never written
 
 **Low** · docs-drift · `stale-schema-and-scoring-comments`
 
-- **What's wrong:** The `scores` schema comment lists metrics never written (`hit_rate_3m`, `hit_rate_6m`, `hit_rate_12m`, `overall_player`, `overall_guide`) and a `12m` horizon; real horizons are `all`, `1d`, `1w`, `1m`, `3m`, `6m` and `1y`. The `confidenceMultiplier` comment says the APIs can write out-of-range confidence, but every writer bounds it to 0–100; only direct SQL could, as the column has no CHECK.
+- **What's wrong:** The `scores` schema comment lists metrics never written (`hit_rate_3m`, `hit_rate_6m`, `hit_rate_12m`, `overall_player`, `overall_guide`) and a `12m` horizon; real horizons are `all`, `1d`, `1w`, `1m`, `3m`, `6m` and `1y`.
 - **User impact:** Queries written from the comment return nothing.
-- **Evidence:** [`packages/db/schema/scores.ts:8-12`](../packages/db/schema/scores.ts#L8-L12) · [`packages/scoring/src/consensus.ts:45-48`](../packages/scoring/src/consensus.ts#L45-L48) · [`packages/api/routers/claims.ts:54`](../packages/api/routers/claims.ts#L54)
+- **Evidence:** [`packages/db/schema/scores.ts:8-12`](../packages/db/schema/scores.ts#L8-L12)
 
 <a id="two-verified-flags"></a>
 
@@ -866,9 +706,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · dead-code · `dead-and-duplicated-shared-code`
 
-- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `dollarsToCents`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `CLAIM_RATE_LIMIT`, `Mag7Ticker`, `getBatchEODPrices`, the price cache-key helpers and four `components/ui` files. Duplicated: the claims rate limit (hard-coded 10/h), a 7-ticker list in `instruments.mag7`, the rating enums and `SourceKind` in the extractor, two `slugify`s, and two local copies of the shared `formatBps`.
+- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `CLAIM_RATE_LIMIT`, `Mag7Ticker`, `historicalCacheKey` with `TTL_HISTORICAL`, and four `components/ui` files. Duplicated: the claims rate limit (hard-coded 10/h), a 7-ticker list in `instruments.mag7`, the rating enums and `SourceKind` in the extractor, two `slugify`s, and two local copies of the shared `formatBps`.
 - **User impact:** None for users; noise for maintainers.
-- **Evidence:** [`packages/shared/src/errors.ts:1-45`](../packages/shared/src/errors.ts#L1-L45) · [`packages/shared/src/polygon.ts:468`](../packages/shared/src/polygon.ts#L468) · [`packages/shared/src/polygonCache.ts:80-94`](../packages/shared/src/polygonCache.ts#L80-L94) · [`packages/api/routers/claims.ts:34`](../packages/api/routers/claims.ts#L34)
+- **Evidence:** [`packages/shared/src/errors.ts:1-45`](../packages/shared/src/errors.ts#L1-L45) · [`packages/shared/src/polygonCache.ts:80-85`](../packages/shared/src/polygonCache.ts#L80-L85) · [`packages/api/routers/claims.ts:34`](../packages/api/routers/claims.ts#L34)
 
 <a id="asset-class-unpriceable"></a>
 
@@ -884,25 +724,15 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 ## Infrastructure, config and tooling
 
-<a id="trpc-inngest-prefixed-keys"></a>
-
-### tRPC routers' Inngest clients never see the `INNGEST_WORKFLOW_`-prefixed keys
-
-**Medium** · config · `trpc-inngest-prefixed-keys`
-
-- **What's wrong:** The claims, social and instruments routers each create an Inngest client when the module loads, and it copies the environment then. The mapping from `INNGEST_WORKFLOW_*` to `INNGEST_*` is imported only by `/api/inngest` and `apps/worker/inngest.ts`. In cloud mode, `send()` throws when there is no event key.
-- **User impact:** Applies only if production lacks an unprefixed `INNGEST_EVENT_KEY`, which could not be checked on 2026-10-05. If so, `claims/created` and `social/followed` fail silently (no mirrored trades, influence events or follower notifications from self-logged activity), and admin instrument creation throws after inserting the rows, skipping the price check. Crons are unaffected.
-- **Evidence:** [`packages/api/routers/claims.ts:21-23`](../packages/api/routers/claims.ts#L21-L23) · [`packages/api/routers/claims.ts:116-128`](../packages/api/routers/claims.ts#L116-L128) · [`packages/api/routers/social.ts:85-93`](../packages/api/routers/social.ts#L85-L93) · [`packages/api/routers/instruments.ts:361-366`](../packages/api/routers/instruments.ts#L361-L366) · [`apps/web/app/api/inngest/inngest-env.ts:6-9`](../apps/web/app/api/inngest/inngest-env.ts#L6-L9)
-
 <a id="polygon-throttle-not-serialized"></a>
 
-### The Polygon throttle is not a queue: concurrent calls fire together
+### The Polygon throttle queues calls only within one process
 
-**Medium** · bug · `polygon-throttle-not-serialized`
+**Low** · bug · `polygon-throttle-not-serialized`
 
-- **What's wrong:** `polygonRateLimit` sleeps first and records the request time afterwards, so callers that start together compute the same wait and fire together. Every `Promise.all` pair in the regime code sends two requests per interval. The state is per serverless instance, not per account.
-- **User impact:** Regime detection bursts at about 2× (4× when two lookups overlap) the 5 req/min plan. 429s are hidden by silent fallbacks (dropped sector ETFs, default dispersion 0.08, default S&P return, hard-coded SPX 5300) that can mislabel the regime, and overlapping requests can make claim submission fail.
-- **Evidence:** [`packages/shared/src/polygon.ts:76-94`](../packages/shared/src/polygon.ts#L76-L94) · [`packages/shared/src/polygon.ts:372-375`](../packages/shared/src/polygon.ts#L372-L375) · [`packages/shared/src/polygon.ts:434-437`](../packages/shared/src/polygon.ts#L434-L437)
+- **What's wrong:** Since wave 1, `polygonRateLimit` reserves each caller's slot before it sleeps, so calls within one process run 12.5 s apart, `Promise.all` pairs included. The queue is still per serverless instance, not per account: two instances calling Polygon at the same time (for example scoring computing the day's regime while a page view or a markout prices) together exceed the 5 req/min plan.
+- **User impact:** Overlapping jobs can still draw 429s. Regime detection hides them behind fallbacks (dropped sector ETFs, default dispersion 0.08) that can mislabel the regime, and an interactive price lookup that gets one fails.
+- **Evidence:** [`packages/shared/src/polygon.ts:76-96`](../packages/shared/src/polygon.ts#L76-L96) · [`packages/shared/src/polygon.ts:442-445`](../packages/shared/src/polygon.ts#L442-L445) · [`packages/shared/src/polygon.ts:527-537`](../packages/shared/src/polygon.ts#L527-L537)
 
 <a id="sentry-inert"></a>
 
@@ -924,16 +754,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Run against production, it would duplicate the Mag-7 instruments and put fake Guides with backdated claims into the ledger; the next weekday markout would turn them into public scores. Cleanup would need hand-written SQL across about ten tables.
 - **Evidence:** [`packages/db/seed.ts:5-11`](../packages/db/seed.ts#L5-L11) · [`packages/db/seed.ts:51-65`](../packages/db/seed.ts#L51-L65) · [`packages/db/seed.ts:203-242`](../packages/db/seed.ts#L203-L242) · [`packages/db/drizzle/0000_medical_hammerhead.sql:102-114`](../packages/db/drizzle/0000_medical_hammerhead.sql#L102-L114)
 
-<a id="stale-worker-build-artifacts"></a>
-
-### Stale compiled worker files shadow the source in production
-
-**Medium** · config · `stale-worker-build-artifacts`
-
-- **What's wrong:** Compiled leftovers from 2026-04-02 are tracked in `apps/worker` (`inngest.js`, `inngest.js.map`, `inngest.d.ts`, `inngest.d.ts.map`, `functions/ingest.js.map`). Next's webpack resolves `.js` before `.ts`, so the production build bundles the stale `inngest.js`, which lacks the `INNGEST_WORKFLOW_` key mapping, for all 15 functions. tsx scripts load `inngest.ts`.
-- **User impact:** Production works only because `/api/inngest` imports `inngest-env.ts` first. Any future change to `apps/worker/inngest.ts` would work locally and silently not ship.
-- **Evidence:** [`apps/worker/inngest.js:1-2`](../apps/worker/inngest.js#L1-L2) · [`apps/worker/inngest.ts:7-10`](../apps/worker/inngest.ts#L7-L10) · [`apps/web/app/api/inngest/route.ts:4`](../apps/web/app/api/inngest/route.ts#L4)
-
 <a id="inngest-route-no-maxduration"></a>
 
 ### `/api/inngest` sets no `maxDuration` for steps that can run for minutes
@@ -950,29 +770,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · config · `domain-mismatch`
 
-- **What's wrong:** `deepmint.app` is the metadata base fallback, the OpenAPI contact URL and the digest sender, recipient and links. `deepmint.com` is the R2 public URL default and the demo adapter's URLs. Production is www.deepmint.ai, and the OpenAPI and digest values have no env override.
-- **User impact:** Only the OpenAPI and Swagger contact link is visible today, and `deepmint.app` does not resolve.
-- **Evidence:** [`apps/web/app/layout.tsx:21-23`](../apps/web/app/layout.tsx#L21-L23) · [`apps/web/app/api/v1/openapi.json/route.ts:29-32`](../apps/web/app/api/v1/openapi.json/route.ts#L29-L32) · [`apps/worker/functions/digest.ts:156-165`](../apps/worker/functions/digest.ts#L156-L165) · [`packages/ingestion/src/r2.ts:53`](../packages/ingestion/src/r2.ts#L53)
-
-<a id="lint-broken"></a>
-
-### `pnpm lint` cannot work
-
-**Low** · config · `lint-broken`
-
-- **What's wrong:** `pnpm lint` runs `next lint` in `apps/web`, which has no ESLint config or dependency. `tooling/eslint` is an old-style config that nothing references.
-- **User impact:** The repo has no linting. Without a terminal `next lint` exits 1; in one, it starts Next's setup wizard, which can install packages and write a config.
-- **Evidence:** [`apps/web/package.json:10`](../apps/web/package.json#L10) · [`package.json:7`](../package.json#L7) · [`tooling/eslint/base.js:3-16`](../tooling/eslint/base.js#L3-L16)
-
-<a id="worker-scripts-broken"></a>
-
-### `apps/worker` `start` and `dev` scripts do nothing useful
-
-**Low** · config · `worker-scripts-broken`
-
-- **What's wrong:** `start` runs `node dist/index.js`, which the build never emits (it emits `dist/src/index.js`, whose extensionless imports fail in Node anyway). `dev` logs "15 functions registered" and serves nothing. The functions actually run inside `apps/web` at `/api/inngest`.
-- **User impact:** Developers only: `start` crashes and `dev` misleads.
-- **Evidence:** [`apps/worker/package.json:10-12`](../apps/worker/package.json#L10-L12) · [`apps/worker/src/index.ts:39-42`](../apps/worker/src/index.ts#L39-L42)
+- **What's wrong:** `deepmint.app` is the digest sender, recipient and links. `deepmint.com` is the R2 public URL default and the demo adapter's URLs. Production is www.deepmint.ai, and the digest values have no env override.
+- **User impact:** None visible today: the digest skips without a Resend key, the R2 code is never called, and the demo adapter runs only in a test. `deepmint.app` does not resolve.
+- **Evidence:** [`apps/worker/functions/digest.ts:156-165`](../apps/worker/functions/digest.ts#L156-L165) · [`packages/ingestion/src/r2.ts:53`](../packages/ingestion/src/r2.ts#L53)
 
 <a id="root-vercel-json"></a>
 
@@ -994,16 +794,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Contributors run a container nothing uses, and local rate limiting never runs, though v1 still sends `X-RateLimit-*` headers.
 - **Evidence:** [`docker-compose.yml:13-16`](../docker-compose.yml#L13-L16) · [`packages/shared/src/polygonCache.ts:21-42`](../packages/shared/src/polygonCache.ts#L21-L42) · [`packages/shared/package.json`](../packages/shared/package.json)
 
-<a id="ci-coverage-narrow"></a>
-
-### CI checks only part of the monorepo
-
-**Low** · config · `ci-coverage-narrow`
-
-- **What's wrong:** CI runs `tsc` for scoring and shared and tests for scoring, shared and ingestion. `next build` type-checks most api, db, ingestion and worker code through the web tsconfig (with DOM types), but not `packages/db/seed.ts`, `drizzle.config.ts`, `ingestion/src/capture.ts`, `ingestion/scripts/bench-providers.ts` or `apps/worker/scripts/backfill.ts`. The api test never runs in CI, the worker has no tests, and the web integration suite is not invoked.
-- **User impact:** Type errors in those scripts, and behaviour regressions in routers and jobs, reach `main` unflagged.
-- **Evidence:** [`.github/workflows/ci.yml:28-35`](../.github/workflows/ci.yml#L28-L35)
-
 <a id="run-migration-script-unsafe"></a>
 
 ### `run-migration.mjs` hard-codes the main checkout and reports success on failure
@@ -1013,16 +803,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** The unreferenced script migrates from `/Users/nm/Projects/Deepmint/packages/db/drizzle`, forces `ssl: 'require'` (so only a remote database works) and exits 0 after printing "Migration failed".
 - **User impact:** Only if someone runs it: from a worktree it applies the main checkout's migrations and reports success, and real failures still exit 0.
 - **Evidence:** [`packages/db/run-migration.mjs:8`](../packages/db/run-migration.mjs#L8) · [`packages/db/run-migration.mjs:13`](../packages/db/run-migration.mjs#L13) · [`packages/db/run-migration.mjs:15-16`](../packages/db/run-migration.mjs#L15-L16)
-
-<a id="turbo-env-undeclared"></a>
-
-### `turbo.json` declares no env, so strict mode filters variables and caching ignores them
-
-**Low** · config · `turbo-env-undeclared`
-
-- **What's wrong:** Turbo 2.9.1 runs in strict env mode: shell variables are stripped from tasks (except `NEXT_PUBLIC_*` for web), and env changes, including the root `.env.local`, do not invalidate the `test` cache.
-- **User impact:** Root `pnpm test` can replay stale results after `.env.local` changes, and `TEST_API_KEY=… pnpm test` silently skips. CI and Vercel do not use turbo.
-- **Evidence:** [`turbo.json:1-25`](../turbo.json#L1-L25) · [`package.json:5-10`](../package.json#L5-L10)
 
 <a id="tracked-personal-files"></a>
 

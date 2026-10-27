@@ -3,6 +3,7 @@
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { UserPlus, UserMinus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface FollowButtonProps {
   targetEntityId: string;
@@ -20,6 +21,7 @@ export function FollowButton({ targetEntityId }: FollowButtonProps) {
       utils.social.isFollowing.invalidate({ targetEntityId });
       utils.social.followerCount.invalidate({ entityId: targetEntityId });
     },
+    onError: (err) => toast.error(err.message),
   });
 
   const unfollowMutation = trpc.social.unfollow.useMutation({
@@ -27,6 +29,7 @@ export function FollowButton({ targetEntityId }: FollowButtonProps) {
       utils.social.isFollowing.invalidate({ targetEntityId });
       utils.social.followerCount.invalidate({ entityId: targetEntityId });
     },
+    onError: (err) => toast.error(err.message),
   });
 
   const isMutating = followMutation.isPending || unfollowMutation.isPending;

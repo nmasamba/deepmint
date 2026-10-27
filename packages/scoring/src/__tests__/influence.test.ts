@@ -238,4 +238,29 @@ describe("detectInfluenceEvents", () => {
       ),
     ).toHaveLength(0);
   });
+
+  it("matches one Guide claim against each following Player's later claims", () => {
+    // The worker's Guide branch: one new Guide claim, its Player followers'
+    // claims from the 48 h after it.
+    const at = new Date("2026-10-20T14:00:00Z");
+    const hoursAfter = (h: number) => new Date(at.getTime() + h * 3600 * 1000);
+    const graph = new Map<string, Set<string>>([
+      ["p-1", new Set([guideId])],
+      ["p-2", new Set([guideId])],
+    ]);
+    const events = detectInfluenceEvents(
+      [{ claimId: "gc-1", entityId: guideId, instrumentId, direction: "long", createdAt: at }],
+      [
+        { entityId: "p-1", claimId: "pc-1", instrumentId, direction: "long", createdAt: hoursAfter(20) },
+        { entityId: "p-2", claimId: "pc-2", instrumentId, direction: "short", createdAt: hoursAfter(47.5) },
+        { entityId: "p-2", claimId: "pc-3", instrumentId, direction: "long", createdAt: hoursAfter(49) },
+        { entityId: "p-1", claimId: "pc-4", instrumentId, direction: "long", createdAt: hoursAfter(-1) },
+      ],
+      graph,
+    );
+    expect(events.map((e) => [e.playerClaimId, e.lagHours, e.directionMatch])).toEqual([
+      ["pc-1", 20, true],
+      ["pc-2", 47.5, false],
+    ]);
+  });
 });

@@ -10,6 +10,7 @@ import {
 } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
+import { enrichClaimRows } from "../lib/claimEnrichment";
 import { Redis } from "@upstash/redis";
 import { Inngest } from "inngest";
 
@@ -311,7 +312,7 @@ export const socialRouter = router({
       const items = hasMore ? results.slice(0, -1) : results;
 
       return {
-        items,
+        items: await enrichClaimRows(items),
         nextCursor: hasMore
           ? items[items.length - 1]?.claim.createdAt.toISOString()
           : null,

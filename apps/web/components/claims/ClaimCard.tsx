@@ -51,6 +51,10 @@ interface ClaimCardProps {
   };
   outcomes?: ClaimOutcome[];
   notesCount?: number;
+  /** Session (YYYY-MM-DD) whose close prices the exit, under the markout rules. */
+  exitDate: string;
+  /** True once that session has closed: the result is due. */
+  exitClosed: boolean;
   showEntity?: boolean;
 }
 
@@ -77,11 +81,11 @@ function relativeTime(date: Date): string {
   return `${diffMonths}mo ago`;
 }
 
-function maturesIn(createdAt: Date, horizonDays: number): string {
-  const maturityDate = new Date(createdAt.getTime() + horizonDays * 86400000);
-  const now = new Date();
-  const diffDays = Math.ceil((maturityDate.getTime() - now.getTime()) / 86400000);
-  if (diffDays <= 0) return "Matured";
+function maturesIn(exitDate: string): string {
+  const diffDays = Math.ceil(
+    (new Date(`${exitDate}T00:00:00Z`).getTime() - Date.now()) / 86400000,
+  );
+  if (diffDays <= 0) return "Matures today";
   if (diffDays === 1) return "Matures tomorrow";
   if (diffDays < 30) return `Matures in ${diffDays}d`;
   const months = Math.floor(diffDays / 30);
@@ -94,6 +98,8 @@ export function ClaimCard({
   instrument,
   outcomes = [],
   notesCount = 0,
+  exitDate,
+  exitClosed,
   showEntity = true,
 }: ClaimCardProps) {
   const [expanded, setExpanded] = useState(false);
@@ -247,7 +253,7 @@ export function ClaimCard({
         ) : (
           <div className="flex items-center gap-1 text-xs text-text-secondary">
             <Clock className="h-3 w-3" />
-            {maturesIn(claim.createdAt, claim.horizonDays)}
+            {exitClosed ? "Awaiting result" : maturesIn(exitDate)}
           </div>
         )}
 

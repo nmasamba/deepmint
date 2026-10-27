@@ -49,9 +49,9 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - `submit` allows 10 claims per hour per entity through Upstash. Without Upstash the limit is skipped.
   - The only update to a claim is the admin status change `pending_review` → `active` or `rejected`. Application code enforces this; the database does not.
   - No page calls `detail` or `addNote`; only the MCP `add_note` tool calls `addNote`.
-- **Claim UI:** `SubmitClaimForm`, `ClaimCard` and `ClaimsTimeline` (infinite scroll). Claims appear on the dashboard ("Make a Prediction"), My Claims, profile and ticker pages. Claim cards never show outcomes, because no caller passes them.
+- **Claim UI:** `SubmitClaimForm`, `ClaimCard` and `ClaimsTimeline` (infinite scroll). Claims appear on the dashboard ("Make a Prediction"), My Claims, profile and ticker pages. Until wave 1 those timelines listed no claims at all (their query failed validation) and cards never showed outcomes; now each card shows its result, "Awaiting result" or when it matures.
 - **Content hashing** (`packages/ingestion/src/hasher.ts`): SHA-256 of `{url, text, ts}`. Ingest skips any capture whose hash is already in `events`.
-- **Inngest workers:** `ingest-sources` (weekdays 20:30 UTC), `extract-claims` (on `ingestion/completed`) and `merkle-audit` (daily 22:00 UTC).
+- **Inngest workers:** `ingest-sources` (weekdays 16:30 US Eastern; it ran at 20:30 UTC until wave 1), `extract-claims` (on `ingestion/completed`) and `merkle-audit` (daily 22:00 UTC).
 - **Merkle audit** (`packages/shared/src/merkle.ts`): `computeClaimLeafHash()` and `buildMerkleTree()`. Pairs are hashed level by level, duplicating the last node when a level is odd, and the root is stored in `audit_roots`.
   - Nothing reads `audit_roots`, and `bitcoin_tx_id` is never written.
   - Claims inserted with a backdated `created_at` (rating dates, backfill) are never covered by any root.
@@ -84,7 +84,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
 - **Goal:** turn matured claims into outcomes, scores, leaderboards and consensus signals.
 - **Shipped:**
   - The full Polygon (Massive.com) client in `packages/shared/src/polygon.ts` (Sprint 2's version had only a price helper), with a 12.5 s throttle per process for the 5 req/min plan.
-  - `markout-computation` (weekdays 21:00 UTC, which is 17:00 EDT and 16:00 EST). It writes one outcome per matured active claim, priced at the exit date's close.
+  - `markout-computation` (weekdays 21:00 UTC, which is 17:00 EDT and 16:00 EST). It writes one outcome per matured active claim, priced at the exit date's close. Superseded: 17:00 US Eastern all year (wave 1).
   - `packages/scoring`, pure statistical functions:
     - Player: Sharpe, max drawdown, Calmar, CVaR5, consistency.
     - Guide: hit rate, average return, z-test, Brier, target precision.
@@ -96,7 +96,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - "Regime-aware" EIV is not regime-aware in practice. The worker always passes an empty regime history, so the 0.4 penalty always applies and `eiv` equals `eiv_overall`.
   - Player metrics treat each claim's outcome as one daily return, whatever its horizon.
   - `polygonCache.ts` was meant to cache prices (1 h historical, 5 min current). In fact only regime indicators are cached (1 h, and only when Upstash is set); prices are never cached.
-  - Consensus covers every active instrument, not just the Mag 7, using active claims from the last 90 days.
+  - Consensus covers every active instrument, not just the Mag 7. It used active claims from the last 90 days, and every run failed on a bound date; since wave 1 it counts the claims whose horizon has not passed, and runs.
   - `leaderboard-refresh` only writes a log line.
   - Regime inputs were placeholders (VIX 18, S&P +1%) until Sprint 7.
 
@@ -108,7 +108,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - `social` router: follows, social feed, watchlist and email preferences. Follow and Watch buttons.
   - Redesigned ticker page with a consensus breakdown and top Guides and Players. Non-Mag-7 symbols show "Coming soon".
   - Paper portfolios (up to 5 per entity) with trades and P&L (`paper` router).
-  - `daily-digest` email worker (weekdays 12:00 UTC, through Resend).
+  - `daily-digest` email worker (weekdays 12:00 UTC, through Resend). Superseded: 08:00 US Eastern (wave 1).
   - Learn: 5 static modules, 3 of them with quizzes; progress is kept in localStorage.
   - Landing page, rewritten in 0.4.1: ChoosePath Guide/Player cards, mint-green palette, logo and favicons. Also 404 and error pages.
   - The CI workflow, root `vercel.json` and the Sentry config files.
@@ -119,7 +119,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - The live stats section (`SocialProof`) has been hidden before launch since PR #5.
   - The landing copy says AI grades the calls, but scoring is deterministic statistics.
   - The paper "Equity Curve" plots two points (start and now), and paper trades fill at the previous close.
-  - The ticker page's Avg Target and Dispersion panels never render, because the consensus worker never writes those fields. Its Top Guides and Top Players lists are global, not per ticker.
+  - The ticker page's Top Guides and Top Players lists are global, not per ticker. (Its Avg Target and Dispersion panels render since wave 1.)
   - CI failed at pnpm setup from August until PR #9 (2026-10-05).
 
 ## Sprint 5 — Signal Simulate, influence, regimes, notifications
@@ -137,7 +137,8 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - Only tRPC `claims.submit` (self-logged claims) emits `claims/created`. Ingested and admin-approved claims never do, so mirroring a Guide never logs a trade.
   - The regime filter chips always return an empty board, because only `eiv` rows carry a regime tag.
   - "Best in Current Conditions" returned no rows until it was repointed at the `eiv` rows on 2026-08-03.
-  - The "Most Influential" leaderboard tab is always empty. It reads `scores`, but the value lives only in `influence_scores`.
+  - Until wave 1 the "Most Influential" leaderboard tab was always empty: it read `scores`, but the value lives only in `influence_scores`. It now reads `influence.topInfluencers`, like the dashboard's Trending Influencers.
+  - Until wave 1, `influence-track` threw on every claim from a Player who follows anyone (a date bound inside raw SQL), so no influence event was ever recorded. It now runs, counts only active claims by followed Guides, and measures the 48-hour window from the claim's own time.
   - Four notification types fire: `new_follower`, `signal_trade_logged`, and, since Sprint 7, `outcome_matured` and `rank_change`. `new_claim_from_follow` has a preference toggle but is never sent.
 
 ## Sprint 6 — B2B API, Proof-of-Skin, instrument expansion
@@ -149,7 +150,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
     - Keys are Bearer `dm_live_` keys; only the SHA-256 hash and a 16-character prefix are stored.
     - Only admins can mint keys, at `/admin/api-keys`.
     - Each key gets an Upstash per-minute limit (default 60), which is a no-op without Upstash.
-  - Proof-of-Skin: read-only SnapTrade linking (`broker` router; `broker-sync` runs weekdays 22:00 UTC). Verified Players get ×1.5 weight in consensus.
+  - Proof-of-Skin: read-only SnapTrade linking (`broker` router; `broker-sync` runs weekdays at 18:00 US Eastern). Verified Players get ×1.5 weight in consensus.
   - Instrument expansion:
     - the `/admin/instruments` page and the `ticker_requests` table;
     - `SP500_TOP_50_EXPANSION`;
@@ -177,10 +178,10 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - Mobile hamburger navigation; the bottom bar was cut to 4 items.
   - PWA manifest, Serwist service worker and an `/offline` page.
 - **Status today:**
-  - Since 2026-10-06 the regime is a stored daily snapshot (`market_regimes`, migration 0008), written on weekdays at 21:30 UTC; pages read it instead of recomputing. The plan has no index data (`I:VIX` and `I:SPX` return 403), so the S&P 500 30-day return is measured on SPY and VIX is recorded as defaulted, never as a made-up value.
-  - The web suite has 18 tests in 4 files; an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
+  - Since 2026-10-06 the regime is a stored daily snapshot (`market_regimes`, migration 0008), written on weekdays at 17:30 US Eastern; pages read it instead of recomputing. The plan has no index data (`I:VIX` and `I:SPX` return 403), so the S&P 500 30-day return is measured on SPY and VIX is recorded as defaulted, never as a made-up value.
+  - The web suite has 26 tests in 4 files (18 before wave 1); an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
   - `/docs/api` is shown to every signed-in user, but only admins can mint keys.
-  - `/manifest.json` and `/offline` sit behind sign-in. The manifest returns 404, and the offline page is never precached, so neither works.
+  - Until wave 1, `/manifest.json` and `/offline` sat behind sign-in: the manifest returned 404 and the offline page was never precached, so neither worked. Both are public now, and the service worker precaches `/offline`.
 
 ---
 
@@ -283,10 +284,9 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 - **Ingestion:** the weekday ingest does nothing unless one of the two lanes is configured:
   - RSS needs Guides with `is_allowlisted=true` and a `source_url`, set by hand in SQL;
   - the Polygon news lane needs `INGEST_POLYGON_NEWS=1`.
-- **Tests without keys:** scoring 108, shared 16, api 5, ingestion 56 (6 live LLM tests skip without `HF_API_KEY`), web 18 skipped.
+- **Tests without keys** (since wave 1): scoring 114, shared 23 (2 live Polygon tests skip), api 7 (3 database tests skip), ingestion 59 (6 live LLM and 5 database tests skip), web 26 skipped.
 - **Open issues to know first:**
   - Leaderboards have no minimum sample size.
   - `claims/created` fires only for self-logged claims.
-  - The `packages/api` Inngest clients do not map the `INNGEST_WORKFLOW_` keys. This matters only if production lacks an unprefixed `INNGEST_EVENT_KEY`, which is not verified.
   - Sentry and R2 are inert.
   - The digest reaches no one.

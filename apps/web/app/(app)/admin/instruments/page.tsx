@@ -15,11 +15,17 @@ export default function AdminInstrumentsPage() {
   const [tab, setTab] = useState<Tab>("instruments");
   const utils = trpc.useUtils();
 
-  const { data: instruments, isLoading: instrumentsLoading } =
-    trpc.instruments.adminList.useQuery({ includeInactive: true, limit: 100 });
+  const {
+    data: instruments,
+    isLoading: instrumentsLoading,
+    error: instrumentsError,
+  } = trpc.instruments.adminList.useQuery({ includeInactive: true, limit: 100 });
 
-  const { data: requests, isLoading: requestsLoading } =
-    trpc.instruments.listRequests.useQuery(
+  const {
+    data: requests,
+    isLoading: requestsLoading,
+    error: requestsError,
+  } = trpc.instruments.listRequests.useQuery(
       { limit: 100 },
       { enabled: tab === "requests" },
     );
@@ -122,6 +128,10 @@ export default function AdminInstrumentsPage() {
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
+          ) : instrumentsError ? (
+            <div className="p-8 text-center text-red-400">
+              Could not load instruments: {instrumentsError.message}
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-bg-tertiary text-left text-text-secondary">
@@ -205,6 +215,10 @@ export default function AdminInstrumentsPage() {
               {Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} className="h-20 w-full" />
               ))}
+            </div>
+          ) : requestsError ? (
+            <div className="p-8 text-center text-red-400">
+              Could not load ticker requests: {requestsError.message}
             </div>
           ) : (requests ?? []).length === 0 ? (
             <div className="p-8 text-center text-text-secondary">

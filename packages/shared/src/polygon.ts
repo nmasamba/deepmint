@@ -1,7 +1,9 @@
 /**
  * Market data client using Massive.com API (formerly Polygon.io).
  * Sprint 3.1 — full implementation with EOD, historical, snapshot, and batch.
- * All prices returned in integer cents. Dev fallback when POLYGON_API_KEY unset.
+ * All prices returned in integer cents. Without POLYGON_API_KEY, getCurrentPrice
+ * and the index helpers fall back to dev constants; getEODPrice (ledger entry
+ * prices) and getLatestClose throw instead.
  */
 
 import {
@@ -9,6 +11,8 @@ import {
   GetStocksAggregatesTimespanEnum,
   GetStocksAggregatesSortEnum,
 } from "@massive.com/client-js";
+import { dollarsToCents } from "./utils";
+import { getCached, currentPriceCacheKey } from "./polygonCache";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,10 +63,6 @@ function getClient() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function dollarsToCents(dollars: number): number {
-  return Math.round(dollars * 100);
-}
-
 function getFallbackPrice(ticker: string): number {
   const fallback = DEV_FALLBACK_PRICES[ticker.toUpperCase()];
   if (fallback) return fallback;
@@ -81,16 +81,19 @@ const MIN_REQUEST_INTERVAL_MS = 12_500; // ~5 req/min = one every 12s
  * AND news. They draw on the same account quota, so all callers must pass
  * through this single limiter; a second independent limiter would let the
  * combined request rate exceed the plan limit (observed as HTTP 429).
+ *
+ * Each caller reserves its slot synchronously, before sleeping, so callers that
+ * start together queue MIN_REQUEST_INTERVAL_MS apart instead of computing the
+ * same wait and firing together. The queue is per process: separate serverless
+ * instances each keep their own.
  */
 export async function polygonRateLimit(): Promise<void> {
-  const now = Date.now();
-  const elapsed = now - lastRequestTime;
-  if (elapsed < MIN_REQUEST_INTERVAL_MS) {
-    await new Promise((resolve) =>
-      setTimeout(resolve, MIN_REQUEST_INTERVAL_MS - elapsed)
-    );
+  const slot = Math.max(Date.now(), lastRequestTime + MIN_REQUEST_INTERVAL_MS);
+  lastRequestTime = slot;
+  const wait = slot - Date.now();
+  if (wait > 0) {
+    await new Promise((resolve) => setTimeout(resolve, wait));
   }
-  lastRequestTime = Date.now();
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +162,10 @@ export async function getCurrentPrice(ticker: string): Promise<number> {
 /**
  * Get end-of-day OHLCV for a ticker on a specific date.
  * Returns prices in cents.
+ *
+ * Throws without a key: callers store this as a claim's entry price, and a dev
+ * constant in the append-only ledger could never be removed. They catch the
+ * error and leave the entry null, which markout prices later.
  */
 export async function getEODPrice(
   ticker: string,
@@ -166,14 +173,7 @@ export async function getEODPrice(
 ): Promise<EODPrice> {
   const client = getClient();
   if (!client) {
-    const fallback = getFallbackPrice(ticker);
-    return {
-      openCents: fallback,
-      highCents: fallback,
-      lowCents: fallback,
-      closeCents: fallback,
-      volume: 0,
-    };
+    throw new Error(`No EOD price for ${ticker} on ${date}: POLYGON_API_KEY is not set`);
   }
 
   await polygonRateLimit();
@@ -251,6 +251,79 @@ export async function getHistoricalPrices(
       volume: bar.v ?? 0,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Latest close (cached) — for display and valuation, never for the ledger
+// ---------------------------------------------------------------------------
+
+export interface LatestClose {
+  closeCents: number;
+  /** The session (YYYY-MM-DD) whose close this is. */
+  sessionDate: string;
+}
+
+const latestCloseMemo = new Map<string, { value: LatestClose; expiresAt: number }>();
+const latestCloseInFlight = new Map<string, Promise<LatestClose>>();
+
+async function fetchLatestClose(ticker: string): Promise<LatestClose> {
+  const client = getClient();
+  if (!client) throw new Error(`No close for ${ticker}: POLYGON_API_KEY is not set`);
+  await polygonRateLimit();
+  const resp = await client.getPreviousStocksAggregates({ stocksTicker: ticker });
+  const bar = resp.results?.[0];
+  if (typeof bar?.c !== "number" || typeof bar.t !== "number") {
+    throw new Error(`Polygon returned no previous close for ${ticker}`);
+  }
+  return {
+    closeCents: dollarsToCents(bar.c),
+    sessionDate: new Date(bar.t).toISOString().slice(0, 10),
+  };
+}
+
+/**
+ * The latest session close, with its date, for pages and valuations. Memoised
+ * per process for TTL_CURRENT (5 minutes), shared by concurrent callers, and
+ * cached in Upstash when configured. Throws without a key or when Polygon fails;
+ * a dev constant would be shown as a real dated close.
+ *
+ * Ledger writers keep the uncached getCurrentPrice and getEODPrice.
+ */
+export async function getLatestClose(ticker: string): Promise<LatestClose> {
+  const symbol = ticker.toUpperCase();
+  const hit = latestCloseMemo.get(symbol);
+  if (hit && hit.expiresAt > Date.now()) return hit.value;
+  const pending = latestCloseInFlight.get(symbol);
+  if (pending) return pending;
+
+  const { key, ttl } = currentPriceCacheKey(symbol);
+  const promise = getCached(key, ttl, () => fetchLatestClose(symbol))
+    .then((value) => {
+      latestCloseMemo.set(symbol, { value, expiresAt: Date.now() + ttl * 1000 });
+      return value;
+    })
+    .finally(() => latestCloseInFlight.delete(symbol));
+  latestCloseInFlight.set(symbol, promise);
+  return promise;
+}
+
+/**
+ * Latest closes for several tickers. Each distinct ticker is looked up once, and
+ * misses are fetched one after another (the throttle serialises them anyway).
+ * A ticker whose lookup fails is left out of the map.
+ */
+export async function getLatestCloses(
+  tickers: string[],
+): Promise<Map<string, LatestClose>> {
+  const result = new Map<string, LatestClose>();
+  for (const symbol of new Set(tickers.map((t) => t.toUpperCase()))) {
+    try {
+      result.set(symbol, await getLatestClose(symbol));
+    } catch (err) {
+      console.warn(`[polygon] latest close failed for ${symbol}:`, err instanceof Error ? err.message : err);
+    }
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -465,32 +538,4 @@ export async function getRegimeIndicators(): Promise<RegimeIndicatorsResult> {
 
     return { sp500Return30d, vixLevel, sectorDispersion, defaulted };
   });
-}
-
-// ---------------------------------------------------------------------------
-// Batch Operations
-// ---------------------------------------------------------------------------
-
-/**
- * Get EOD close prices for multiple tickers on the same date.
- * Returns a Map of ticker → close price in cents.
- */
-export async function getBatchEODPrices(
-  tickers: string[],
-  date: string
-): Promise<Map<string, number>> {
-  const result = new Map<string, number>();
-
-  for (const ticker of tickers) {
-    try {
-      const eod = await getEODPrice(ticker, date);
-      result.set(ticker.toUpperCase(), eod.closeCents);
-    } catch {
-      // Skip tickers with no data
-      const fallback = DEV_FALLBACK_PRICES[ticker.toUpperCase()];
-      if (fallback) result.set(ticker.toUpperCase(), fallback);
-    }
-  }
-
-  return result;
 }

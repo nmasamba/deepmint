@@ -5,6 +5,8 @@ import {
   zTestSignificance,
   brierScore,
   targetPrecision,
+  targetCoverage,
+  isUsableTarget,
   computeSliceOutcome,
   continuousBrierScore,
   timeDecayedBrierScore,
@@ -164,6 +166,55 @@ describe("targetPrecision", () => {
     ];
     // target move=20, actual move=10, precision=0.5
     expect(targetPrecision(outcomes)).toBeCloseTo(0.5);
+  });
+
+  it("applies the 1% floor by default", () => {
+    // The scorer passes no minMoveFrac: a 1-cent target on $100 is excluded,
+    // and a 0.43% target on $230 no longer scores a near-trivial result.
+    expect(
+      targetPrecision([{ targetPriceCents: 10001, exitPriceCents: 10500, entryPriceCents: 10000 }]),
+    ).toBeNull();
+    expect(
+      targetPrecision([
+        { targetPriceCents: 25000, exitPriceCents: 23435, entryPriceCents: 23000 },
+        { targetPriceCents: 23100, exitPriceCents: 22679, entryPriceCents: 23000 },
+      ]),
+    ).toBeCloseTo(435 / 2000);
+  });
+});
+
+describe("isUsableTarget", () => {
+  it("needs a target more than 1% from entry, either side", () => {
+    expect(isUsableTarget(10200, 10000)).toBe(true);
+    expect(isUsableTarget(9800, 10000)).toBe(true);
+    expect(isUsableTarget(10100, 10000)).toBe(false); // exactly 1%
+    expect(isUsableTarget(10001, 10000)).toBe(false);
+    expect(isUsableTarget(null, 10000)).toBe(false);
+    expect(isUsableTarget(10200, 0)).toBe(false);
+  });
+
+  it("takes an explicit floor", () => {
+    expect(isUsableTarget(10050, 10000, 0)).toBe(true);
+    expect(isUsableTarget(10400, 10000, 0.05)).toBe(false);
+  });
+});
+
+describe("targetCoverage", () => {
+  it("counts only usable targets", () => {
+    expect(
+      targetCoverage([
+        { targetPriceCents: 25000, entryPriceCents: 23000 },
+        { targetPriceCents: 23100, entryPriceCents: 23000 }, // within 1%
+      ]),
+    ).toBe(0.5);
+    expect(
+      targetCoverage([
+        { targetPriceCents: 12000, entryPriceCents: 10000 },
+        { targetPriceCents: null, entryPriceCents: 10000 },
+        { targetPriceCents: 8000, entryPriceCents: 10000 },
+      ]),
+    ).toBeCloseTo(2 / 3);
+    expect(targetCoverage([])).toBe(0);
   });
 });
 

@@ -17,7 +17,7 @@ Never write a real key value into this file, [`.env.example`](../.env.example) o
 | Hugging Face router | `HF_API_KEY` | Yes, for extraction | Set (last recorded) |
 | | `LLM_MODEL`, `LLM_MODEL_FALLBACK` | No | Deleted 2026-10-05; code defaults apply |
 | Inngest | `INNGEST_WORKFLOW_INNGEST_EVENT_KEY`, `INNGEST_WORKFLOW_INNGEST_SIGNING_KEY` | Yes | Set by the Vercel integration; `/api/inngest` reports both keys (probe 2026-10-05) |
-| | unprefixed `INNGEST_EVENT_KEY` | See [Inngest](#inngest) | Not recorded |
+| | unprefixed `INNGEST_EVENT_KEY` | No: the prefixed keys are mapped for every client (see [Inngest](#inngest)) | Not recorded |
 | Upstash Redis | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | No, but first in the priority list | Empty (last recorded) |
 | SnapTrade | `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY` | No | Empty (last recorded) |
 | Resend | `RESEND_API_KEY` | No; **inert** until code changes | Empty (last recorded) |
@@ -32,12 +32,11 @@ Ordered by what each step changes in the running code today.
 1. **Upstash Redis.** Config only, no code change. Without it:
    - `claims.submit` has no 10-claims-per-hour limit, so a signed-in user can submit claims without bound.
    - `/api/v1` and `/api/mcp` have no per-key limit. This matters once the first `dm_live_` key is issued; production had 0 keys on 2026-08-03 and the count since is not recorded.
-2. **Check for an unprefixed `INNGEST_EVENT_KEY` in Vercel.** Config check. The tRPC routers send events through their own Inngest clients, which never see the `INNGEST_WORKFLOW_` mapping. If production has only the prefixed keys, self-logged claims and follows silently emit no events, and the admin "Seed S&P 500 Top 50" button errors after inserting rows. Details under [Inngest](#inngest).
-3. **Clerk production instance, before launch.** Production runs on a development instance. That instance allows 100 Backend API requests per 10 seconds, and every signed-in non-admin tRPC request and full page load makes one (`users.getUser`, for the admin check). Moving needs the custom domain, Google OAuth credentials and DNS, then new values for both keys and the webhook secret.
-4. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 16 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
-5. **SnapTrade: when Player broker verification launches,** and only after the gaps listed under [SnapTrade](#snaptrade) are fixed.
-6. **Resend: code first.** The digest sends to placeholder addresses.
-7. **Cloudflare R2: code first, lowest priority.** No code path uploads anything.
+2. **Clerk production instance, before launch.** Production runs on a development instance. That instance allows 100 Backend API requests per 10 seconds. The admin check makes at most one (`users.getUser`) per signed-in user per minute per server instance, and none with the optional session-token claim (see [Clerk](#clerk)). Moving needs the custom domain, Google OAuth credentials and DNS, then new values for both keys and the webhook secret.
+3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 16 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
+4. **SnapTrade: when Player broker verification launches,** and only after the gaps listed under [SnapTrade](#snaptrade) are fixed.
+5. **Resend: code first.** The digest sends to placeholder addresses.
+6. **Cloudflare R2: code first, lowest priority.** No code path uploads anything.
 
 Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visible effect today). Keep `INGEST_POLYGON_NEWS` unset.
 
@@ -62,12 +61,12 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 ## Clerk (auth)
 
 **`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`**
-- **Powers:** sign-in and sessions, and the route protection in `apps/web/middleware.ts`. The secret key also backs `clerkClient()`, which the tRPC context (`apps/web/app/api/trpc/[trpc]/route.ts`) uses to create a missing Player entity (self-heal) and to look up the admin role. `apps/web/app/(app)/layout.tsx` uses it for the admin nav.
+- **Powers:** sign-in and sessions, and the route protection in `apps/web/middleware.ts`. The secret key also backs `clerkClient()`, which the tRPC context (`apps/web/app/api/trpc/[trpc]/route.ts`) uses to create a missing Player entity (self-heal) and `apps/web/lib/adminRole.ts` uses to look up the admin role for the tRPC context, the admin nav in `apps/web/app/(app)/layout.tsx` and the `/admin` gate.
 - **Read by:** `@clerk/nextjs` 7.0.7 implicitly; no repo code names them.
 - **Required:** yes. CI also needs both as GitHub repository secrets for the web build (`.github/workflows/ci.yml`).
 - **If missing:** in a production build, Clerk middleware cannot run, so auth and every page fail. Under `next dev`, Clerk 7 instead falls back to keyless mode with temporary development keys.
 - **Get it:** Clerk dashboard → API keys.
-- **Production:** set, on a Clerk **development** instance (`pk_test_` keys). Sign-in methods are set in the Clerk dashboard, not in code; Facebook and X were never configured. See priority 3 for the move to a production instance.
+- **Production:** set, on a Clerk **development** instance (`pk_test_` keys). Sign-in methods are set in the Clerk dashboard, not in code; Facebook and X were never configured. See priority 2 for the move to a production instance.
 
 **`CLERK_WEBHOOK_SECRET`**
 - **Powers:** `POST /api/webhooks/clerk` (`apps/web/app/api/webhooks/clerk/route.ts:25`), which creates the Player entity on `user.created`. That is the only event it handles.
@@ -81,7 +80,9 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up`: read implicitly by Clerk. Without them Clerk uses its hosted sign-in and sign-up pages instead of the in-app ones.
 - `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`: **not read** by Clerk 7, which reads the `*_FALLBACK_REDIRECT_URL` and `*_FORCE_REDIRECT_URL` names instead. Users still land on `/dashboard`, because middleware redirects signed-in visitors from `/` (`apps/web/middleware.ts:27-29`).
 
-**Admin role:** set `privateMetadata.role = "admin"` on the user in the Clerk dashboard. There is no in-app way to grant it.
+**Admin role:** set `privateMetadata.role = "admin"` on the user in the Clerk dashboard. There is no in-app way to grant it. Non-admins get a 404 on `/admin/*`.
+
+**Optional session-token claim.** In the Clerk dashboard (Sessions → Customize session token), add `{"metadata": "{{user.private_metadata}}"}`. `resolveIsAdmin` then reads the role from every session token and never calls Clerk's backend for it. Without the claim it calls `users.getUser` once per user and caches the role for 60 seconds per server instance (the user the tRPC self-heal fetched is reused). A role change takes effect when the user's token next refreshes (about a minute) with the claim, or within 60 seconds without it. Lookup failures are logged as `[adminRole] Clerk getUser failed`.
 
 ## Market data (Massive, formerly Polygon.io)
 
@@ -96,16 +97,16 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
   - the opt-in news lane (see [`INGEST_POLYGON_NEWS`](#flags-and-app-variables)).
 - **Required:** yes, in any environment that writes to a shared database.
 - **If missing:**
-  - Prices are hard-coded dev values for the 7 Mag-7 tickers (AAPL is 22500 cents), and any other ticker throws.
+  - `getCurrentPrice` (paper trades, Signal Simulate, the ticker page) returns hard-coded dev values for the 7 Mag-7 tickers (AAPL is 22500 cents), and any other ticker throws. `getEODPrice` and the cached `getLatestClose` throw.
   - Historical bars come back empty, so `backfill-prices` deactivates every newly added instrument.
   - No market-regime snapshot is stored: every indicator would be a dev constant, so each is marked defaulted and the snapshot job refuses to write one. The leaderboard shows no regime. The news lane returns nothing.
   - Markout writes no outcomes without a key (it gets no bars), so it never scores against dev prices.
-  - **Danger:** a rating-dated or backfilled claim stored without a key still gets a dev constant as its entry price, permanently. Never run a keyless deployment or worker against a shared database.
+  - A rating-dated or backfilled claim gets no entry price: `getEODPrice` throws, the claim is stored with a null entry, and markout prices it at the first close after `created_at` once a key is present. (Before wave 1 it stored the dev constant, permanently.)
 - **Behaviour with a key that callers should know about:**
   - The "current price" is the **previous session's close** (previous-day aggregate first, then the snapshot's `prevDay`; the code notes the snapshot endpoint returns 403 on the current plan). If both calls fail, the lookup throws; it never invents a price. Since the next-close entry change, claims never use it; it prices paper trades and the ticker page.
   - The plan has **no index data**: `I:VIX` and `I:SPX` return 403 NOT_AUTHORIZED (checked 2026-10-06). The regime's S&P 500 30-day return is therefore measured on SPY, and VIX is recorded as defaulted in every snapshot (`market_regimes.defaulted_fields`); it is never replaced by a made-up value. A plan with index data fills VIX in with no code change.
-  - Every call waits for a 12.5 s gap after the previous one, sized for a 5-requests-per-minute plan. The gap is per process and not a queue: calls started together (each `Promise.all` pair) fire together, and separate serverless instances do not share it.
-  - Prices are never cached. Only the regime indicators are, and only with Upstash.
+  - Every call takes the next slot in a queue spaced 12.5 s apart, sized for a 5-requests-per-minute plan, so calls started together run one after another. The queue is per process: separate serverless instances do not share it.
+  - `getLatestClose` and `getLatestCloses` (in `@deepmint/shared`) return the latest close with its session date, memoised for 5 minutes per process, shared by concurrent callers and cached in Upstash when configured. No caller uses them yet. `getCurrentPrice` and `getEODPrice` are never cached. The regime indicators are cached only with Upstash.
 - **Get it:** Massive (polygon.io) dashboard → API keys.
 - **Verify:** with the key exported in your shell, run `pnpm --filter @deepmint/worker exec tsx -e 'import("@deepmint/shared").then(async (m) => console.log(await m.getCurrentPrice("AAPL")))'`. It prints AAPL's previous close in cents; `22500` means the key was not read.
 - **Production:** set (last recorded).
@@ -130,20 +131,15 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 
 ## Inngest
 
-**Variables:** `INNGEST_EVENT_KEY` (lets the app send events) and `INNGEST_SIGNING_KEY` (lets Inngest Cloud invoke `/api/inngest`). Both are read implicitly by inngest 4.1.0. The Vercel integration provides them as `INNGEST_WORKFLOW_INNGEST_EVENT_KEY` and `INNGEST_WORKFLOW_INNGEST_SIGNING_KEY`. Two shims copy those onto the standard names when the standard names are unset: `apps/web/app/api/inngest/inngest-env.ts:6-9`, imported first by `apps/web/app/api/inngest/route.ts`, and `apps/worker/inngest.ts:7-10`.
+**Variables:** `INNGEST_EVENT_KEY` (lets the app send events) and `INNGEST_SIGNING_KEY` (lets Inngest Cloud invoke `/api/inngest`). Both are read implicitly by inngest 4.1.0. The Vercel integration provides them as `INNGEST_WORKFLOW_INNGEST_EVENT_KEY` and `INNGEST_WORKFLOW_INNGEST_SIGNING_KEY`. `packages/api/lib/inngestEnv.ts` copies those onto the standard names when the standard names are unset. It runs before any Inngest client is built: `packages/api/trpc.ts` imports it on its first line, so it precedes the clients the claims, social and instruments routers build when they load, and `apps/worker/inngest.ts` and `apps/web/app/api/inngest/inngest-env.ts` (imported first by the route) import it too. An unprefixed `INNGEST_EVENT_KEY` is therefore not needed.
 
-- **Powers:** all 15 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 5 crons (ingest, markout, broker sync, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
+- **Powers:** all 16 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 6 crons (ingest, markout, market regime, broker sync, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
 - **Required:** yes, in production.
 - **If missing:** the SDK runs in cloud mode unless `INNGEST_DEV` is set. In cloud mode `send()` throws without an event key, and `/api/inngest` cannot verify Inngest's requests without the signing key, so no function runs.
-- **The unprefixed-key gap:**
-  - The three tRPC routers that send events build their own clients when the module loads: `packages/api/routers/claims.ts:23`, `social.ts:16` and `instruments.ts:17`. Neither shim is imported on their path, so they see an event key only if the unprefixed name exists (or, by chance, if `/api/inngest` loaded first in the same instance).
-  - If production has only the prefixed keys, `claims/created` (self-logged and MCP claims) and `social/followed` sends fail silently, because their errors are swallowed. As a result Signal Simulate mirrors log no trades, influence tracking records nothing, and follows send no notification.
-  - `instruments.adminBatchCreate` throws after the rows are already inserted, so `backfill-prices` never checks them.
-  - To check: `vercel env ls production` and look for `INNGEST_EVENT_KEY`. If it is absent, add it with the event key's value (a copy will not follow a key rotation), or fix the code so these clients get the mapping.
-- **Stale file:** `apps/worker/inngest.js`, a committed compile output without the shim, is likely what the production webpack bundle loads, because webpack resolves `.js` before `.ts`. The route-level `inngest-env.ts` is what actually maps the keys for `/api/inngest`.
+- **Before wave 1** the tRPC routers' clients never saw the mapping, so with only the prefixed keys their `claims/created` and `social/followed` sends would have failed silently, and a stale compiled `apps/worker/inngest.js` without it shadowed `inngest.ts` in the production bundle. Both are fixed; whether production ever lacked an unprefixed `INNGEST_EVENT_KEY` was not recorded.
 - **Get it:** Vercel → Integrations → Inngest (keys arrive prefixed), or Inngest dashboard → Production → event key and signing key.
 - **Verify:**
-  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05. This covers only the client inside that route, after the shim, so it cannot tell prefixed keys from unprefixed ones.
+  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job).
   - For the routers, follow and then unfollow any profile, and look for a `social/followed` event in the Inngest dashboard's event list. Do not test with a claim: claims are append-only.
 - **Production:** app `deepmint` is synced through the Vercel integration. The route sets no `maxDuration`.
 
@@ -181,12 +177,12 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 ## SnapTrade
 
 - **Variables:** `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY`.
-- **Powers:** read-only broker linking for Players (Settings → Broker verification, through `broker.initLink`, `completeLink`, `syncTrades` and `disconnect`) and the `broker-sync` cron (22:00 UTC, Mon–Fri). The cron imports trades into `player_trades`.
+- **Powers:** read-only broker linking for Players (Settings → Broker verification, through `broker.initLink`, `completeLink`, `syncTrades` and `disconnect`) and the `broker-sync` cron (18:00 US Eastern, Mon–Fri). The cron imports trades into `player_trades`.
 - **Read by:** `packages/api/lib/snaptrade.ts:17-18`.
 - **If missing:** the client is null. `broker.initLink` throws `PRECONDITION_FAILED`, Settings shows "Broker verification is not configured on this deployment", and `broker-sync` returns `snaptrade-not-configured`.
 - **What a key actually turns on. Fix these before enabling it:**
   - "Verified" only means SnapTrade listed at least one account (`packages/api/routers/broker.ts:171-198`). Trades are never compared with claims.
-  - "Verified" earns a badge and ×1.5 consensus weight on all of the Player's claims from the last 90 days.
+  - "Verified" earns a badge and ×1.5 consensus weight on all of the Player's live claims.
   - Synced trades are stored but nothing reads them: they affect no score, rank or page.
   - The per-user SnapTrade `userSecret` is stored in plaintext in `broker_links.metadata`.
   - The first sync error leaves the link stuck in `error` with no recovery in the UI, while the badge and weight stay.
@@ -198,7 +194,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 ## Resend
 
 - **Variable:** `RESEND_API_KEY`.
-- **Powers:** the `daily-digest` cron (12:00 UTC, Mon–Fri; 08:00 EDT, 07:00 EST from 2026-11-01). It emails each follower a plain-text summary of new claims and outcomes from the last 24 hours.
+- **Powers:** the `daily-digest` cron (08:00 US Eastern, Mon–Fri). It emails each follower a plain-text summary of new claims and outcomes from the last 24 hours.
 - **Read by:** `apps/worker/functions/digest.ts:26`.
 - **If missing:** the run returns `{ skipped: true, reason: "RESEND_API_KEY not set" }`.
 - **Inert even with a key** (`digest.ts:156-166`):
@@ -242,8 +238,8 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 
 | Variable | Read at | Effect | Production |
 |---|---|---|---|
-| `INGEST_POLYGON_NEWS` | `apps/worker/functions/ingest.ts:42` | Only `"1"` adds the Wall Street ratings lane (Polygon news, 7 tickers, up to 50 articles each, every weekday 20:30 UTC). Parked on purpose: a live run of 210 articles gave 0 attributed ratings ([DEVLOG](DEVLOG.md), 2026-08-03). | Not recorded; keep unset |
-| `NEXT_PUBLIC_APP_URL` | `apps/web/app/layout.tsx:22` | `metadataBase`, default `https://deepmint.app`. No metadata field uses a relative URL today, so it has no visible effect. Set it to `https://www.deepmint.ai` before adding OG images or canonical URLs. An empty value throws (`new URL("")`). Inlined at build time. | Not recorded |
+| `INGEST_POLYGON_NEWS` | `apps/worker/functions/ingest.ts:42` | Only `"1"` adds the Wall Street ratings lane (Polygon news, 7 tickers, up to 50 articles each, every weekday 16:30 US Eastern). Parked on purpose: a live run of 210 articles gave 0 attributed ratings ([DEVLOG](DEVLOG.md), 2026-08-03). | Not recorded; keep unset |
+| `NEXT_PUBLIC_APP_URL` | `apps/web/app/layout.tsx:22` | `metadataBase`, default `https://www.deepmint.ai`. No metadata field uses a relative URL today, so it has no visible effect. Set it to `https://www.deepmint.ai` before adding OG images or canonical URLs. An empty value throws (`new URL("")`). Inlined at build time. | Not recorded |
 | `VERCEL_URL` | `apps/web/components/providers/TRPCProvider.tsx:11` | Set by Vercel. The server-side tRPC base URL; `http://localhost:3000` without it. | Automatic |
 | `NODE_ENV` | `apps/web/next.config.ts:7` | Set by Next. `development` disables the service worker. | Automatic |
 
@@ -279,7 +275,7 @@ No tool reads a root `.env`.
 | vitest in web, api, ingestion, scoring and shared | the root `.env.local`; write values unquoted, empty values are skipped |
 | `db:seed`, the backfill CLI, the `tsx -e` checks above | the shell only |
 
-Under root `pnpm dev` and `pnpm test` (turbo), shell-exported variables do not reach the tasks (except `NEXT_PUBLIC_*` for the web app): `turbo.json` declares no `env`, and Turbo 2 runs in strict mode. Variables in the files above are read from disk, so they are not affected.
+Under root `pnpm dev` and `pnpm test` (turbo), shell-exported variables reach the tasks: `turbo.json` uses loose env mode. Tests are never cached, and the `.env.local` files are part of every other task's cache key.
 
 ## How to add a key to production (Vercel)
 

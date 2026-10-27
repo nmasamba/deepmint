@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { InfluenceTab } from "@/components/influence/InfluenceTab";
+import { eivLabel } from "@deepmint/shared";
 
 interface EntityProfileTabsProps {
   entityType: "player" | "guide";
@@ -103,13 +104,7 @@ function OverviewTab({
           <span className="text-lg text-text-secondary ml-2">/ 100</span>
         </div>
         <p className="text-xs text-text-secondary mt-1">
-          {eiv !== null && eiv >= 60
-            ? "Strong Edge"
-            : eiv !== null && eiv >= 30
-              ? "Moderate Edge"
-              : eiv !== null && eiv > 0
-                ? "Weak Edge"
-                : "No data yet"}
+          {eiv !== null ? eivLabel(eiv) : "No data yet"}
         </p>
       </div>
 

@@ -41,7 +41,7 @@ type ScopeId = (typeof ALL_SCOPES)[number]["id"];
 
 export default function AdminApiKeysPage() {
   const utils = trpc.useUtils();
-  const { data: keys, isLoading } = trpc.apiKeys.list.useQuery();
+  const { data: keys, isLoading, error } = trpc.apiKeys.list.useQuery();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
@@ -142,6 +142,10 @@ export default function AdminApiKeysPage() {
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-12 w-full" />
             ))}
+          </div>
+        ) : error ? (
+          <div className="p-10 text-center text-red-400">
+            Could not load API keys: {error.message}
           </div>
         ) : (keys ?? []).length === 0 ? (
           <div className="p-10 text-center">

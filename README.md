@@ -67,27 +67,26 @@ flowchart TD
    - whether the direction was right (a neutral call is right if the price moved 2% or less either way);
    - whether the target price was reached.
 6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures. Players also get risk measures such as the Sharpe ratio and maximum drawdown.
-7. **Leaderboard and consensus.** The leaderboard ranks authors by the new scores. For each stock, Deepmint recalculates the consensus: a weighted vote (bullish, bearish or neutral) of the active claims from the last 90 days. Claims count for more when their author has a higher EIV, is a Guide or is a broker-verified Player, when they are newer and when their confidence is higher.
+7. **Leaderboard and consensus.** The leaderboard ranks authors by the new scores. For each stock, Deepmint recalculates the consensus: a weighted vote (bullish, bearish or neutral) of the active claims whose horizon has not yet passed, plus the average of their price targets and how widely those targets spread. Claims count for more when their author has a higher EIV, is a Guide or is a broker-verified Player, when they are newer and when their confidence is higher.
 8. **Nightly fingerprint.** Every night a job hashes the previous day's claims into a single Merkle root and stores it in the database. The roots are not yet published, anchored outside the database or checkable by users.
 
 ## When do things happen?
 
-All schedules run in UTC. US Eastern time is UTC−4 until 2026-11-01 (EDT) and UTC−5 from then until 2027-03-14 (EST).
+The jobs tied to the US market run on US Eastern time (`TZ=America/New_York` in the cron), so they keep the same place relative to the 16:00 close all year. In UTC they run an hour later in winter: Eastern time is UTC−4 (EDT) until 2026-11-01 and UTC−5 (EST) from then until 2027-03-14. Only the Merkle audit runs on UTC, because it fingerprints a UTC day.
 
-| Job | What it does | UTC | Eastern (EDT / EST) | Days |
+| Job | What it does | Eastern | UTC (EDT / EST) | Days |
 |---|---|---|---|---|
-| Daily digest | Emails a summary of followed activity (not delivered today; see below) | 12:00 | 08:00 / 07:00 | Mon–Fri |
-| Ingest | Collects new Guide posts, then hands them to extraction | 20:30 | 16:30 / 15:30 | Mon–Fri |
-| Markout | Checks matured claims against closing prices | 21:00 | 17:00 / 16:00 | Mon–Fri |
-| Market regime | Records the day's market conditions (S&P 500 trend, VIX, sector spread) for the leaderboard | 21:30 | 17:30 / 16:30 | Mon–Fri |
-| Broker sync | Imports trades from linked brokerage accounts | 22:00 | 18:00 / 17:00 | Mon–Fri |
-| Merkle audit | Fingerprints the previous day's claims | 22:00 | 18:00 / 17:00 | Every day |
+| Daily digest | Emails a summary of followed activity (not delivered today; see below) | 08:00 | 12:00 / 13:00 | Mon–Fri |
+| Ingest | Collects new Guide posts, then hands them to extraction | 16:30 | 20:30 / 21:30 | Mon–Fri |
+| Markout | Checks matured claims against closing prices | 17:00 | 21:00 / 22:00 | Mon–Fri |
+| Market regime | Records the day's market conditions (S&P 500 trend, VIX, sector spread) for the leaderboard | 17:30 | 21:30 / 22:30 | Mon–Fri |
+| Broker sync | Imports trades from linked brokerage accounts | 18:00 | 22:00 / 23:00 | Mon–Fri |
+| Merkle audit | Fingerprints the previous UTC day's claims | 18:00 / 17:00 | 22:00 | Every day |
 
 Other jobs run in a chain rather than on a clock:
 
 - Extraction runs right after ingest, but only when ingest found new posts.
 - Scoring runs after the markout (or a backfill), but only if it wrote at least one outcome. Consensus and influence are recalculated after scoring. So **consensus is not refreshed on days when no claim matures**.
-- During EST the ingest run (15:30 ET) starts before the 16:00 US market close, and the markout runs at the close itself. A session counts only from 16:30 ET, so in winter every outcome whose exit is the run date lands one trading day later.
 
 **Horizons.** Every claim uses one of six horizons:
 
@@ -106,7 +105,7 @@ A claim's end date is its entry date plus the horizon in calendar days. (For old
 
 | Piece | Where | Who can use it |
 |---|---|---|
-| Web app | [www.deepmint.ai](https://www.deepmint.ai), hosted on Vercel. `deepmint.ai` redirects to `www`. | Only the landing, sign-in and sign-up pages are public. Every other page needs an account. |
+| Web app | [www.deepmint.ai](https://www.deepmint.ai), hosted on Vercel. `deepmint.ai` redirects to `www`. | Only the landing, sign-in, sign-up and offline pages (and the app manifest) are public. Every other page needs an account. |
 | REST API | `https://www.deepmint.ai/api/v1`: `GET /entities/{slug}/scores`, `GET /instruments/{ticker}/consensus`, `GET /leaderboard?metric=…`, plus the spec at `/openapi.json` | The three data endpoints need an API key (`Authorization: Bearer dm_live_…`), and only admins can create keys. The spec needs no key; signed-in users can also browse it at `/docs/api`. |
 | AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Read tools (regime, consensus, leaderboard, track record, instrument search) need the default read scopes; the write tools (`submit_claim`, `add_note`) need `claims:write` and currently act as the admin who created the key ([known issue](docs/KNOWN_ISSUES.md#mcp-acts-as-admin)). |
 | App API (tRPC) | `/api/trpc` | Used by the web app itself. Its read-only public calls answer without sign-in. |
@@ -169,7 +168,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 | **Hit rate** | The share of an author's checked claims whose direction was right. |
 | **Basis points (bps)** | Hundredths of a percent: 100 bps = 1%. Returns are stored in basis points. |
 | **EIV** | Deepmint's 0–100 "edge" score. It combines how far the hit rate is above 50%, the average return, calibration (Guides only), and a discount for small samples. It is 0 when the hit rate is 50% or lower, or when the average return is zero or negative. The code calls it "Expected Information Value"; profile pages say "Earned Information Value". |
-| **Consensus** | For each stock, stored as one row per day: the weighted share of bullish, bearish and neutral active claims from the last 90 days, plus an overall direction and a 0–1 conviction. |
+| **Consensus** | For each stock, stored as one row per day: the weighted share of bullish, bearish and neutral active claims whose horizon has not passed, an overall direction, a 0–1 conviction, and the average price target with its dispersion. |
 | **Guide** | An analyst or firm whose published calls Deepmint collects. Guides are created only by the ingestion pipeline (and, with fictional data, by the local seed script). |
 | **Player** | Anyone who signs up. Every account is a Player. |
 
@@ -198,13 +197,13 @@ apps/
   worker/      The 16 Inngest functions (served by apps/web) and the backfill CLI
 packages/
   api/         tRPC routers
-  db/          Drizzle schema, migrations (drizzle/0000–0007), seed script
+  db/          Drizzle schema, migrations (drizzle/0000–0008), seed script
   ingestion/   Feed adapters, LLM extractor, content hashing
   scoring/     Pure scoring functions: hit rate, Brier, Sharpe, EIV, consensus, regime
   shared/      Polygon price client, Merkle tree, constants (Mag-7 list, horizons)
 tooling/
   tsconfig/    Shared TypeScript configs
-  eslint/      ESLint config (not used by any package yet)
+  eslint/      Shared ESLint flat config, used by apps/web
 docs/          Project docs (see Documentation below)
 ```
 
@@ -255,7 +254,7 @@ What happens when an optional key is missing:
 
 | Variable | Effect when unset |
 |---|---|
-| `POLYGON_API_KEY` | The Mag-7 get fixed dev prices and any other ticker fails. Regime detection uses default values. New instruments added by an admin are deactivated, because no price history comes back. |
+| `POLYGON_API_KEY` | The Mag-7 get fixed dev "current" prices and any other ticker fails. Dated entry prices are left empty rather than faked, and markout writes no outcomes. No market-regime snapshot is stored. New instruments added by an admin are deactivated, because no price history comes back. |
 | `HF_API_KEY` | Every extraction throws, so posts never get claims. |
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | No rate limits, and no follower-count or regime cache. Prices are never cached either way. |
 | `CLERK_WEBHOOK_SECRET` | Not needed locally. Your Player record is created on your first signed-in request. |
@@ -264,7 +263,7 @@ What happens when an optional key is missing:
 
 Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `INNGEST_DEV=1`. Without `INNGEST_DEV`, production keys in those variables would send your local events to production Inngest. `INGEST_POLYGON_NEWS=1` turns on the Wall Street ratings feed, which is off by default.
 
-`turbo.json` declares no env variables, and Turbo 2 runs in strict env mode, so variables exported in your shell may not reach tasks started with root `pnpm dev` or `pnpm test`. Turbo also does not count `.env.local` edits when it caches results, so root `pnpm test` can replay stale results. Keep variables in the files above, and prefer `pnpm --filter`.
+`turbo.json` runs tasks in loose env mode, so variables exported in your shell reach tasks started with root `pnpm dev` or `pnpm test`. Tests are never cached, because live tests must hit live services on every run, and the root and `apps/web` `.env.local` files are part of every other task's cache key.
 
 **3. Run the migrations**
 
@@ -272,7 +271,7 @@ Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `
 pnpm --filter @deepmint/db db:migrate
 ```
 
-This applies the committed migrations 0000–0007. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
+This applies the committed migrations 0000–0008. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
 
 **4. Seed the local database (local only, once)**
 
@@ -293,14 +292,14 @@ It writes **no outcomes or scores**. It is not idempotent, so run it once, on an
 pnpm --filter @deepmint/web dev    # http://localhost:3000
 ```
 
-Sign up, and your Player record is created on your first signed-in request. Root `pnpm dev` also starts the worker's `dev` script, which only logs "Deepmint worker loaded: 16 functions registered" and serves nothing. The worker's `start` script points at a file that does not exist.
+Sign up, and your Player record is created on your first signed-in request. Root `pnpm dev` also starts the worker's `dev` script, the Inngest dev server of step 6. The worker has no build or start of its own: its functions run inside the web app.
 
 **6. Run background jobs locally (optional)**
 
-This step is not scripted in the repo; it follows from how the Inngest SDK behaves. With `INNGEST_DEV=1` set in `apps/web/.env.local`, start the Inngest dev server against the app:
+With `INNGEST_DEV=1` set in `apps/web/.env.local`, start the Inngest dev server against the app:
 
 ```bash
-npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
+pnpm --filter @deepmint/worker dev   # runs: npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
 ```
 
 Its UI at http://localhost:8288 lets you invoke the cron functions by hand. Without `INNGEST_DEV`, inngest 4.1.0 runs in cloud mode, and sending any event fails without an event key.
@@ -329,19 +328,19 @@ In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`.
 | `pnpm --filter @deepmint/db db:studio` | Opens Drizzle Studio |
 | `pnpm --filter @deepmint/worker backfill <file>` | Sends a `backfill/requested` event |
 | `pnpm --filter @deepmint/web build` | Production build of the web app |
-| `pnpm lint` | **Does not work.** `apps/web` has no ESLint config or ESLint dependency. |
+| `pnpm lint` | Lints the web app with ESLint 9 (typescript-eslint, Next.js and React hooks rules). Rules the existing code breaks are warnings, so it exits 0. |
 
 ### Tests
 
-These results were measured on 2026-10-06 with no `.env.local`.
+These results were measured on 2026-10-26 with no `.env.local`.
 
 | Command | Result without keys | What enables more |
 |---|---|---|
-| `pnpm --filter @deepmint/scoring test` | 108 passed (7 files) | Nothing needed |
-| `pnpm --filter @deepmint/shared test` | 16 passed (2 files) | Nothing needed |
-| `pnpm --filter @deepmint/api test` | 5 passed (1 file) | Nothing needed |
-| `pnpm --filter @deepmint/ingestion test` | 56 passed, 6 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. |
-| `pnpm --filter @deepmint/web test` | 18 skipped (4 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. |
+| `pnpm --filter @deepmint/scoring test` | 114 passed (7 files) | Nothing needed |
+| `pnpm --filter @deepmint/shared test` | 23 passed, 2 skipped (3 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
+| `pnpm --filter @deepmint/api test` | 7 passed, 3 skipped (3 files) | `DATABASE_URL` in the root `.env.local` runs the 3 caller tests against that database (read-only). |
+| `pnpm --filter @deepmint/ingestion test` | 59 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
+| `pnpm --filter @deepmint/web test` | 26 skipped (4 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. |
 
 The worker has no tests.
 
@@ -387,13 +386,14 @@ Keep in mind:
   - `deepmint-web-7ald.vercel.app` also serves the app.
   - Webhook URLs must use the `www` host.
 - **Environment variables.** Changing an env var requires a redeploy to take effect.
-- **Inngest.** The app `deepmint` is synced to production through the Vercel integration. Its keys arrive with an `INNGEST_WORKFLOW_` prefix, and `apps/web/app/api/inngest/inngest-env.ts` maps them to the names the SDK reads. The functions run inside the Vercel deployment at `/api/inngest`.
+- **Inngest.** The app `deepmint` is synced to production through the Vercel integration. Its keys arrive with an `INNGEST_WORKFLOW_` prefix, and `packages/api/lib/inngestEnv.ts` maps them to the names the SDK reads before any Inngest client is built: the tRPC routers' (through `packages/api/trpc.ts`), the worker's and `/api/inngest`'s. The functions run inside the Vercel deployment at `/api/inngest`.
 - **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
   - Runs on every push and pull request to `main`, on Node 22.
-  - Type-checks `scoring` and `shared`.
-  - Tests `scoring`, `shared` and `ingestion`; the live LLM tests are skipped.
-  - Builds the web app, which also type-checks most of `api`, `db`, `ingestion` and `worker`.
-  - Does not run the `api` or `web` tests, lint, or a database.
+  - Type-checks every package with its own `tsc` (`pnpm -r check`), scripts included.
+  - Lints (`pnpm lint`).
+  - Tests `scoring`, `shared`, `ingestion` and `api`; live tests skip, because CI has no keys or database.
+  - Builds the web app.
+  - Does not run the `web` integration tests (they need a running server and an API key) or a database.
   - It was broken at the pnpm setup step from August 2026 until PR #9 fixed it on 2026-10-05.
 
 ## Documentation

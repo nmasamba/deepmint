@@ -98,6 +98,10 @@ export function ClaimsTimeline({
           claim={item.claim}
           entity={item.entity}
           instrument={item.instrument}
+          outcomes={item.outcomes}
+          notesCount={item.notesCount}
+          exitDate={item.exitDate}
+          exitClosed={item.exitClosed}
           showEntity={showEntity}
         />
       ))}

@@ -60,27 +60,3 @@ export function computeRegimeAwareEIV(
 
   return Math.round(scaled * 10) / 10;
 }
-
-/**
- * Format EIV with human-readable label and optional regime warning.
- */
-export function formatEIVWithContext(
-  eiv: number,
-  currentRegime: MarketRegime,
-  hasRegimeData: boolean
-): { score: number; label: string; warning: string | null } {
-  return {
-    score: eiv,
-    label:
-      eiv >= 60
-        ? "Strong Edge"
-        : eiv >= 30
-          ? "Moderate Edge"
-          : eiv > 0
-            ? "Weak Edge"
-            : "No Edge",
-    warning: !hasRegimeData
-      ? `Limited data in ${currentRegime} regime — score based on overall performance with shrinkage applied.`
-      : null,
-  };
-}
