@@ -96,17 +96,26 @@ export const markoutFunction = inngest.createFunction(
             continue;
           }
 
-          // Insert outcome
-          await db.insert(outcomes).values({
-            claimId: claim.id,
-            instrumentId: claim.instrumentId,
-            horizon: outcome.horizon,
-            entryPriceCents: outcome.entryPriceCents,
-            exitPriceCents: outcome.exitPriceCents,
-            returnBps: outcome.returnBps,
-            directionCorrect: outcome.directionCorrect,
-            targetHit: outcome.targetHit,
-          });
+          // Insert outcome. A backfill run may have written it while this
+          // one was pricing, so the unique (claim, horizon) key decides.
+          const inserted = await db
+            .insert(outcomes)
+            .values({
+              claimId: claim.id,
+              instrumentId: claim.instrumentId,
+              horizon: outcome.horizon,
+              entryPriceCents: outcome.entryPriceCents,
+              exitPriceCents: outcome.exitPriceCents,
+              returnBps: outcome.returnBps,
+              directionCorrect: outcome.directionCorrect,
+              targetHit: outcome.targetHit,
+            })
+            .onConflictDoNothing({ target: [outcomes.claimId, outcomes.horizon] })
+            .returning({ id: outcomes.id });
+          if (inserted.length === 0) {
+            skipped++;
+            continue;
+          }
 
           // Notify entity that their claim has been resolved
           await createNotification({

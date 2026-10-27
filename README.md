@@ -197,7 +197,7 @@ apps/
   worker/      The 16 Inngest functions (served by apps/web) and the backfill CLI
 packages/
   api/         tRPC routers
-  db/          Drizzle schema, migrations (drizzle/0000–0008), seed script
+  db/          Drizzle schema, migrations (drizzle/0000–0009), seed script
   ingestion/   Feed adapters, LLM extractor, content hashing
   scoring/     Pure scoring functions: hit rate, Brier, Sharpe, EIV, consensus, regime
   shared/      Polygon price client, Merkle tree, constants (Mag-7 list, horizons)
@@ -271,7 +271,7 @@ Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `
 pnpm --filter @deepmint/db db:migrate
 ```
 
-This applies the committed migrations 0000–0008. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
+This applies the committed migrations 0000–0009. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
 
 **4. Seed the local database (local only, once)**
 

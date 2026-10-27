@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **76 open issues: no high, 20 medium and 56 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **75 open issues: no high, 20 medium and 55 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -31,10 +31,10 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 9 | 12 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 1 | 10 | 11 |
-| [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
+| [Data model and shared code](#area-data) | 0 | 1 | 4 | 5 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **20** | **56** | **76** |
+| **All** | **0** | **20** | **55** | **75** |
 
 <a id="area-scoring"></a>
 
@@ -662,13 +662,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="uniqueness-invariants-comment-only"></a>
 
-### Uniqueness and append-only rules exist only in comments
+### Append-only rules exist only in comments
 
 **Medium** · data-integrity · `uniqueness-invariants-comment-only`
 
-- **What's wrong:** No migration creates the unique indexes the schema comments describe (one outcome per claim and horizon, one instrument per ticker and exchange, one score per entity, metric, horizon, regime and date), and `events.content_hash` is not unique. No trigger or permission enforces append-only. Dedupe is check-then-insert with no `ON CONFLICT` and no Inngest concurrency limit: markout checks every due claim first, then spends minutes pricing them before inserting. Derived tables are deleted and re-inserted outside a transaction.
-- **User impact:** Sequential retries are safe. A historical backfill overlapping the 17:00 ET markout can write duplicate outcomes, which count twice in hit rate, returns and EIV and are never removed.
-- **Evidence:** [`packages/db/schema/outcomes.ts:21-22`](../packages/db/schema/outcomes.ts#L21-L22) · [`packages/db/schema/events.ts:9`](../packages/db/schema/events.ts#L9) · [`apps/worker/functions/markout.ts:44-61`](../apps/worker/functions/markout.ts#L44-L61) · [`apps/worker/functions/markout.ts:83-108`](../apps/worker/functions/markout.ts#L83-L108) · [`apps/worker/functions/score.ts:243-251`](../apps/worker/functions/score.ts#L243-L251)
+- **What's wrong:** No trigger or permission enforces the append-only rule on `events`, `claims`, `notes` and `outcomes`. (Since migration 0009 the uniqueness rules are enforced: unique keys on outcomes per claim and horizon, events per content hash, instruments per ticker, scores per entity, metric, horizon, regime and date, and the consensus and influence aggregates per day; the writers insert with `ON CONFLICT DO NOTHING` or replace their rows in one transaction.)
+- **User impact:** Nothing in the database stops a bug or a hand-run statement from editing or deleting ledger rows, which would silently change track records and break the event hashes' audit trail.
+- **Evidence:** [`packages/db/schema/events.ts:15`](../packages/db/schema/events.ts#L15) · [`packages/db/schema/claims.ts`](../packages/db/schema/claims.ts)
 
 <a id="soft-delete-half-implemented"></a>
 
@@ -679,16 +679,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `entities.deleted_at` is checked by five procedures but written by nothing. Most reads (profiles, search, REST v1, consensus, scoring, influence, MCP) ignore it, and a comment wrongly says consensus excludes deleted entities.
 - **User impact:** No effect today. A user cannot be removed, and a manual SQL soft-delete would hide an entity from only some surfaces.
 - **Evidence:** [`packages/db/schema/entities.ts:22`](../packages/db/schema/entities.ts#L22) · [`packages/api/routers/entities.ts:109-114`](../packages/api/routers/entities.ts#L109-L114) · [`apps/worker/functions/consensus-signal.ts:57-66`](../apps/worker/functions/consensus-signal.ts#L57-L66)
-
-<a id="stale-schema-and-scoring-comments"></a>
-
-### The `scores` schema comment describes metrics that are never written
-
-**Low** · docs-drift · `stale-schema-and-scoring-comments`
-
-- **What's wrong:** The `scores` schema comment lists metrics never written (`hit_rate_3m`, `hit_rate_6m`, `hit_rate_12m`, `overall_player`, `overall_guide`) and a `12m` horizon; real horizons are `all`, `1d`, `1w`, `1m`, `3m`, `6m` and `1y`.
-- **User impact:** Queries written from the comment return nothing.
-- **Evidence:** [`packages/db/schema/scores.ts:8-12`](../packages/db/schema/scores.ts#L8-L12)
 
 <a id="two-verified-flags"></a>
 

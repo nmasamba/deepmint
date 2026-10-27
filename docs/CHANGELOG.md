@@ -49,9 +49,11 @@ Entries before 0.8.0 are kept as history. Where one was wrong about the code at 
 - **`pnpm lint` works.** It ran `next lint` in a web app with no ESLint config or dependency. `tooling/eslint/base.js` is now an ESLint 9 flat config (eslint:recommended and typescript-eslint's recommended rules), and `apps/web/eslint.config.mjs` extends it with the Next.js and React hooks plugins; the web `lint` script is `eslint .`. The one rule the existing code breaks (`@next/next/no-assign-module-variable`) is a warning, so no other source file changed: 0 errors, 12 warnings. Closes `lint-broken`.
 - **CI checks the whole monorepo.** It now type-checks every package with its own `tsc` (`pnpm -r check`, which now includes `packages/ingestion/scripts`; the one error it exposed, a `.ts` import extension in `bench-providers.ts`, is fixed), lints, and runs the `api` tests alongside the existing tests and web build. Closes `ci-coverage-narrow`.
 - **Turbo passes env through and never replays tests.** `turbo.json` uses `envMode: "loose"`, so variables exported in the shell (`TEST_API_KEY=… pnpm test`) reach the tasks; `test` is not cached, because live tests must hit live services on every run; and both `.env.local` files are global cache inputs for the other tasks. Closes `turbo-env-undeclared`.
+- **One row per ledger key.** Migration 0009 adds the unique keys the schema comments only described: one outcome per claim and horizon, one event per content hash, one instrument per ticker, one score per entity, metric, horizon, regime and date (nulls count as values), one consensus signal per instrument and day, and one influence score per Guide and day. Markout and backfill insert outcomes, and ingest and backfill insert events, with `ON CONFLICT DO NOTHING`; markout counts a lost race as skipped and sends no notification. Admin instrument creation dedupes by ticker. Scoring, consensus and influence aggregation replace a day's rows in one transaction and run one at a time. Checked live: two markout runs started together both priced the same due claims, and only one outcome per claim was written. Part of `uniqueness-invariants-comment-only`, which stays open for the append-only triggers.
 
 ### Changed
-- The `confidenceMultiplier` comment no longer says the claim APIs can write an out-of-range confidence: every writer bounds it to 0–100, and the clamp is a backstop against direct SQL. Part of `stale-schema-and-scoring-comments`; the `scores` schema comment is still wrong.
+- The `confidenceMultiplier` comment no longer says the claim APIs can write an out-of-range confidence: every writer bounds it to 0–100, and the clamp is a backstop against direct SQL. Part of `stale-schema-and-scoring-comments`.
+- The `scores` schema comment lists the metrics and horizons the scorer writes. Closes `stale-schema-and-scoring-comments`.
 - Removed the unused `getBatchEODPrices`, which filled failed lookups with dev prices, and the Polygon client's private copy of `dollarsToCents`.
 - Markout fetches one range of daily bars per claim instead of one or two calls, and skips the fetch until the exit session has closed. The pricing rules are pure, unit-tested functions in `packages/scoring/src/markout.ts`.
 - `claims.submit` no longer waits on a throttled price lookup (measured locally: 9 ms).
@@ -59,6 +61,7 @@ Entries before 0.8.0 are kept as history. Where one was wrong about the code at 
 
 ### Migration
 - `0008_fixed_valeria_richards.sql`: `CREATE TABLE market_regimes`. No existing rows are touched. Apply it to Supabase before this ships.
+- `0009_ledger_unique_indexes.sql`: unique constraints on `outcomes`, `events`, `instruments`, `scores`, `consensus_signals` and `influence_scores`. It aborts if `outcomes`, `events` or `instruments` already holds a duplicate key, and deletes all but the most recently computed copy of duplicate derived rows (scores, consensus, influence). Needs PostgreSQL 15 or later (`NULLS NOT DISTINCT`). Apply it to Supabase before this ships.
 
 ---
 

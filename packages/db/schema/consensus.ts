@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, numeric, date, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, integer, numeric, date, timestamp, pgEnum, unique } from 'drizzle-orm/pg-core';
 import { instruments } from './instruments';
 
 export const consensusDirectionEnum = pgEnum('consensus_direction', ['bullish', 'bearish', 'neutral']);
@@ -19,4 +19,6 @@ export const consensusSignals = pgTable('consensus_signals', {
   activeClaims: integer('active_claims').notNull().default(0),
   asOfDate: date('as_of_date').notNull(),
   computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  unique('consensus_signals_instrument_date_unique').on(t.instrumentId, t.asOfDate),
+]);

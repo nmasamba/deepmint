@@ -108,7 +108,13 @@ export const ingestFunction = inngest.createFunction(
                 // news), whereas null means a Guide's own feed.
                 publisher: capture.publisher ?? null,
               })
+              .onConflictDoNothing({ target: events.contentHash })
               .returning({ id: events.id });
+
+            if (!newEvent) {
+              console.log(`Duplicate event skipped: ${contentHash.slice(0, 12)}...`);
+              return null;
+            }
 
             console.log(`New event captured: ${newEvent.id} (${contentHash.slice(0, 12)}...)`);
             return newEvent.id;

@@ -5,7 +5,7 @@ export const exchangeEnum = pgEnum('exchange', ['NYSE', 'NASDAQ', 'AMEX']);
 
 export const instruments = pgTable('instruments', {
   id: uuid('id').primaryKey().defaultRandom(),
-  ticker: varchar('ticker', { length: 20 }).notNull(),
+  ticker: varchar('ticker', { length: 20 }).notNull().unique(),
   figi: varchar('figi', { length: 12 }),                             // OpenFIGI identifier
   isin: varchar('isin', { length: 12 }),
   name: varchar('name', { length: 255 }).notNull(),
@@ -16,6 +16,3 @@ export const instruments = pgTable('instruments', {
   marketCapBucket: varchar('market_cap_bucket', { length: 20 }),     // mega, large, mid, small, micro
   isActive: boolean('is_active').default(true),
 });
-
-// Unique constraint: ticker + exchange
-// CREATE UNIQUE INDEX idx_instruments_ticker_exchange ON instruments(ticker, exchange);

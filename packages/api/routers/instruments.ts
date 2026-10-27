@@ -270,26 +270,18 @@ export const instrumentRouter = router({
   adminCreate: adminProcedure
     .input(instrumentInputSchema)
     .mutation(async ({ ctx, input }) => {
-      // Check for duplicate by ticker + exchange
+      // Tickers are unique across exchanges (instruments_ticker_unique).
+      const conflict = new TRPCError({
+        code: "CONFLICT",
+        message: `Instrument ${input.ticker} already exists`,
+      });
       const existing = await ctx.db
         .select({ id: instruments.id })
         .from(instruments)
-        .where(
-          and(
-            eq(instruments.ticker, input.ticker),
-            input.exchange
-              ? eq(instruments.exchange, input.exchange)
-              : sql`${instruments.exchange} IS NULL`,
-          ),
-        )
+        .where(eq(instruments.ticker, input.ticker))
         .limit(1);
 
-      if (existing.length > 0) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: `Instrument ${input.ticker} already exists on ${input.exchange ?? "unknown exchange"}`,
-        });
-      }
+      if (existing.length > 0) throw conflict;
 
       const [created] = await ctx.db
         .insert(instruments)
@@ -305,7 +297,9 @@ export const instrumentRouter = router({
           isin: input.isin,
           isActive: true,
         })
+        .onConflictDoNothing({ target: instruments.ticker })
         .returning();
+      if (!created) throw conflict;
 
       // Trigger price backfill for the new instrument
       await inngest.send({
@@ -353,9 +347,11 @@ export const instrumentRouter = router({
             isin: row.isin,
             isActive: true,
           })
+          .onConflictDoNothing({ target: instruments.ticker })
           .returning({ id: instruments.id });
 
         if (inserted) created.push(inserted.id);
+        else skipped.push(row.ticker);
       }
 
       if (created.length > 0) {

@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, timestamp, pgEnum, boolean, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, integer, timestamp, pgEnum, boolean, jsonb, unique } from 'drizzle-orm/pg-core';
 import { claims } from './claims';
 import { instruments } from './instruments';
 
@@ -16,7 +16,6 @@ export const outcomes = pgTable('outcomes', {
   targetHit: boolean('target_hit'),                                   // null if no target was set
   brierSlices: jsonb('brier_slices').$type<Array<{ daysBeforeResolution: number; priceCents: number; directionCorrect: boolean }>>(),
   computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
-// UNIQUE constraint: one outcome per claim per horizon
-// CREATE UNIQUE INDEX idx_outcomes_claim_horizon ON outcomes(claim_id, horizon);
+}, (t) => [
+  unique('outcomes_claim_horizon_unique').on(t.claimId, t.horizon),   // one outcome per claim per horizon
+]);

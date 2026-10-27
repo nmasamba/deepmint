@@ -27,6 +27,9 @@ export const scoreFunction = inngest.createFunction(
   {
     id: "entity-scoring",
     retries: 2,
+    // One run at a time: two runs replacing the same day's scores would
+    // otherwise interleave their deletes and inserts.
+    concurrency: { limit: 1 },
     triggers: [{ event: "markouts/completed" }],
   },
   async ({ step }) => {
@@ -246,16 +249,17 @@ export const scoreFunction = inngest.createFunction(
           addScore("eiv_overall", eiv);
         }
 
-        // Batch upsert scores (delete old + insert new for this entity+date)
+        // Replace this entity's scores for the date in one transaction
         if (scoresToInsert.length > 0) {
-          // Delete existing scores for this entity on this date
-          await db
-            .delete(scores)
-            .where(
-              sql`${scores.entityId} = ${entity.id} AND ${scores.asOfDate} = ${today}`
-            );
+          await db.transaction(async (tx) => {
+            await tx
+              .delete(scores)
+              .where(
+                sql`${scores.entityId} = ${entity.id} AND ${scores.asOfDate} = ${today}`
+              );
 
-          await db.insert(scores).values(scoresToInsert);
+            await tx.insert(scores).values(scoresToInsert);
+          });
           scored++;
         }
       }
