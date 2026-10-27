@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **69 open issues: no high, 18 medium and 51 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **68 open issues: no high, 18 medium and 50 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -30,11 +30,11 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Product (web app)](#area-product) | 0 | 6 | 15 | 21 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 6 | 8 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 1 | 10 | 11 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 1 | 9 | 10 |
 | [Data model and shared code](#area-data) | 0 | 1 | 4 | 5 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **18** | **51** | **69** |
+| **All** | **0** | **18** | **50** | **68** |
 
 <a id="area-scoring"></a>
 
@@ -515,16 +515,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** A Wall Street rating with no resolved firm is stored as `pending_review` under the publication's entity, which is an ordinary Guide. Approval only flips the status, so the publisher is then scored and ranked as a Guide. The review page does not say why the claim was held, and approval cannot be undone in the app.
 - **User impact:** Latent: only the Polygon news lane, off unless `INGEST_POLYGON_NEWS=1`, produces these claims.
 - **Evidence:** [`packages/ingestion/src/extractor.ts:671-685`](../packages/ingestion/src/extractor.ts#L671-L685) · [`packages/api/routers/claims.ts:370-407`](../packages/api/routers/claims.ts#L370-L407) · [`apps/web/app/(app)/admin/review/page.tsx:70-77`](../apps/web/app/%28app%29/admin/review/page.tsx#L70-L77)
-
-<a id="cross-source-dedupe-ignores-status"></a>
-
-### Claim dedupe lets a pending or rejected copy block a later valid one
-
-**Low** · data-integrity · `cross-source-dedupe-ignores-status`
-
-- **What's wrong:** Dedupe on entity, instrument, direction, horizon and UTC date ignores status. A weaker earlier copy (pending, or rejected by an admin) blocks a later copy with a verified quote, which is dropped and only counted.
-- **User impact:** If the weaker copy is rejected or never reviewed, the call never scores and its evidence is lost.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:687-716`](../packages/ingestion/src/extractor.ts#L687-L716)
 
 <a id="rss-undated-items-reingested"></a>
 

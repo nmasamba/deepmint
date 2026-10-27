@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { db, eq, and, sql } from "@deepmint/db";
+import { db, eq, and, sql, inArray } from "@deepmint/db";
 import { instruments, claims } from "@deepmint/db/schema";
 import {
   MAG7_TICKERS,
@@ -568,6 +568,39 @@ export interface ProcessExtractionOptions {
   sourceKind?: SourceKind;
 }
 
+type ClaimStatus = "pending_review" | "active" | "rejected";
+
+export type DedupeAction =
+  | { action: "skip" }
+  | { action: "insert"; status: "active" | "pending_review"; supersedePending: boolean };
+
+/**
+ * What to do with an extracted claim given the statuses of earlier copies of
+ * the same call (same entity, instrument, direction, horizon and UTC date).
+ * An active copy always wins. Otherwise a claim that would go active replaces
+ * pending copies (they are rejected), and goes to review when an admin has
+ * already rejected a copy. A claim held for review adds nothing to an earlier
+ * copy of either kind.
+ */
+export function dedupeAction(
+  existing: ClaimStatus[],
+  incoming: "active" | "pending_review",
+): DedupeAction {
+  if (existing.includes("active")) return { action: "skip" };
+  if (incoming === "pending_review") {
+    return existing.length > 0
+      ? { action: "skip" }
+      : { action: "insert", status: "pending_review", supersedePending: false };
+  }
+  if (existing.includes("pending_review")) {
+    return { action: "insert", status: "active", supersedePending: true };
+  }
+  if (existing.includes("rejected")) {
+    return { action: "insert", status: "pending_review", supersedePending: false };
+  }
+  return { action: "insert", status: "active", supersedePending: false };
+}
+
 /** UTC calendar date (YYYY-MM-DD) for a timestamp. */
 function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -583,6 +616,8 @@ export async function processExtraction(
   pending: number;
   invalid: number;
   duplicates: number;
+  /** Pending copies from other posts rejected in favour of an active claim. */
+  superseded: number;
   /** Which model and provider extracted this event; null if none was called. */
   model: string | null;
 }> {
@@ -595,7 +630,7 @@ export async function processExtraction(
     .where(eq(claims.eventId, eventId))
     .limit(1);
   if (existingClaim) {
-    return { inserted: 0, pending: 0, invalid: 0, duplicates: 0, model: null };
+    return { inserted: 0, pending: 0, invalid: 0, duplicates: 0, superseded: 0, model: null };
   }
 
   const result = await extractClaims(rawText);
@@ -609,6 +644,7 @@ export async function processExtraction(
   // skipped the event, losing the rest for good.
   const rows: (typeof claims.$inferInsert)[] = [];
   const batchKeys = new Set<string>();
+  const supersededIds: string[] = [];
 
   for (const claim of result.validClaims) {
     // Look up instrument by ticker
@@ -686,7 +722,7 @@ export async function processExtraction(
       verifyVerbatim(claim.horizonStated, claim.sourceExcerpt ?? ""),
       claim.horizonDays,
     );
-    const status =
+    const routedStatus =
       result.extractionConfidence >= 0.8 && !needsAttribution && evidenced
         ? "active"
         : "pending_review";
@@ -696,9 +732,11 @@ export async function processExtraction(
     // Without this the same call is counted several times for the same firm
     // and its leaderboard weight is inflated. Compared as a bound date string,
     // never a JS Date against a raw SQL expression (breaks the pg serializer).
+    // Earlier copies decide by status (dedupeAction): a pending or rejected
+    // copy must not block a better-evidenced one for good.
     const dedupeDate = toISODate(claimCreatedAt ?? new Date());
-    const [duplicate] = await db
-      .select({ id: claims.id })
+    const copies = await db
+      .select({ id: claims.id, status: claims.status })
       .from(claims)
       .where(
         and(
@@ -708,19 +746,28 @@ export async function processExtraction(
           eq(claims.horizonDays, claim.horizonDays),
           sql`${claims.createdAt}::date = ${dedupeDate}::date`,
         ),
-      )
-      .limit(1);
+      );
+    const decision = dedupeAction(
+      copies.map((c) => c.status ?? "active"),
+      routedStatus,
+    );
 
     // The same call listed twice in one post is also a duplicate: the query
     // above cannot see claims from this post, as none are written yet.
     const batchKey = [
       attributedEntityId, instrument.id, claim.direction, claim.horizonDays, dedupeDate,
     ].join("|");
-    if (duplicate || batchKeys.has(batchKey)) {
+    if (decision.action === "skip" || batchKeys.has(batchKey)) {
       duplicates++;
       continue;
     }
     batchKeys.add(batchKey);
+    const status = decision.status;
+    if (decision.supersedePending) {
+      supersededIds.push(
+        ...copies.filter((c) => c.status === "pending_review").map((c) => c.id),
+      );
+    }
 
     rows.push({
       eventId,
@@ -748,13 +795,31 @@ export async function processExtraction(
     else pending++;
   }
 
-  if (rows.length > 0) await db.insert(claims).values(rows);
+  // The post's claims and the rejection of the pending copies they replace
+  // land together. Only pending_review → rejected: claims are append-only.
+  if (rows.length > 0) {
+    await db.transaction(async (tx) => {
+      await tx.insert(claims).values(rows);
+      if (supersededIds.length > 0) {
+        await tx
+          .update(claims)
+          .set({ status: "rejected" })
+          .where(
+            and(
+              inArray(claims.id, supersededIds),
+              eq(claims.status, "pending_review"),
+            ),
+          );
+      }
+    });
+  }
 
   return {
     inserted,
     pending,
     invalid: result.invalidClaims.length,
     duplicates,
+    superseded: supersededIds.length,
     model: result.model,
   };
 }

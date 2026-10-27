@@ -20,6 +20,7 @@ export const extractFunction = inngest.createFunction(
     let totalPending = 0;
     let totalInvalid = 0;
     let totalDuplicates = 0;
+    let totalSuperseded = 0;
     const failedEventIds: string[] = [];
 
     for (const eventId of eventIds) {
@@ -37,7 +38,7 @@ export const extractFunction = inngest.createFunction(
 
           if (!eventRecord) {
             console.warn(`Event not found: ${eventId}`);
-            return { inserted: 0, pending: 0, invalid: 0, duplicates: 0 };
+            return { inserted: 0, pending: 0, invalid: 0, duplicates: 0, superseded: 0 };
           }
 
           // A publisher means the text was carried by a third party (Wall
@@ -60,7 +61,8 @@ export const extractFunction = inngest.createFunction(
             `${extractionResult.inserted} active, ` +
             `${extractionResult.pending} pending review, ` +
             `${extractionResult.invalid} invalid, ` +
-            `${extractionResult.duplicates} duplicate` +
+            `${extractionResult.duplicates} duplicate, ` +
+            `${extractionResult.superseded} pending copies superseded` +
             (extractionResult.model ? ` via ${extractionResult.model}` : ""),
           );
 
@@ -82,6 +84,7 @@ export const extractFunction = inngest.createFunction(
       totalPending += result.pending;
       totalInvalid += result.invalid;
       totalDuplicates += result.duplicates;
+      totalSuperseded += result.superseded;
     }
 
     return {
@@ -90,6 +93,7 @@ export const extractFunction = inngest.createFunction(
       claimsPendingReview: totalPending,
       invalidExtractions: totalInvalid,
       duplicatesSkipped: totalDuplicates,
+      pendingCopiesSuperseded: totalSuperseded,
       failedEventIds,
     };
   },
