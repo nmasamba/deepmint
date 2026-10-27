@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { Webhook } from "svix";
 import { ensureEntityForClerkUser } from "@deepmint/db/queries/ensureEntityForClerkUser";
-import { slugify } from "@deepmint/shared";
+import { clerkDisplayName, slugify } from "@deepmint/shared";
 
 interface ClerkWebhookEvent {
   type: string;
@@ -9,6 +9,7 @@ interface ClerkWebhookEvent {
     id: string;
     first_name: string | null;
     last_name: string | null;
+    username: string | null;
     email_addresses: Array<{
       id: string;
       email_address: string;
@@ -39,8 +40,9 @@ export async function POST(req: Request) {
     return new Response("Missing svix headers", { status: 400 });
   }
 
-  const payload = await req.json();
-  const body = JSON.stringify(payload);
+  // Verify the exact bytes Svix signed: re-serialising parsed JSON changes
+  // escapes and number formats, and the signature then fails.
+  const body = await req.text();
 
   const wh = new Webhook(WEBHOOK_SECRET);
 
@@ -58,10 +60,13 @@ export async function POST(req: Request) {
   }
 
   if (event.type === "user.created") {
-    const { id, first_name, last_name } = event.data;
+    const { id, first_name, last_name, username } = event.data;
 
-    const displayName =
-      [first_name, last_name].filter(Boolean).join(" ") || "User";
+    const displayName = clerkDisplayName({
+      firstName: first_name,
+      lastName: last_name,
+      username,
+    });
 
     // Idempotent: clerk_user_id is UNIQUE, so the previous bare insert threw a
     // duplicate-key error on any Clerk retry or manual Replay. That surfaced as
@@ -70,7 +75,7 @@ export async function POST(req: Request) {
     const entity = await ensureEntityForClerkUser({
       clerkUserId: id,
       displayName,
-      slug: slugify(displayName),
+      slug: slugify(displayName, "user"),
       avatarUrl: event.data.image_url,
     });
 

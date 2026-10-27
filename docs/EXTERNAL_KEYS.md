@@ -73,8 +73,8 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Required:** no. If the webhook never fires, the tRPC self-heal creates the entity on the user's first tRPC request.
 - **If missing:** every delivery gets a 500, because the route throws before checking headers.
 - **Get it:** Clerk dashboard → Webhooks → add endpoint `https://www.deepmint.ai/api/webhooks/clerk`, subscribe to `user.created`, copy the signing secret. Use the `www` host: the bare `deepmint.ai` answers with a 307 redirect, which Svix does not follow.
-- **Verify:** `curl -X POST https://www.deepmint.ai/api/webhooks/clerk` returns `400 Missing svix headers` when the secret is set, and 500 when it is not. A real delivery logs `[clerk webhook] entity ensured` in the Vercel function logs.
-- **Production:** secret set (probe 2026-10-05 returned the 400). Whether an endpoint is registered in Clerk is unverified; notes from 2026-08-11 say none was, and production entities came from the self-heal. Known weakness: the route verifies a re-serialised body rather than the raw bytes, so some payloads can fail the signature check.
+- **Verify:** `curl -X POST https://www.deepmint.ai/api/webhooks/clerk` returns `400 Missing svix headers` when the secret is set, and 500 when it is not. A real delivery logs `[clerk webhook] entity ensured` in the Vercel function logs. Locally, `apps/web/__tests__/webhooks/clerk.test.ts` signs payloads with this secret (from the root `.env.local`) and posts them to the dev server.
+- **Production:** secret set (probe 2026-10-05 returned the 400). Whether an endpoint is registered in Clerk is unverified; notes from 2026-08-11 say none was, and production entities came from the self-heal.
 
 **Optional Clerk variables**
 - `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up`: read implicitly by Clerk. Without them Clerk uses its hosted sign-in and sign-up pages instead of the in-app ones.

@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **68 open issues: no high, 18 medium and 50 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **66 open issues: no high, 18 medium and 48 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -28,13 +28,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
 | [Product (web app)](#area-product) | 0 | 6 | 15 | 21 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 6 | 8 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 4 | 6 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 1 | 9 | 10 |
 | [Data model and shared code](#area-data) | 0 | 1 | 4 | 5 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **18** | **50** | **68** |
+| **All** | **0** | **18** | **48** | **66** |
 
 <a id="area-scoring"></a>
 
@@ -358,16 +358,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** None today: no secrets are stored. Once enabled, database or Inngest read access exposes them; using them also needs the partner consumer key, which lives in Vercel env.
 - **Evidence:** [`packages/api/routers/broker.ts:110-127`](../packages/api/routers/broker.ts#L110-L127) · [`apps/worker/functions/broker-sync.ts:36-46`](../apps/worker/functions/broker-sync.ts#L36-L46)
 
-<a id="identity-derivation-inconsistent"></a>
-
-### Display names and slugs depend on which path created the entity
-
-**Low** · bug · `identity-derivation-inconsistent`
-
-- **What's wrong:** The Clerk webhook names a user from first and last name, then "User"; the tRPC self-heal also tries the username. Players are slugged by `@deepmint/shared` `slugify` (deletes punctuation) and Guides by the resolver's own (turns punctuation into hyphens), in one shared slug namespace.
-- **User impact:** Mostly cosmetic: "J.P. Morgan" becomes `jp-morgan` as a Player and `j-p-morgan` as a Guide. (Since wave 1 a firm's ratings never resolve to a user's slug.)
-- **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts:61-64`](../apps/web/app/api/webhooks/clerk/route.ts#L61-L64) · [`apps/web/app/api/trpc/[trpc]/route.ts:38-41`](../apps/web/app/api/trpc/%5Btrpc%5D/route.ts#L38-L41) · [`packages/shared/src/utils.ts:1-8`](../packages/shared/src/utils.ts#L1-L8) · [`packages/ingestion/src/sources/resolver.ts:7-15`](../packages/ingestion/src/sources/resolver.ts#L7-L15)
-
 <a id="mcp-tool-contract-gaps"></a>
 
 ### MCP tools return less than they promise
@@ -377,16 +367,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `get_entity_track_record` returns only the raw entities row, with no claims, outcomes or scores. Opening a session requires `consensus:read`, and read tools check no further scope. `submit_claim` has no `rationaleTags`. Tool descriptions say "Mag-7 ticker" but any instrument resolves.
 - **User impact:** An agent asking for a track record gets no claims, outcomes or scores, and tool descriptions promise Mag-7 while any instrument resolves.
 - **Evidence:** [`apps/web/app/api/mcp/route.ts:36-43`](../apps/web/app/api/mcp/route.ts#L36-L43) · [`apps/web/app/api/mcp/route.ts:93-98`](../apps/web/app/api/mcp/route.ts#L93-L98) · [`apps/web/app/api/mcp/route.ts:113-123`](../apps/web/app/api/mcp/route.ts#L113-L123) · [`apps/web/app/api/mcp/route.ts:214`](../apps/web/app/api/mcp/route.ts#L214)
-
-<a id="clerk-webhook-fragile"></a>
-
-### Clerk webhook verifies a re-serialised body
-
-**Low** · bug · `clerk-webhook-fragile`
-
-- **What's wrong:** The webhook verifies `JSON.stringify(await req.json())` instead of the raw request body. Payloads whose bytes change when re-serialised (an escaped `/`, an escaped `&`, `1.0`) fail with 400 "Invalid signature".
-- **User impact:** None today: maintainer notes (2026-08-11, unverified) say no production webhook endpoint is registered, and the tRPC self-heal creates entities either way. Once registered, some sign-ups would get 400s and Svix retries.
-- **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts:42-54`](../apps/web/app/api/webhooks/clerk/route.ts#L42-L54)
 
 <a id="unused-trpc-procedures"></a>
 
@@ -626,7 +606,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · dead-code · `dead-and-duplicated-shared-code`
 
-- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `CLAIM_RATE_LIMIT`, `Mag7Ticker`, `historicalCacheKey` with `TTL_HISTORICAL`, and four `components/ui` files. Duplicated: the claims rate limit (hard-coded 10/h), a 7-ticker list in `instruments.mag7`, the rating enums and `SourceKind` in the extractor, two `slugify`s, and two local copies of the shared `formatBps`.
+- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `CLAIM_RATE_LIMIT`, `Mag7Ticker`, `historicalCacheKey` with `TTL_HISTORICAL`, and four `components/ui` files. Duplicated: the claims rate limit (hard-coded 10/h), a 7-ticker list in `instruments.mag7`, the rating enums and `SourceKind` in the extractor, and two local copies of the shared `formatBps`. (Since wave 2 there is one `slugify`, in `@deepmint/shared`.)
 - **User impact:** None for users; noise for maintainers.
 - **Evidence:** [`packages/shared/src/errors.ts:1-45`](../packages/shared/src/errors.ts#L1-L45) · [`packages/shared/src/polygonCache.ts:80-85`](../packages/shared/src/polygonCache.ts#L80-L85) · [`packages/api/routers/claims.ts:34`](../packages/api/routers/claims.ts#L34)
 
