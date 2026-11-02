@@ -7,8 +7,8 @@ The plan for fixing every open issue in [KNOWN_ISSUES.md](KNOWN_ISSUES.md), agre
 | Wave | Packages | Migration | State |
 |---|---|---|---|
 | 0 | The three high-severity fixes | 0008 | **Done**: #11, #12, #13 (2026-10-06 and 07) |
-| 1 | 1–16: correctness, data integrity, tooling | – | **PR open**: [#14](https://github.com/nmasamba/deepmint/pull/14) (2026-10-26) |
-| 2 | 17–27 | 0009 | Not started |
+| 1 | 1–16: correctness, data integrity, tooling | – | **Done**: [#14](https://github.com/nmasamba/deepmint/pull/14) (2026-10-27) |
+| 2 | 17–27 | 0009 | **PR open**: [#15](https://github.com/nmasamba/deepmint/pull/15) (2026-11-02) with 17–20, 23, 24, 26 and 27; 21, 22 and 25 wait for their keys |
 | 3 | 28–36 | 0010 | Not started |
 | 4 | 37–44 | 0011 | Not started |
 | 5 | 45–53 | 0012 | Not started |
