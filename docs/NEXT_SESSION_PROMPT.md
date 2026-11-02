@@ -15,16 +15,16 @@ READ FIRST
 - README.md
 - docs/KNOWN_ISSUES.md: the verified open issues, by severity
 - docs/EXTERNAL_KEYS.md: which keys are set or empty, and how to add one
-- docs/DEVLOG.md: the newest entries at the top (2026-10-06 and 2026-10-05)
+- docs/DEVLOG.md: the newest entries at the top (the remediation waves, then 2026-10-06 and 2026-10-05)
 
 CURRENT STATE
 - Production: https://www.deepmint.ai (canonical; deepmint.ai 307-redirects to www, and webhook
   URLs must use www). Vercel project deepmint-web-7ald (team nmasambas-projects) builds apps/web
   from main. Inngest app "deepmint" is synced through the Vercel integration.
 - Pre-launch. Auth runs on a Clerk DEVELOPMENT instance (pk_test_ keys).
-- DB is Supabase. Migrations 0000-0007 are applied; 0007_cool_mercury (claims.horizon_stated,
-  claims.source_excerpt) was applied and verified on 2026-10-05. The Mag-7 instruments were
-  seeded on 2026-08-11.
+- DB is Supabase. Migrations 0000-0009 are applied (each is pasted before its PR merges);
+  0007_cool_mercury (claims.horizon_stated, claims.source_excerpt) was applied and verified on
+  2026-10-05. The Mag-7 instruments were seeded on 2026-08-11.
 - Extraction LLM: OpenAI SDK -> Hugging Face router (https://router.huggingface.co/v1, HF_API_KEY).
   Code defaults: openai/gpt-oss-120b:fastest, fallback meta-llama/Llama-3.3-70B-Instruct:fastest
   (packages/ingestion/src/extractor.ts:43,48). LLM_MODEL and LLM_MODEL_FALLBACK were deleted from
@@ -68,8 +68,9 @@ WORKING RULES
    - Never run db:seed against production: it writes fictional Guides and 100 fake claims.
 5. The ledger is append-only. claims, events and notes are never updated or deleted. The only
    allowed UPDATE is the admin status change pending_review -> active | rejected. Outcomes are
-   written once per claim. No DB constraint enforces this, so the code must. A bad row cannot be
-   corrected later, so fail loudly rather than write a guessed value.
+   written once per claim and horizon; since migration 0009 unique keys enforce that and the
+   other ledger keys, but no DB constraint stops an update or delete yet, so the code must.
+   A bad row cannot be corrected later, so fail loudly rather than write a guessed value.
 6. Smallest diff that fixes the problem. No drive-by refactors.
 7. One branch and one PR per change. Never commit to main and never merge; I merge.
    Run `pnpm check` and the touched packages' tests before opening the PR.

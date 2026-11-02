@@ -4,6 +4,32 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-11-02 — Remediation Wave 2: Ledger Keys, Public Reads, Paper Shorts
+
+Wave 2 of [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md): eight of its eleven packages (17–20, 23, 24, 26 and 27), one commit each, with migration 0009. Packages 21 (digest recipients), 22 (broker sync) and 25 (Sentry) are left out: their live tests need Resend, SnapTrade sandbox and Sentry keys that were not available. The wave closes 11 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) entries and narrows 5 more; the register goes from 76 open issues (0 high, 20 medium, 56 low) to 65 (0 high, 18 medium, 47 low). Every package was re-verified against `a90abfa` before it changed; no package's approach did.
+
+- **Problem, in short.** The ledger's uniqueness rules (one outcome per claim and horizon, one event per post, one instrument per ticker) lived only in schema comments, and overlapping scoring, consensus or influence runs could write duplicate rows. Public entity reads returned whole rows, Clerk and SnapTrade ids included, to signed-out callers, and `claims.detail` showed pending and rejected claims to anyone with the id. Paper shorts added their proceeds to cash and their value to equity (a flat $1,000 short showed +2.00%) and needed no cash. Ticker pages showed the same global top lists on all seven tickers and failed outright when Polygon did. Cross-source dedupe let a pending or rejected copy of a call block a later verified one. The Clerk webhook verified a re-serialised body, and the two sign-up paths named and slugged users differently. The "New claim from followed" switch controlled nothing, and Learn described formulas the code does not use.
+- **How it was verified.** Live, against the local Docker Postgres with 0009 applied, the real Polygon and Hugging Face keys, the real `CLERK_WEBHOOK_SECRET` and the local Next dev server. Worker functions ran through their real handlers in wave 1's local harness (`npx inngest-cli` is still blocked). Pages behind sign-in were checked signed out through an uncommitted middleware tweak, reverted after each check.
+  - **17, ledger keys:** two markout runs started together both priced the same due claims, and one outcome per claim was written; two scoring rounds plus consensus and influence left no duplicate rows; the migration's guard stops it when a ledger key is already duplicated.
+  - **18, public reads:** a new signed-out test (`apps/web/__tests__/api-trpc/public-reads.test.ts`) fails on the old code and passes now. The dev server's profile payload carried one copy of the owner's Clerk id, in React's dev-only debug info; a local production build serves `/player/<slug>` with none in its HTML or RSC payload.
+  - **19, paper shorts:** a flat 10-share AAPL short shows 0 bps; a 100,000-share short is rejected; a cold valuation of five positions in two tickers took 12.8 s (about 50 s before).
+  - **20, ticker pages:** the NVDA and AAPL lists differ and match SQL (NVDA's best Guide 67%, n=3); the AAPL header reads "Last close · 2026-10-26"; with an invalid Polygon key the page renders and says "Price unavailable".
+  - **23, dedupe:** through the real extractor, a verified AMZN post went active and rejected its pending copy, and a verified GOOGL post whose earlier copy an admin had rejected went to review.
+  - **24, webhook and identity:** a payload whose bytes change when re-serialised, signed with the real secret, gets 200 (400 on the old code); "J.P. Morgan" becomes `j-p-morgan` on both sign-up paths.
+  - **26, new-claim notifications:** a follower with the switch on was notified of a fresh claim, one with it off was not, and a 3-day-old claim notified nobody.
+  - **27, Learn:** each corrected passage was checked against the code it describes.
+  - `pnpm check`, `pnpm lint` (0 errors, 12 warnings, as after wave 1) and `pnpm test` pass, and the whole CI job, reproduced in a fresh clone under `env -i` with no `.env.local` and empty Clerk keys, passes.
+- **Not fixed.**
+  - Packages 21, 22 and 25 wait for their keys: the digest still goes to a placeholder address (`digest-placeholder-recipient`), SnapTrade secrets are stored in plain text and a broker sync error sticks (`snaptrade-secret-plaintext`, `broker-sync-error-sticky`), and Sentry is still inert (`sentry-inert`).
+  - Ledger rows are unique but not yet append-only; the triggers are package 28 (`uniqueness-invariants-comment-only`).
+  - Mirrored portfolios never close positions, so Signal Simulate still prices every ticker a mirror has ever traded, and its worker keeps its own buying-power code (package 37).
+  - Paper trades fill at the latest close, which during market hours is the previous session's (`current-price-is-previous-close`, package 53).
+  - Notifications still link nowhere, and some are written for Guides, who have no user (`notifications-dead-ends`, package 41).
+  - README's "Main limitations" still lists two problems wave 1 fixed: claim cards without results and an empty "Most Influential" tab.
+- **Before merge.** Paste 0009 into Supabase (PostgreSQL 15 or later; run the duplicate preflight first). The PR gives the SQL, the journal row and a check.
+
+---
+
 ## 2026-10-26 — Remediation Wave 1: Correctness, Data Integrity, Tooling
 
 Wave 1 of [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md): packages 1–16, one commit each, no migration and no product decision. It closes 22 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) entries and narrows 11 more; the register goes from 98 open issues (0 high, 26 medium, 72 low) to 76 (0 high, 20 medium, 56 low). Every package was re-verified against `c86b730` before it changed: line numbers had moved, but no package's approach did.
