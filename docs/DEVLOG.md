@@ -27,6 +27,7 @@ Wave 2 of [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md): eight of its eleven packag
   - Notifications still link nowhere, and some are written for Guides, who have no user (`notifications-dead-ends`, package 41).
   - README's "Main limitations" still lists two problems wave 1 fixed: claim cards without results and an empty "Most Influential" tab.
 - **Before merge.** Paste 0009 into Supabase (PostgreSQL 15 or later; run the duplicate preflight first). The PR gives the SQL, the journal row and a check.
+- **Delivery from wave 3.** On 2026-11-02 the maintainer chose to ship the remaining waves in pairs, one PR each: 3+4, 5+6, 7+8 and 9+10, so four PRs instead of eight. Each pair's PR carries both waves' migrations, pasted in order before it merges, and packages 21, 22 and 25 join the first of them once their keys exist. [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md) has the rules.
 
 ---
 

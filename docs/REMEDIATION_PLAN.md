@@ -18,20 +18,22 @@ The plan for fixing every open issue in [KNOWN_ISSUES.md](KNOWN_ISSUES.md), agre
 | 9 | 68–72: dead code and tooling | – | Not started |
 | 10 | 73–77: last cleanup | – | Not started |
 
+From wave 3 the waves ship in pairs, one PR each: 3+4, 5+6, 7+8 and 9+10 (see [How it is delivered](#how-it-is-delivered)). Wave 2's packages 21, 22 and 25 go into the first of those PRs after their keys are in `.env.local`.
+
 After wave 0 (`main` at `c86b730`), KNOWN_ISSUES lists 98 open issues: 0 high, 26 medium and 72 low. The [Coverage](#coverage) section places every one of them.
 
 ## How it is delivered
 
 Maintainer decisions, 2026-10-06:
 
-- **One PR per wave**, with one commit per package. A wave's PR carries at most one migration.
-- **Each wave starts in a fresh session**, from `main` once the previous wave has merged. Re-verify every package against the current code before changing it: file and line references below date from `dca9722`, and wave 0 changed `sh/polygon.ts`, `W/score.ts`, `W/markoutClaim.ts`, `api/routers/claims.ts` and the extractor's entry pricing.
-- **Migrations** are numbered in wave order from 0009. The maintainer pastes each into the Supabase SQL editor **before** its wave's PR merges, so deployed code never runs ahead of the schema. The PR description gives the SQL, the drizzle journal row and a one-statement verification query:
+- **One PR per pair of waves from wave 3 on** (3+4, 5+6, 7+8 and 9+10), with one commit per package. Waves 1 and 2 had a PR each; the maintainer chose pairs on 2026-11-02. A pair's PR carries at most two migrations, one per wave, in wave order.
+- **Each pair starts in a fresh session**, from `main` once the previous PR has merged. Build the earlier wave's packages first: the later wave's packages assume them, as they would after a merge. Re-verify every package against the current code before changing it: file and line references below date from `dca9722`, and wave 0 changed `sh/polygon.ts`, `W/score.ts`, `W/markoutClaim.ts`, `api/routers/claims.ts` and the extractor's entry pricing.
+- **Migrations** are numbered in wave order from 0009. The maintainer pastes each into the Supabase SQL editor, in order, **before** the PR that carries it merges, so deployed code never runs ahead of the schema. For each migration, the PR description gives the SQL, the drizzle journal row and a one-statement verification query:
   `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('<sha256 of the .sql file>', <its "when" in meta/_journal.json>);`
 - **Product decisions D1–D25** ([Decisions](#decisions)) take the recommended option, with one exception. **D2:** signed-out visitors may see only ticker pages, Learn and claim pages; the leaderboard and profiles stay behind sign-in.
 - **Mag-7 only.** No instrument-universe expansion until the core product has matured.
 - **Live tests over mocks.** Ask the maintainer for the keys a wave needs before writing its live tests ([Keys](#keys-to-request-and-maintainer-steps)).
-- **Keep the docs true.** Each fix deletes or rewrites its KNOWN_ISSUES entries and recounts the totals, adds a CHANGELOG [Unreleased] line, and updates any doc it makes wrong. Each wave gets one DEVLOG entry. When a wave merges, mark it done in the status table above.
+- **Keep the docs true.** Each fix deletes or rewrites its KNOWN_ISSUES entries and recounts the totals, adds a CHANGELOG [Unreleased] line, and updates any doc it makes wrong. Each PR gets one DEVLOG entry. When a PR merges, mark its waves done in the status table above.
 
 ## Conventions
 
@@ -65,7 +67,7 @@ Maintainer decisions, 2026-10-06:
 
 **Migrations.** At most one per wave, numbered in wave order from 0009. A decision that removes a migration shifts the later numbers down. At merge time, always use the next free number.
 
-**Live testing.** Live tests run against the local Docker DB, real Polygon and HF keys, and the Clerk dev instance. Before each wave, ask the maintainer for the keys listed for its packages. Live tests skip when a key is absent, so CI runs only the pure tests. After package 28 lands, claims, events, notes and outcomes cannot be deleted locally. Reset with `docker compose down -v`.
+**Live testing.** Live tests run against the local Docker DB, real Polygon and HF keys, and the Clerk dev instance. Before each PR, ask the maintainer for the keys listed for its packages. Live tests skip when a key is absent, so CI runs only the pure tests. After package 28 lands, claims, events, notes and outcomes cannot be deleted locally. Reset with `docker compose down -v`.
 
 ## Waves table
 
@@ -1043,7 +1045,7 @@ Not excluded: 98 issues. Excluded (open PRs): self-logged-claim-lookahead (NCE),
 | W8 | Clerk dev-instance webhook tunnel (51 and 64 tests) |
 
 **Production steps for the maintainer:**
-- Paste migrations 0009 to 0015 in order, each **before** its wave's PR merges.
+- Paste migrations 0009 to 0015 in order, each **before** the PR that carries it merges.
 - Set env vars: DIGEST_FROM_EMAIL (21), BROKER_CREDENTIALS_KEY (22), NEXT_PUBLIC_SENTRY_DSN and an optional SENTRY_AUTH_TOKEN (25).
 - Report whether production has an unprefixed INNGEST_EVENT_KEY (3).
 - Confirm the Vercel plan, for maxDuration (31), and the Root Directory (70).
