@@ -24,6 +24,5 @@ export { RssSourceAdapter, type RssFeed } from "./sources/rss";
 export { PolygonNewsSourceAdapter } from "./sources/polygonNews";
 export {
   resolveOrCreateGuide,
-  slugify,
   type ResolveGuideInput,
 } from "./sources/resolver";

@@ -4,7 +4,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db, eq } from "@deepmint/db";
 import { entities } from "@deepmint/db/schema";
 import { ensureEntityForClerkUser } from "@deepmint/db/queries/ensureEntityForClerkUser";
-import { slugify } from "@deepmint/shared";
+import { clerkDisplayName, slugify } from "@deepmint/shared";
 import { resolveIsAdmin } from "@/lib/adminRole";
 
 async function handler(req: Request) {
@@ -40,14 +40,11 @@ async function handler(req: Request) {
             const client = await clerkClient();
             const user = await client.users.getUser(userId);
             fetchedUser = user;
-            const displayName =
-              [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-              user.username ||
-              "User";
+            const displayName = clerkDisplayName(user);
             entity = await ensureEntityForClerkUser({
               clerkUserId: userId,
               displayName,
-              slug: slugify(displayName),
+              slug: slugify(displayName, "user"),
               avatarUrl: user.imageUrl ?? null,
             });
             console.log("[trpc] self-healed missing entity", {

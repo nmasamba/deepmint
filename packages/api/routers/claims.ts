@@ -227,7 +227,13 @@ export const claimRouter = router({
         .where(eq(claims.id, input.id))
         .limit(1);
 
-      if (!result) {
+      // A claim that is not active (pending review or rejected) is visible
+      // only to its owner and admins.
+      const visible =
+        result?.claim.status === "active" ||
+        ctx.isAdmin ||
+        (!!ctx.entity && ctx.entity.id === result?.claim.entityId);
+      if (!result || !visible) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Claim not found",

@@ -121,8 +121,16 @@ export const backfillFunction = inngest.createFunction(
                 snapshotPath: null,
                 capturedAt: publishedAt,
               })
+              .onConflictDoNothing({ target: events.contentHash })
               .returning({ id: events.id });
-            return { inserted: true, eventId: ev!.id };
+            if (ev) return { inserted: true, eventId: ev.id };
+            // A concurrent run inserted it after the check above.
+            const [raced] = await db
+              .select({ id: events.id })
+              .from(events)
+              .where(eq(events.contentHash, contentHash))
+              .limit(1);
+            return { inserted: false, eventId: raced!.id };
           },
         );
         if (!ingested.inserted) continue;
@@ -217,17 +225,21 @@ export const backfillFunction = inngest.createFunction(
           .limit(1);
         if (exists) return 0;
 
-        await db.insert(outcomes).values({
-          claimId,
-          instrumentId: row.instrumentId,
-          horizon: outcome.horizon,
-          entryPriceCents: outcome.entryPriceCents,
-          exitPriceCents: outcome.exitPriceCents,
-          returnBps: outcome.returnBps,
-          directionCorrect: outcome.directionCorrect,
-          targetHit: outcome.targetHit,
-        });
-        return 1;
+        const inserted = await db
+          .insert(outcomes)
+          .values({
+            claimId,
+            instrumentId: row.instrumentId,
+            horizon: outcome.horizon,
+            entryPriceCents: outcome.entryPriceCents,
+            exitPriceCents: outcome.exitPriceCents,
+            returnBps: outcome.returnBps,
+            directionCorrect: outcome.directionCorrect,
+            targetHit: outcome.targetHit,
+          })
+          .onConflictDoNothing({ target: [outcomes.claimId, outcomes.horizon] })
+          .returning({ id: outcomes.id });
+        return inserted.length;
       });
       outcomesInserted += made;
     }

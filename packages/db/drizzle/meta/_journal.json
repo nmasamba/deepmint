@@ -64,6 +64,13 @@
       "when": 1791303089886,
       "tag": "0008_fixed_valeria_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793118408513,
+      "tag": "0009_ledger_unique_indexes",
+      "breakpoints": true
     }
   ]
 }

@@ -9,7 +9,8 @@ import {
 } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
-import { getCurrentPrice } from "@deepmint/shared";
+import { getLatestCloses } from "@deepmint/shared";
+import { closeFor, valuePortfolio } from "../lib/paperAccounting";
 
 export const signalSimulateRouter = router({
   /** Create a signal-simulate portfolio that mirrors a followed entity's claims. */
@@ -249,72 +250,20 @@ async function computePortfolioPerformance(
     .innerJoin(instruments, eq(paperTrades.instrumentId, instruments.id))
     .where(eq(paperTrades.portfolioId, portfolioId));
 
-  let realizedPnlCents = 0;
-  const closedTrades = trades.filter((t) => t.trade.closedAt !== null);
-  for (const t of closedTrades) {
-    const qty = Number(t.trade.quantity);
-    const entry = t.trade.entryPriceCents;
-    const exit = t.trade.exitPriceCents ?? 0;
-    const pnl =
-      t.trade.side === "buy"
-        ? (exit - entry) * qty
-        : (entry - exit) * qty;
-    realizedPnlCents += Math.round(pnl);
-  }
-
-  let unrealizedPnlCents = 0;
-  let openPositionValueCents = 0;
-  const openTrades = trades.filter((t) => t.trade.closedAt === null);
-  for (const t of openTrades) {
-    const currentPrice = await getCurrentPrice(t.ticker);
-    const qty = Number(t.trade.quantity);
-    const entry = t.trade.entryPriceCents;
-    const pnl =
-      t.trade.side === "buy"
-        ? (currentPrice - entry) * qty
-        : (entry - currentPrice) * qty;
-    unrealizedPnlCents += Math.round(pnl);
-    openPositionValueCents += Math.round(currentPrice * qty);
-  }
-
-  // Compute cash from trade history
-  let cash = portfolio.startingBalanceCents;
-  for (const t of trades) {
-    const qty = Number(t.trade.quantity);
-    if (t.trade.side === "buy") {
-      cash -= Math.round(t.trade.entryPriceCents * qty);
-      if (t.trade.closedAt && t.trade.exitPriceCents) {
-        cash += Math.round(t.trade.exitPriceCents * qty);
-      }
-    } else {
-      cash += Math.round(t.trade.entryPriceCents * qty);
-      if (t.trade.closedAt && t.trade.exitPriceCents) {
-        cash -= Math.round(t.trade.exitPriceCents * qty);
-      }
-    }
-  }
-
-  const totalEquityCents = cash + openPositionValueCents;
-  const totalReturnBps =
-    portfolio.startingBalanceCents > 0
-      ? Math.round(
-          ((totalEquityCents - portfolio.startingBalanceCents) /
-            portfolio.startingBalanceCents) *
-            10000,
-        )
-      : 0;
+  // One latest-close lookup per distinct open ticker
+  const closes = await getLatestCloses(
+    trades.filter((t) => t.trade.closedAt === null).map((t) => t.ticker),
+  );
+  const valuation = valuePortfolio(
+    portfolio.startingBalanceCents,
+    trades.map((t) => ({ ...t.trade, ticker: t.ticker })),
+    (t) => closeFor(closes, t.ticker),
+  );
 
   return {
     portfolioId,
     portfolioName: portfolio.name,
     startingBalanceCents: portfolio.startingBalanceCents,
-    availableCashCents: cash,
-    openPositionValueCents,
-    totalEquityCents,
-    realizedPnlCents,
-    unrealizedPnlCents,
-    totalReturnBps,
-    openTradeCount: openTrades.length,
-    closedTradeCount: closedTrades.length,
+    ...valuation,
   };
 }

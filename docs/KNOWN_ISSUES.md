@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **76 open issues: no high, 20 medium and 56 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **65 open issues: no high, 18 medium and 47 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 7 | 16 | 23 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 3 | 9 | 12 |
+| [Product (web app)](#area-product) | 0 | 6 | 14 | 20 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 4 | 6 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 1 | 10 | 11 |
-| [Data model and shared code](#area-data) | 0 | 1 | 5 | 6 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 1 | 9 | 10 |
+| [Data model and shared code](#area-data) | 0 | 1 | 4 | 5 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **20** | **56** | **76** |
+| **All** | **0** | **18** | **47** | **65** |
 
 <a id="area-scoring"></a>
 
@@ -166,13 +166,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="price-lookups-uncached-serial"></a>
 
-### Price lookups are uncached and serial on user-facing paths
+### Mirror valuations look up a price for every ticker ever mirrored
 
-**Medium** · bug · `price-lookups-uncached-serial`
+**Low** · bug · `price-lookups-uncached-serial`
 
-- **What's wrong:** Since wave 1, `getLatestClose` and `getLatestCloses` in `@deepmint/shared` return the latest close with its date, cached for 5 minutes per process (and in Upstash when configured) and de-duplicated, but no caller uses them yet. `paper.portfolioPerformance` and `signalSimulate.comparison` still await one throttled `getCurrentPrice` per open position, one after another, and mirrored portfolios never close positions. The ticker page's server render awaits the price with no catch.
-- **User impact:** A portfolio with N open positions shows skeletons for about 12.5 s × (N−1), five positions taking about 50 s. If Polygon fails, the ticker page shows the generic error screen instead of degrading.
-- **Evidence:** [`packages/api/routers/paper.ts:349-359`](../packages/api/routers/paper.ts#L349-L359) · [`packages/api/routers/signalSimulate.ts:265-278`](../packages/api/routers/signalSimulate.ts#L265-L278) · [`packages/shared/src/polygon.ts:292-327`](../packages/shared/src/polygon.ts#L292-L327) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
+- **What's wrong:** Mirrored portfolios never close positions ([mirror-portfolio-behaviour](#mirror-portfolio-behaviour)), so the Signal Simulate comparison must price every ticker a mirror has ever traded. (Since wave 2, paper and Signal Simulate valuations look up each distinct open ticker once through the cached `getLatestCloses`, paper trades fill through `getLatestClose`, and the ticker page reads a cached close and renders without one.)
+- **User impact:** Small while only the Mag 7 exist: a cold comparison takes at most 7 throttled lookups (about 75 s), then 5 minutes of cache.
+- **Evidence:** [`apps/worker/functions/signal-simulate.ts:78-104`](../apps/worker/functions/signal-simulate.ts#L78-L104) · [`packages/api/routers/signalSimulate.ts`](../packages/api/routers/signalSimulate.ts)
 
 <a id="instrument-universe-inconsistent"></a>
 
@@ -184,35 +184,15 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Latent while only the Mag 7 exist, as in production since 2026-08-11, and Mag-7 only is the deliberate scope for now. Once an admin adds instruments (for example with the S&P button), users can claim and trade tickers whose pages say "Coming soon", and ingestion never produces Guide claims for them. Make every surface agree before expanding.
 - **Evidence:** [`packages/ingestion/src/extractor.ts:461-472`](../packages/ingestion/src/extractor.ts#L461-L472) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:18-30`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L18-L30) · [`packages/api/routers/claims.ts:73-91`](../packages/api/routers/claims.ts#L73-L91) · [`packages/api/routers/paper.ts:138-150`](../packages/api/routers/paper.ts#L138-L150) · [`apps/web/app/api/mcp/route.ts:66-67`](../apps/web/app/api/mcp/route.ts#L66-L67)
 
-<a id="ticker-top-lists-global"></a>
-
-### Ticker pages' Top Guides and Top Players ignore the ticker
-
-**Low** · bug · `ticker-top-lists-global`
-
-- **What's wrong:** `ticker.overview` ranks Guides by EIV and Players by Sharpe with no instrument filter; `scores` has no instrument column. `leaderboard.byTicker` ignores its `ticker` argument (nothing calls it).
-- **User impact:** All seven ticker pages show the same global lists, implying specialists on that stock.
-- **Evidence:** [`packages/api/routers/ticker.ts:54-119`](../packages/api/routers/ticker.ts#L54-L119) · [`packages/db/schema/scores.ts:4-16`](../packages/db/schema/scores.ts#L4-L16) · [`packages/api/routers/leaderboard.ts:104-146`](../packages/api/routers/leaderboard.ts#L104-L146)
-
-<a id="ticker-page-dead-fragile-wiring"></a>
-
-### Ticker page: a wasteful overview query, and no loading or error states
-
-**Low** · bug · `ticker-page-dead-fragile-wiring`
-
-- **What's wrong:** `ticker.overview` fetches a price and claim stats the client ignores, so each page view makes two uncached price lookups. The client ignores loading and error states. (Since wave 1 the consensus worker writes the Avg Target and Target Dispersion figures.)
-- **User impact:** Each view spends at least 2 requests of the 5 req/min Polygon plan. Top Guides and Top Players say "No data yet." while loading or after a failed second lookup, and a full Polygon outage errors the whole page.
-- **Evidence:** [`apps/web/app/(app)/ticker/[symbol]/TickerClientSection.tsx:31-64`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/TickerClientSection.tsx#L31-L64) · [`packages/api/routers/ticker.ts:40-52`](../packages/api/routers/ticker.ts#L40-L52) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:44-53`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L44-L53)
-
 <a id="current-price-is-previous-close"></a>
 
-### "Current price" is the previous session's close
+### Paper trades fill at the previous session's close
 
 **Low** · bug · `current-price-is-previous-close`
 
-- **What's wrong:** `getCurrentPrice` returns the previous close by design. The ticker page shows it with no label or date, paper trades open, close and mark to it, and Learn says paper trades execute "at the current market price". (Since the next-close entry change, claims no longer use it for entry prices.)
-- **User impact:** The header price can be a session old but reads as live. Paper P&L is off and can be gamed by trading after an intraday move, but only in the user's own sandbox.
-- **Evidence:** [`packages/shared/src/polygon.ts:101-131`](../packages/shared/src/polygon.ts#L101-L131) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:93-97`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L93-L97) · [`packages/api/routers/paper.ts:153`](../packages/api/routers/paper.ts#L153) · [`packages/api/routers/paper.ts:350`](../packages/api/routers/paper.ts#L350) · [`apps/web/lib/learnModules.ts:273`](../apps/web/lib/learnModules.ts#L273)
+- **What's wrong:** Paper trades open, close and mark to the latest close, which during market hours is the previous session's. (Since wave 2 the ticker page labels its price "Last close" with the session date, and Learn says paper trades fill at the latest close; since the next-close entry change, claims no longer use it for entry prices.)
+- **User impact:** Paper P&L is off and can be gamed by trading after an intraday move, but only in the user's own sandbox.
+- **Evidence:** [`packages/api/routers/paper.ts:153`](../packages/api/routers/paper.ts#L153)
 
 <a id="mirror-portfolio-behaviour"></a>
 
@@ -266,23 +246,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="notifications-dead-ends"></a>
 
-### Notifications are dead ends, and one preference does nothing
+### Notifications are dead ends
 
 **Low** · feature-gap · `notifications-dead-ends`
 
-- **What's wrong:** Clicking a notification only marks it read; the stored `claimId`, ticker and rank metadata are never used to link anywhere. The "New claim from followed" switch saves a preference for a notification type nothing sends. Outcome, rank-change and new-follower notifications are also written for ingested Guides, which have no user.
-- **User impact:** No notification leads to the claim, ticker or follower it describes, and one of the five notification switches in Settings changes nothing.
-- **Evidence:** [`apps/web/components/notifications/NotificationItem.tsx:40-50`](../apps/web/components/notifications/NotificationItem.tsx#L40-L50) · [`packages/db/queries/createNotification.ts:9`](../packages/db/queries/createNotification.ts#L9) · [`apps/worker/functions/markout.ts:111-117`](../apps/worker/functions/markout.ts#L111-L117)
-
-<a id="learn-content-drift"></a>
-
-### Learn modules contradict how scoring works
-
-**Low** · docs-drift · `learn-content-drift`
-
-- **What's wrong:** Learn defines Sharpe as return above the risk-free rate (none is subtracted) and implies Player Sharpe and drawdown come from a portfolio (they come from claim outcomes). It says Guides "submit confidence levels" (Guides never submit; their confidence is extracted by the LLM). Its calibration module implies a user's stated confidence is graded, but Players never get a calibration score: confidence only scales a claim's consensus weight (0.75–1.25×). It also says paper trades fill "at the current market price".
-- **User impact:** Users form a wrong model of their score, especially around the confidence slider.
-- **Evidence:** [`apps/web/lib/learnModules.ts:48`](../apps/web/lib/learnModules.ts#L48) · [`apps/web/lib/learnModules.ts:210`](../apps/web/lib/learnModules.ts#L210) · [`apps/web/lib/learnModules.ts:273`](../apps/web/lib/learnModules.ts#L273) · [`packages/scoring/src/player.ts:12-18`](../packages/scoring/src/player.ts#L12-L18) · [`apps/worker/functions/score.ts:200-239`](../apps/worker/functions/score.ts#L200-L239)
+- **What's wrong:** Clicking a notification only marks it read; the stored `claimId`, ticker and rank metadata are never used to link anywhere. Outcome, rank-change and new-follower notifications are also written for ingested Guides, which have no user. (Since wave 2 the "New claim from followed" switch works: `notify-followers-new-claim` notifies followers of each active claim at most 2 days old that emits `claims/created`, which today means self-logged claims only; see [claims-created-only-self-logged](#claims-created-only-self-logged).)
+- **User impact:** No notification leads to the claim, ticker or follower it describes.
+- **Evidence:** [`apps/web/components/notifications/NotificationItem.tsx:40-50`](../apps/web/components/notifications/NotificationItem.tsx#L40-L50) · [`apps/worker/functions/markout.ts:111-117`](../apps/worker/functions/markout.ts#L111-L117)
 
 <a id="terminology-inconsistent"></a>
 
@@ -358,36 +328,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Nothing is affected until a `claims:write` key exists (production had 0 API keys on 2026-08-03). After that, every agent claim lands permanently on the admin's own Player record and scores, agents can add notes to the admin's own claims, and agents cannot be told apart. With Upstash they would also share the admin's 10 claims/hour.
 - **Evidence:** [`packages/api/routers/apiKeys.ts:17-43`](../packages/api/routers/apiKeys.ts#L17-L43) · [`apps/web/app/api/mcp/route.ts:139-145`](../apps/web/app/api/mcp/route.ts#L139-L145) · [`apps/web/app/api/mcp/route.ts:220`](../apps/web/app/api/mcp/route.ts#L220) · [`packages/api/routers/claims.ts:282`](../packages/api/routers/claims.ts#L282)
 
-<a id="paper-short-equity-overstated"></a>
-
-### Paper and Signal Simulate equity double-counts open shorts
-
-**Medium** · bug · `paper-short-equity-overstated`
-
-- **What's wrong:** Opening a short adds the sale proceeds to cash, and equity then adds `currentPrice × qty` for every open trade whatever its side. Each open short overstates equity by 2 × price × quantity, in paper portfolios and in the Signal Simulate comparison.
-- **User impact:** Total Equity, Total Return and the equity curve are too high while a short is open: a flat $1,000 short on $100,000 shows +2.00%. Each open mirrored short adds about +2% to the mirror's return. Simulated money only.
-- **Evidence:** [`packages/api/routers/paper.ts:349-368`](../packages/api/routers/paper.ts#L349-L368) · [`packages/api/routers/paper.ts:417-419`](../packages/api/routers/paper.ts#L417-L419) · [`packages/api/routers/signalSimulate.ts:277-297`](../packages/api/routers/signalSimulate.ts#L277-L297)
-
-<a id="entity-endpoints-leak-private-fields"></a>
-
-### Public entity endpoints return internal columns
-
-**Low** · security · `entity-endpoints-leak-private-fields`
-
-- **What's wrong:** Public `entity.bySlug` and `entity.search` return whole `entities` rows, including `clerk_user_id`, `snaptrade_user_id`, `is_allowlisted` and `deleted_at`, to signed-out callers. `search` does not escape `%` or `_`, so `q=%` lists every entity, 50 per call.
-- **User impact:** Anyone can list every user's Clerk user ID and timestamps. Clerk IDs are not credentials, so this is a data-minimisation gap, but any column added later leaks automatically.
-- **Evidence:** [`packages/api/routers/entities.ts:20-27`](../packages/api/routers/entities.ts#L20-L27) · [`packages/api/routers/entities.ts:73-88`](../packages/api/routers/entities.ts#L73-L88) · [`apps/web/middleware.ts:14`](../apps/web/middleware.ts#L14)
-
-<a id="claims-detail-any-status"></a>
-
-### `claims.detail` is public and returns pending and rejected claims
-
-**Low** · security · `claims-detail-any-status`
-
-- **What's wrong:** `claims.detail` looks a claim up by id alone and returns it in any status, with outcomes and notes. Every other public claim read filters to `active`.
-- **User impact:** Small: ids are random UUIDs, and no public endpoint returns the id of a non-active claim.
-- **Evidence:** [`packages/api/routers/claims.ts:199-224`](../packages/api/routers/claims.ts#L199-L224) · [`packages/api/routers/claims.ts:146`](../packages/api/routers/claims.ts#L146)
-
 <a id="broker-verified-means-any-account"></a>
 
 ### Broker "verified" only proves that some brokerage account is linked
@@ -408,26 +348,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** None today: no secrets are stored. Once enabled, database or Inngest read access exposes them; using them also needs the partner consumer key, which lives in Vercel env.
 - **Evidence:** [`packages/api/routers/broker.ts:110-127`](../packages/api/routers/broker.ts#L110-L127) · [`apps/worker/functions/broker-sync.ts:36-46`](../apps/worker/functions/broker-sync.ts#L36-L46)
 
-<a id="paper-short-cash-bypass"></a>
-
-### Paper "Sell" opens shorts of any size
-
-**Low** · bug · `paper-short-cash-bypass`
-
-- **What's wrong:** `addTrade` checks cash only for buys, so a sell opens a short of any size, and its proceeds then fund more buys. `createPortfolio` accepts any starting balance (the UI does not offer one). Signal Simulate sizes trades at 1% and is not affected.
-- **User impact:** A user can inflate their own paper equity without limit, and pressing Sell to close a long opens a short instead. Private to that user; feeds no score.
-- **Evidence:** [`packages/api/routers/paper.ts:158-170`](../packages/api/routers/paper.ts#L158-L170) · [`packages/api/routers/paper.ts:20-26`](../packages/api/routers/paper.ts#L20-L26) · [`apps/worker/functions/signal-simulate.ts:78-104`](../apps/worker/functions/signal-simulate.ts#L78-L104)
-
-<a id="identity-derivation-inconsistent"></a>
-
-### Display names and slugs depend on which path created the entity
-
-**Low** · bug · `identity-derivation-inconsistent`
-
-- **What's wrong:** The Clerk webhook names a user from first and last name, then "User"; the tRPC self-heal also tries the username. Players are slugged by `@deepmint/shared` `slugify` (deletes punctuation) and Guides by the resolver's own (turns punctuation into hyphens), in one shared slug namespace.
-- **User impact:** Mostly cosmetic: "J.P. Morgan" becomes `jp-morgan` as a Player and `j-p-morgan` as a Guide. (Since wave 1 a firm's ratings never resolve to a user's slug.)
-- **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts:61-64`](../apps/web/app/api/webhooks/clerk/route.ts#L61-L64) · [`apps/web/app/api/trpc/[trpc]/route.ts:38-41`](../apps/web/app/api/trpc/%5Btrpc%5D/route.ts#L38-L41) · [`packages/shared/src/utils.ts:1-8`](../packages/shared/src/utils.ts#L1-L8) · [`packages/ingestion/src/sources/resolver.ts:7-15`](../packages/ingestion/src/sources/resolver.ts#L7-L15)
-
 <a id="mcp-tool-contract-gaps"></a>
 
 ### MCP tools return less than they promise
@@ -437,16 +357,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `get_entity_track_record` returns only the raw entities row, with no claims, outcomes or scores. Opening a session requires `consensus:read`, and read tools check no further scope. `submit_claim` has no `rationaleTags`. Tool descriptions say "Mag-7 ticker" but any instrument resolves.
 - **User impact:** An agent asking for a track record gets no claims, outcomes or scores, and tool descriptions promise Mag-7 while any instrument resolves.
 - **Evidence:** [`apps/web/app/api/mcp/route.ts:36-43`](../apps/web/app/api/mcp/route.ts#L36-L43) · [`apps/web/app/api/mcp/route.ts:93-98`](../apps/web/app/api/mcp/route.ts#L93-L98) · [`apps/web/app/api/mcp/route.ts:113-123`](../apps/web/app/api/mcp/route.ts#L113-L123) · [`apps/web/app/api/mcp/route.ts:214`](../apps/web/app/api/mcp/route.ts#L214)
-
-<a id="clerk-webhook-fragile"></a>
-
-### Clerk webhook verifies a re-serialised body
-
-**Low** · bug · `clerk-webhook-fragile`
-
-- **What's wrong:** The webhook verifies `JSON.stringify(await req.json())` instead of the raw request body. Payloads whose bytes change when re-serialised (an escaped `/`, an escaped `&`, `1.0`) fail with 400 "Invalid signature".
-- **User impact:** None today: maintainer notes (2026-08-11, unverified) say no production webhook endpoint is registered, and the tRPC self-heal creates entities either way. Once registered, some sign-ups would get 400s and Svix retries.
-- **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts:42-54`](../apps/web/app/api/webhooks/clerk/route.ts#L42-L54)
 
 <a id="unused-trpc-procedures"></a>
 
@@ -576,16 +486,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Latent: only the Polygon news lane, off unless `INGEST_POLYGON_NEWS=1`, produces these claims.
 - **Evidence:** [`packages/ingestion/src/extractor.ts:671-685`](../packages/ingestion/src/extractor.ts#L671-L685) · [`packages/api/routers/claims.ts:370-407`](../packages/api/routers/claims.ts#L370-L407) · [`apps/web/app/(app)/admin/review/page.tsx:70-77`](../apps/web/app/%28app%29/admin/review/page.tsx#L70-L77)
 
-<a id="cross-source-dedupe-ignores-status"></a>
-
-### Claim dedupe lets a pending or rejected copy block a later valid one
-
-**Low** · data-integrity · `cross-source-dedupe-ignores-status`
-
-- **What's wrong:** Dedupe on entity, instrument, direction, horizon and UTC date ignores status. A weaker earlier copy (pending, or rejected by an admin) blocks a later copy with a verified quote, which is dropped and only counted.
-- **User impact:** If the weaker copy is rejected or never reviewed, the call never scores and its evidence is lost.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:687-716`](../packages/ingestion/src/extractor.ts#L687-L716)
-
 <a id="rss-undated-items-reingested"></a>
 
 ### Undated RSS items are re-ingested on every run
@@ -662,13 +562,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="uniqueness-invariants-comment-only"></a>
 
-### Uniqueness and append-only rules exist only in comments
+### Append-only rules exist only in comments
 
 **Medium** · data-integrity · `uniqueness-invariants-comment-only`
 
-- **What's wrong:** No migration creates the unique indexes the schema comments describe (one outcome per claim and horizon, one instrument per ticker and exchange, one score per entity, metric, horizon, regime and date), and `events.content_hash` is not unique. No trigger or permission enforces append-only. Dedupe is check-then-insert with no `ON CONFLICT` and no Inngest concurrency limit: markout checks every due claim first, then spends minutes pricing them before inserting. Derived tables are deleted and re-inserted outside a transaction.
-- **User impact:** Sequential retries are safe. A historical backfill overlapping the 17:00 ET markout can write duplicate outcomes, which count twice in hit rate, returns and EIV and are never removed.
-- **Evidence:** [`packages/db/schema/outcomes.ts:21-22`](../packages/db/schema/outcomes.ts#L21-L22) · [`packages/db/schema/events.ts:9`](../packages/db/schema/events.ts#L9) · [`apps/worker/functions/markout.ts:44-61`](../apps/worker/functions/markout.ts#L44-L61) · [`apps/worker/functions/markout.ts:83-108`](../apps/worker/functions/markout.ts#L83-L108) · [`apps/worker/functions/score.ts:243-251`](../apps/worker/functions/score.ts#L243-L251)
+- **What's wrong:** No trigger or permission enforces the append-only rule on `events`, `claims`, `notes` and `outcomes`. (Since migration 0009 the uniqueness rules are enforced: unique keys on outcomes per claim and horizon, events per content hash, instruments per ticker, scores per entity, metric, horizon, regime and date, and the consensus and influence aggregates per day; the writers insert with `ON CONFLICT DO NOTHING` or replace their rows in one transaction.)
+- **User impact:** Nothing in the database stops a bug or a hand-run statement from editing or deleting ledger rows, which would silently change track records and break the event hashes' audit trail.
+- **Evidence:** [`packages/db/schema/events.ts:15`](../packages/db/schema/events.ts#L15) · [`packages/db/schema/claims.ts`](../packages/db/schema/claims.ts)
 
 <a id="soft-delete-half-implemented"></a>
 
@@ -679,16 +579,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `entities.deleted_at` is checked by five procedures but written by nothing. Most reads (profiles, search, REST v1, consensus, scoring, influence, MCP) ignore it, and a comment wrongly says consensus excludes deleted entities.
 - **User impact:** No effect today. A user cannot be removed, and a manual SQL soft-delete would hide an entity from only some surfaces.
 - **Evidence:** [`packages/db/schema/entities.ts:22`](../packages/db/schema/entities.ts#L22) · [`packages/api/routers/entities.ts:109-114`](../packages/api/routers/entities.ts#L109-L114) · [`apps/worker/functions/consensus-signal.ts:57-66`](../apps/worker/functions/consensus-signal.ts#L57-L66)
-
-<a id="stale-schema-and-scoring-comments"></a>
-
-### The `scores` schema comment describes metrics that are never written
-
-**Low** · docs-drift · `stale-schema-and-scoring-comments`
-
-- **What's wrong:** The `scores` schema comment lists metrics never written (`hit_rate_3m`, `hit_rate_6m`, `hit_rate_12m`, `overall_player`, `overall_guide`) and a `12m` horizon; real horizons are `all`, `1d`, `1w`, `1m`, `3m`, `6m` and `1y`.
-- **User impact:** Queries written from the comment return nothing.
-- **Evidence:** [`packages/db/schema/scores.ts:8-12`](../packages/db/schema/scores.ts#L8-L12)
 
 <a id="two-verified-flags"></a>
 
@@ -706,7 +596,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · dead-code · `dead-and-duplicated-shared-code`
 
-- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `CLAIM_RATE_LIMIT`, `Mag7Ticker`, `historicalCacheKey` with `TTL_HISTORICAL`, and four `components/ui` files. Duplicated: the claims rate limit (hard-coded 10/h), a 7-ticker list in `instruments.mag7`, the rating enums and `SourceKind` in the extractor, two `slugify`s, and two local copies of the shared `formatBps`.
+- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `CLAIM_RATE_LIMIT`, `Mag7Ticker`, `historicalCacheKey` with `TTL_HISTORICAL`, and four `components/ui` files. Duplicated: the claims rate limit (hard-coded 10/h), a 7-ticker list in `instruments.mag7`, the rating enums and `SourceKind` in the extractor, and two local copies of the shared `formatBps`. (Since wave 2 there is one `slugify`, in `@deepmint/shared`.)
 - **User impact:** None for users; noise for maintainers.
 - **Evidence:** [`packages/shared/src/errors.ts:1-45`](../packages/shared/src/errors.ts#L1-L45) · [`packages/shared/src/polygonCache.ts:80-85`](../packages/shared/src/polygonCache.ts#L80-L85) · [`packages/api/routers/claims.ts:34`](../packages/api/routers/claims.ts#L34)
 

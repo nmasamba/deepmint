@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShieldCheck } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface EntityRow {
   entity: {
@@ -21,6 +22,8 @@ interface EntityRow {
 interface TopEntitiesPanelProps {
   title: string;
   entities: EntityRow[];
+  isLoading?: boolean;
+  isError?: boolean;
 }
 
 function getInitials(name: string): string {
@@ -32,14 +35,26 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-export function TopEntitiesPanel({ title, entities }: TopEntitiesPanelProps) {
-  if (entities.length === 0) {
+export function TopEntitiesPanel({ title, entities, isLoading, isError }: TopEntitiesPanelProps) {
+  if (isLoading || isError || entities.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-bg-secondary p-4">
         <h3 className="mb-3 text-sm font-medium uppercase text-text-secondary">
           {title}
         </h3>
-        <p className="text-sm text-text-secondary/60">No data yet.</p>
+        {isLoading ? (
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-7 rounded" />
+            ))}
+          </div>
+        ) : isError ? (
+          <p className="text-sm text-red-500">Could not load this list.</p>
+        ) : (
+          <p className="text-sm text-text-secondary/60">
+            No one has 3 or more scored claims on this ticker yet.
+          </p>
+        )}
       </div>
     );
   }

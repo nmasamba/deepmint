@@ -119,7 +119,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - The live stats section (`SocialProof`) has been hidden before launch since PR #5.
   - The landing copy says AI grades the calls, but scoring is deterministic statistics.
   - The paper "Equity Curve" plots two points (start and now), and paper trades fill at the previous close.
-  - The ticker page's Top Guides and Top Players lists are global, not per ticker. (Its Avg Target and Dispersion panels render since wave 1.)
+  - Until wave 2 the ticker page's Top Guides and Top Players lists were global, not per ticker. They now rank by hit rate on that ticker, listing only entities with at least 3 outcomes there. (Its Avg Target and Dispersion panels render since wave 1.)
   - CI failed at pnpm setup from August until PR #9 (2026-10-05).
 
 ## Sprint 5 — Signal Simulate, influence, regimes, notifications
@@ -139,7 +139,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - "Best in Current Conditions" returned no rows until it was repointed at the `eiv` rows on 2026-08-03.
   - Until wave 1 the "Most Influential" leaderboard tab was always empty: it read `scores`, but the value lives only in `influence_scores`. It now reads `influence.topInfluencers`, like the dashboard's Trending Influencers.
   - Until wave 1, `influence-track` threw on every claim from a Player who follows anyone (a date bound inside raw SQL), so no influence event was ever recorded. It now runs, counts only active claims by followed Guides, and measures the 48-hour window from the claim's own time.
-  - Four notification types fire: `new_follower`, `signal_trade_logged`, and, since Sprint 7, `outcome_matured` and `rank_change`. `new_claim_from_follow` has a preference toggle but is never sent.
+  - Five notification types fire: `new_follower`, `signal_trade_logged`, since Sprint 7 `outcome_matured` and `rank_change`, and since wave 2 `new_claim_from_follow`, whose preference toggle until then controlled nothing.
 
 ## Sprint 6 — B2B API, Proof-of-Skin, instrument expansion
 
@@ -179,7 +179,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - PWA manifest, Serwist service worker and an `/offline` page.
 - **Status today:**
   - Since 2026-10-06 the regime is a stored daily snapshot (`market_regimes`, migration 0008), written on weekdays at 17:30 US Eastern; pages read it instead of recomputing. The plan has no index data (`I:VIX` and `I:SPX` return 403), so the S&P 500 30-day return is measured on SPY and VIX is recorded as defaulted, never as a made-up value.
-  - The web suite has 26 tests in 4 files (18 before wave 1); an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
+  - The web suite has 33 tests in 6 files (18 before wave 1, 26 before wave 2); an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
   - `/docs/api` is shown to every signed-in user, but only admins can mint keys.
   - Until wave 1, `/manifest.json` and `/offline` sat behind sign-in: the manifest returned 404 and the offline page was never precached, so neither worked. Both are public now, and the service worker precaches `/offline`.
 
@@ -284,7 +284,7 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 - **Ingestion:** the weekday ingest does nothing unless one of the two lanes is configured:
   - RSS needs Guides with `is_allowlisted=true` and a `source_url`, set by hand in SQL;
   - the Polygon news lane needs `INGEST_POLYGON_NEWS=1`.
-- **Tests without keys** (since wave 1): scoring 114, shared 23 (2 live Polygon tests skip), api 7 (3 database tests skip), ingestion 59 (6 live LLM and 5 database tests skip), web 26 skipped.
+- **Tests without keys** (since wave 2): scoring 114, shared 32 (2 live Polygon tests skip), api 13 (3 database tests skip), ingestion 59 (6 live LLM and 5 database tests skip), web 33 skipped.
 - **Open issues to know first:**
   - Leaderboards have no minimum sample size.
   - `claims/created` fires only for self-logged claims.

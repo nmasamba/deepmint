@@ -18,7 +18,7 @@ interface TickerClientSectionProps {
     targetDispersionBps: number | null;
     activeClaims: number;
   } | null;
-  priceCents: number;
+  priceCents: number | null;
   ticker: string;
 }
 
@@ -28,9 +28,9 @@ export function TickerClientSection({
   priceCents,
   ticker,
 }: TickerClientSectionProps) {
-  const { data } = trpc.ticker.overview.useQuery({ ticker });
+  const { data, isLoading, isError } = trpc.ticker.overview.useQuery({ ticker });
 
-  interface EntityWithMetric {
+  interface TopRow {
     entity: {
       id: string;
       displayName: string;
@@ -40,28 +40,21 @@ export function TickerClientSection({
       isVerified: boolean | null;
       brokerLinkStatus: string | null;
     };
-    eiv?: string;
-    sharpe?: string;
+    outcomes: number;
+    hitRate: number;
   }
 
-  // Use server-provided data, enriched with client data for top entities
-  const topGuides =
-    data && data.isMag7
-      ? (data.topGuides as EntityWithMetric[]).map((g) => ({
-          entity: g.entity,
-          metricValue: Number(g.eiv).toFixed(1),
-          metricLabel: "EIV",
-        }))
-      : [];
+  // Hit rate on this ticker, with the sample it is based on
+  const toRows = (rows: TopRow[]) =>
+    rows.map((r) => ({
+      entity: r.entity,
+      metricValue: `${Math.round(r.hitRate * 100)}%`,
+      metricLabel: `hit · n=${r.outcomes}`,
+    }));
 
-  const topPlayers =
-    data && data.isMag7
-      ? (data.topPlayers as EntityWithMetric[]).map((p) => ({
-          entity: p.entity,
-          metricValue: Number(p.sharpe).toFixed(2),
-          metricLabel: "Sharpe",
-        }))
-      : [];
+  const topGuides = data && data.isMag7 ? toRows(data.topGuides) : [];
+  const topPlayers = data && data.isMag7 ? toRows(data.topPlayers) : [];
+  const panelState = { isLoading, isError };
 
   return (
     <>
@@ -83,8 +76,8 @@ export function TickerClientSection({
 
       {/* Top entities panels */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <TopEntitiesPanel title="Top Guides" entities={topGuides} />
-        <TopEntitiesPanel title="Top Players" entities={topPlayers} />
+        <TopEntitiesPanel title="Top Guides" entities={topGuides} {...panelState} />
+        <TopEntitiesPanel title="Top Players" entities={topPlayers} {...panelState} />
       </div>
 
       {/* Watch button */}

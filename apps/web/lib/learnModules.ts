@@ -45,7 +45,7 @@ export const LEARN_MODULES: LearnModule[] = [
 
 Which is better? Trader B is almost certainly the more skilled trader. Their risk-adjusted returns (return per unit of risk) are far superior.
 
-On Deepmint, we measure this with the **Sharpe Ratio** — the return above the risk-free rate, divided by volatility. Higher is better.`,
+On Deepmint, we measure this with the **Sharpe Ratio**: average return divided by its volatility. Higher is better.`,
       },
       {
         title: "Position Sizing",
@@ -98,14 +98,14 @@ The key insight: even with a genuine edge, betting too large will eventually lea
         title: "Sharpe Ratio",
         content: `The **Sharpe Ratio** measures return per unit of risk (volatility).
 
-**Formula**: (Portfolio Return - Risk-Free Rate) / Standard Deviation of Returns
+**Textbook formula**: (Portfolio Return - Risk-Free Rate) / Standard Deviation of Returns
 
 - **< 1.0**: Below average
 - **1.0 - 2.0**: Good
 - **2.0 - 3.0**: Excellent
 - **> 3.0**: Exceptional (and rare over long periods)
 
-On Deepmint, Player profiles show their annualized Sharpe ratio. Higher means more consistent risk-adjusted returns.`,
+**On Deepmint**, a Player's Sharpe ratio comes from their scored claims, not from a portfolio. Each matured claim's return counts as one period: Sharpe = average claim return / standard deviation of claim returns × √252. No risk-free rate is subtracted. Higher means more consistent returns per call.`,
       },
       {
         title: "Max Drawdown & Calmar Ratio",
@@ -116,7 +116,7 @@ The **Calmar Ratio** = Annualized Return / Max Drawdown. It tells you how much r
 - A Calmar of 2.0 means you earned twice your worst drawdown.
 - A Calmar below 1.0 means your worst drawdown exceeded your annual return — concerning.
 
-Both metrics are shown on Deepmint Player profiles.`,
+**On Deepmint**, both come from a Player's scored claims: their returns are compounded in the order the claims matured, as if each were a full-size position, and max drawdown is the worst fall of that curve. Calmar is that curve's total return × 252 / number of claims, divided by the max drawdown.`,
       },
       {
         title: "Win Rate vs Expected Value",
@@ -168,7 +168,7 @@ On Deepmint, every claim must include a **horizon**: 1 day, 1 week, 1 month, 3 m
 - **Short-term** accuracy requires understanding market microstructure, momentum, and sentiment flows.
 - **Long-term** accuracy requires fundamental analysis, understanding business models, and patience.
 
-These are different skills. Deepmint tracks hit rates at each horizon separately, so you can identify who's actually good at what timeframe.`,
+These are different skills. Deepmint tracks Guides' hit rates at each horizon separately, so you can identify who's actually good at what timeframe.`,
       },
       {
         title: "Horizon and Risk",
@@ -207,7 +207,9 @@ Most people are **overconfident**: they say 90% when they should say 65%. This i
 - **0.25** = Random guessing at 50%
 - **> 0.25** = Worse than random
 
-Lower is better. On Deepmint, Guides who submit confidence levels have their Brier scores tracked over time.`,
+Lower is better. On Deepmint, a Guide's confidence is read from their published text when they state one (for example "high conviction"), and their Brier score is computed over those claims.
+
+Players are not graded on calibration. The confidence you set on a claim only changes how much it counts in a ticker's consensus signal, from 0.75× at 0% to 1.25× at 100% (1× if you leave it blank).`,
       },
       {
         title: "Why Calibration Beats Confidence",
@@ -215,7 +217,7 @@ Lower is better. On Deepmint, Guides who submit confidence levels have their Bri
 
 Why? Because the calibrated guide gives you useful **probability information** you can use for position sizing. The overconfident one gives you misleading signals.
 
-On Deepmint, well-calibrated Guides earn higher **Expected Information Value (EIV)** scores, even if their raw hit rate is lower.`,
+On Deepmint, a Guide's **Expected Information Value (EIV)** is multiplied by (1 − Brier score), so better calibration raises it. A Guide with no stated confidence, and every Player, is scored as if their Brier score were 0.5.`,
       },
     ],
     quiz: [
@@ -268,9 +270,11 @@ That's it! You're ready to start trading.`,
         title: "Making Your First Trade",
         content: `1. In your portfolio, click **New Trade**
 2. Search for a Mag 7 ticker (AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA)
-3. Choose **Buy** or **Sell**
+3. Choose **Buy** or **Sell short**
 4. Enter the number of shares
-5. Submit — the trade executes at the current market price
+5. Submit — the trade fills at the latest close (during market hours, the previous session's close)
+
+Either side needs the cash: a short sets aside its value until you close it.
 
 To close a position later, click the **Close** button next to any open trade. The P&L is calculated automatically.
 

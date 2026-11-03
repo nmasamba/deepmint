@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, numeric, date, timestamp, boolean, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, integer, numeric, date, timestamp, boolean, jsonb, unique } from 'drizzle-orm/pg-core';
 import { entities } from './entities';
 import { claims } from './claims';
 import { instruments } from './instruments';
@@ -30,4 +30,6 @@ export const influenceScores = pgTable('influence_scores', {
   topInstruments: jsonb('top_instruments').$type<string[]>().default([]),
   asOfDate: date('as_of_date').notNull(),
   computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  unique('influence_scores_guide_date_unique').on(t.guideEntityId, t.asOfDate),
+]);

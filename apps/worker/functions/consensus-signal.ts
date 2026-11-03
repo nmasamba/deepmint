@@ -18,6 +18,7 @@ export const consensusSignalFunction = inngest.createFunction(
   {
     id: "consensus-signal",
     retries: 2,
+    concurrency: { limit: 1 },
     triggers: [{ event: "scoring/completed" }],
   },
   async ({ step }) => {
@@ -113,29 +114,30 @@ export const consensusSignalFunction = inngest.createFunction(
         const signal = computeConsensusSignal(weightedClaims);
         const targets = computeTargetStats(weightedClaims);
 
-        // Upsert consensus signal
-        // Delete existing signal for this instrument+date, then insert
-        await db
-          .delete(consensusSignals)
-          .where(
-            sql`${consensusSignals.instrumentId} = ${instrument.id} AND ${consensusSignals.asOfDate} = ${todayStr}`
-          );
+        // Replace the signal for this instrument+date in one transaction
+        await db.transaction(async (tx) => {
+          await tx
+            .delete(consensusSignals)
+            .where(
+              sql`${consensusSignals.instrumentId} = ${instrument.id} AND ${consensusSignals.asOfDate} = ${todayStr}`
+            );
 
-        await db.insert(consensusSignals).values({
-          instrumentId: instrument.id,
-          direction: signal.direction,
-          longCount: signal.longCount,
-          shortCount: signal.shortCount,
-          neutralCount: signal.neutralCount,
-          weightedBullishScore: signal.bullishScore.toFixed(6),
-          weightedBearishScore: signal.bearishScore.toFixed(6),
-          weightedNeutralScore: signal.neutralScore.toFixed(6),
-          convictionStrength: signal.convictionStrength.toFixed(4),
-          avgTargetPriceCents: targets.avgTargetPriceCents,
-          targetDispersionBps: targets.targetDispersionBps,
-          // The claims the signal actually counted.
-          activeClaims: signal.longCount + signal.shortCount + signal.neutralCount,
-          asOfDate: todayStr,
+          await tx.insert(consensusSignals).values({
+            instrumentId: instrument.id,
+            direction: signal.direction,
+            longCount: signal.longCount,
+            shortCount: signal.shortCount,
+            neutralCount: signal.neutralCount,
+            weightedBullishScore: signal.bullishScore.toFixed(6),
+            weightedBearishScore: signal.bearishScore.toFixed(6),
+            weightedNeutralScore: signal.neutralScore.toFixed(6),
+            convictionStrength: signal.convictionStrength.toFixed(4),
+            avgTargetPriceCents: targets.avgTargetPriceCents,
+            targetDispersionBps: targets.targetDispersionBps,
+            // The claims the signal actually counted.
+            activeClaims: signal.longCount + signal.shortCount + signal.neutralCount,
+            asOfDate: todayStr,
+          });
         });
 
         computed++;

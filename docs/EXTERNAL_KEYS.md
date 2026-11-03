@@ -33,7 +33,7 @@ Ordered by what each step changes in the running code today.
    - `claims.submit` has no 10-claims-per-hour limit, so a signed-in user can submit claims without bound.
    - `/api/v1` and `/api/mcp` have no per-key limit. This matters once the first `dm_live_` key is issued; production had 0 keys on 2026-08-03 and the count since is not recorded.
 2. **Clerk production instance, before launch.** Production runs on a development instance. That instance allows 100 Backend API requests per 10 seconds. The admin check makes at most one (`users.getUser`) per signed-in user per minute per server instance, and none with the optional session-token claim (see [Clerk](#clerk)). Moving needs the custom domain, Google OAuth credentials and DNS, then new values for both keys and the webhook secret.
-3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 16 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
+3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 17 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
 4. **SnapTrade: when Player broker verification launches,** and only after the gaps listed under [SnapTrade](#snaptrade) are fixed.
 5. **Resend: code first.** The digest sends to placeholder addresses.
 6. **Cloudflare R2: code first, lowest priority.** No code path uploads anything.
@@ -73,8 +73,8 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Required:** no. If the webhook never fires, the tRPC self-heal creates the entity on the user's first tRPC request.
 - **If missing:** every delivery gets a 500, because the route throws before checking headers.
 - **Get it:** Clerk dashboard → Webhooks → add endpoint `https://www.deepmint.ai/api/webhooks/clerk`, subscribe to `user.created`, copy the signing secret. Use the `www` host: the bare `deepmint.ai` answers with a 307 redirect, which Svix does not follow.
-- **Verify:** `curl -X POST https://www.deepmint.ai/api/webhooks/clerk` returns `400 Missing svix headers` when the secret is set, and 500 when it is not. A real delivery logs `[clerk webhook] entity ensured` in the Vercel function logs.
-- **Production:** secret set (probe 2026-10-05 returned the 400). Whether an endpoint is registered in Clerk is unverified; notes from 2026-08-11 say none was, and production entities came from the self-heal. Known weakness: the route verifies a re-serialised body rather than the raw bytes, so some payloads can fail the signature check.
+- **Verify:** `curl -X POST https://www.deepmint.ai/api/webhooks/clerk` returns `400 Missing svix headers` when the secret is set, and 500 when it is not. A real delivery logs `[clerk webhook] entity ensured` in the Vercel function logs. Locally, `apps/web/__tests__/webhooks/clerk.test.ts` signs payloads with this secret (from the root `.env.local`) and posts them to the dev server.
+- **Production:** secret set (probe 2026-10-05 returned the 400). Whether an endpoint is registered in Clerk is unverified; notes from 2026-08-11 say none was, and production entities came from the self-heal.
 
 **Optional Clerk variables**
 - `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up`: read implicitly by Clerk. Without them Clerk uses its hosted sign-in and sign-up pages instead of the in-app ones.
@@ -139,7 +139,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Before wave 1** the tRPC routers' clients never saw the mapping, so with only the prefixed keys their `claims/created` and `social/followed` sends would have failed silently, and a stale compiled `apps/worker/inngest.js` without it shadowed `inngest.ts` in the production bundle. Both are fixed; whether production ever lacked an unprefixed `INNGEST_EVENT_KEY` was not recorded.
 - **Get it:** Vercel → Integrations → Inngest (keys arrive prefixed), or Inngest dashboard → Production → event key and signing key.
 - **Verify:**
-  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job).
+  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job, 17 since `notify-followers-new-claim`).
   - For the routers, follow and then unfollow any profile, and look for a `social/followed` event in the Inngest dashboard's event list. Do not test with a claim: claims are append-only.
 - **Production:** app `deepmint` is synced through the Vercel integration. The route sets no `maxDuration`.
 
@@ -249,7 +249,7 @@ The RSS lane has no variable. It reads Guides with `is_allowlisted = true` and a
 
 These are read from the **root** `.env.local` by `apps/web/vitest.config.ts`.
 
-- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 18 tests in 4 files skip.
+- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 33 tests in 6 files skip. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`.
   - Mint it at `/admin/api-keys` as an admin, in the database used by the server under test. The default read scopes are enough.
   - Admins are the only people who can mint keys; the UI offers only the 3 read scopes.
 - **`TEST_BASE_URL`**: default `http://localhost:3000`. The server must be running.

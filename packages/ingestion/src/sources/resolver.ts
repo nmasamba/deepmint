@@ -1,18 +1,6 @@
 import { db, eq, and, isNull } from "@deepmint/db";
 import { entities } from "@deepmint/db/schema";
-
-/**
- * Convert an arbitrary handle/name into a URL-safe, bounded slug.
- */
-export function slugify(input: string): string {
-  const slug = input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 100);
-  return slug || "guide";
-}
+import { slugify } from "@deepmint/shared";
 
 export interface ResolveGuideInput {
   /** Source handle / author name — used to derive the slug + display name. */
@@ -50,7 +38,7 @@ export async function resolveOrCreateGuide(
     if (bySource) return bySource.id;
   }
 
-  const baseSlug = slugify(input.handle);
+  const baseSlug = slugify(input.handle, "guide");
   // display_name is varchar(100); a longer name would fail the insert.
   const displayName = (input.displayName ?? input.handle).slice(0, 100);
 

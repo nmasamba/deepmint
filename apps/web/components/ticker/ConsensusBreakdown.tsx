@@ -10,7 +10,7 @@ interface ConsensusBreakdownProps {
   weightedBearish: number;
   weightedNeutral: number;
   avgTargetPriceCents: number | null;
-  currentPriceCents: number;
+  currentPriceCents: number | null;
   targetDispersionBps: number | null;
   activeClaims: number;
 }
@@ -136,7 +136,7 @@ export function ConsensusBreakdown({
         {avgTargetPriceCents && (
           <div className="rounded-lg border border-border bg-bg-primary p-3">
             <p className="mb-2 text-xs font-medium uppercase text-text-secondary">
-              Avg Target vs Current
+              Avg Target vs Last Close
             </p>
             <div className="flex items-baseline gap-3">
               <div>
@@ -148,9 +148,9 @@ export function ConsensusBreakdown({
               <span className="text-text-secondary/40">/</span>
               <div>
                 <span className="font-mono text-lg font-bold text-text-primary">
-                  {formatCents(currentPriceCents)}
+                  {currentPriceCents != null ? formatCents(currentPriceCents) : "—"}
                 </span>
-                <span className="ml-1 text-xs text-text-secondary">current</span>
+                <span className="ml-1 text-xs text-text-secondary">last close</span>
               </div>
             </div>
           </div>

@@ -11,6 +11,7 @@ export const influenceAggregateFunction = inngest.createFunction(
   {
     id: "influence-aggregate",
     retries: 2,
+    concurrency: { limit: 1 },
     triggers: [{ event: "scoring/completed" }],
   },
   async ({ step }) => {
@@ -57,21 +58,23 @@ export const influenceAggregateFunction = inngest.createFunction(
 
         const topInstruments = topInstrumentRows.map((r) => r.instrumentId);
 
-        // Delete existing score for this guide+date, then insert
-        await db
-          .delete(influenceScores)
-          .where(
-            sql`${influenceScores.guideEntityId} = ${stat.guideEntityId}
-                AND ${influenceScores.asOfDate} = ${today}`,
-          );
+        // Replace the score for this guide+date in one transaction
+        await db.transaction(async (tx) => {
+          await tx
+            .delete(influenceScores)
+            .where(
+              sql`${influenceScores.guideEntityId} = ${stat.guideEntityId}
+                  AND ${influenceScores.asOfDate} = ${today}`,
+            );
 
-        await db.insert(influenceScores).values({
-          guideEntityId: stat.guideEntityId,
-          followerCount: stat.uniquePlayers,
-          influenceEvents30d: stat.totalEvents,
-          avgLagHours: stat.avgLag ? parseFloat(stat.avgLag).toFixed(2) : null,
-          topInstruments,
-          asOfDate: today,
+          await tx.insert(influenceScores).values({
+            guideEntityId: stat.guideEntityId,
+            followerCount: stat.uniquePlayers,
+            influenceEvents30d: stat.totalEvents,
+            avgLagHours: stat.avgLag ? parseFloat(stat.avgLag).toFixed(2) : null,
+            topInstruments,
+            asOfDate: today,
+          });
         });
 
         upserted++;

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { slugify } from "../sources/resolver";
+import { slugify as slugifyWith } from "../utils";
+
+// The resolver's Guide fallback; these expectations predate the move.
+const slugify = (input: string) => slugifyWith(input, "guide");
 
 describe("slugify", () => {
   it("lowercases and hyphenates", () => {
@@ -25,5 +28,14 @@ describe("slugify", () => {
 
   it("bounds length to 100 chars", () => {
     expect(slugify("x".repeat(200)).length).toBeLessThanOrEqual(100);
+  });
+
+  it("uses the caller's fallback", () => {
+    expect(slugifyWith("!!!", "user")).toBe("user");
+  });
+
+  it("gives Players and Guides the same slug", () => {
+    expect(slugifyWith("J.P. Morgan", "user")).toBe("j-p-morgan");
+    expect(slugifyWith("J.P. Morgan", "guide")).toBe("j-p-morgan");
   });
 });
