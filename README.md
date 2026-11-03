@@ -31,7 +31,7 @@ Market predictions are everywhere: TV, newsletters, social media, bank research 
 Deepmint's answer:
 
 - **Record it before the outcome.** A claim is stored with its date before anyone knows how it turns out, and its scored move starts at the first market close after it was made. The exceptions are backfilled history (past posts loaded from an archive, dated to when they were published) and analyst ratings, which are dated to the day the rating was issued.
-- **Never rewrite it.** Claims are append-only. The only change allowed is an admin approving or rejecting a claim that was held for review. The application code enforces this; the database itself does not.
+- **Never rewrite it.** Claims are append-only. The only change allowed is an admin approving or rejecting a claim that was held for review. Database triggers enforce this, for events, notes and outcomes too.
 - **Put a deadline on every call.** Every claim has a horizon between 1 day and 1 year, so "eventually" does not count.
 - **Use real prices and plain statistics.** Results come from end-of-day closing prices (Polygon), and scores are ordinary statistics such as hit rate, average return and the Sharpe ratio. No AI is involved in scoring. The only AI in Deepmint is the model that reads text to pull out claims.
 
@@ -271,7 +271,7 @@ Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `
 pnpm --filter @deepmint/db db:migrate
 ```
 
-This applies the committed migrations 0000–0009. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
+This applies the committed migrations 0000–0010. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
 
 **4. Seed the local database (local only, once)**
 
@@ -374,6 +374,18 @@ Keep in mind:
 - The `DATABASE_URL` in the root `.env.local` points at local Docker (port 5433), never at production.
 - Never run `db:seed` against production.
 - Do not use `packages/db/run-migration.mjs`. It hard-codes the main checkout's path and exits 0 even when a migration fails.
+
+**Correcting the ledger.** Since migration 0010, triggers refuse every `UPDATE`, `DELETE` and `TRUNCATE` on `events`, `notes` and `outcomes`, and on `claims` everything but the review decision (`pending_review` to `active` or `rejected`, with no other column changed). Locally, reset with `docker compose down -v`, then migrate and seed again. A deliberate production correction names the trigger, changes the one row and turns the trigger back on, in one transaction, so nothing else gets through while it is off:
+
+```sql
+BEGIN;
+ALTER TABLE claims DISABLE TRIGGER claims_review_only;
+UPDATE claims SET analyst_name = 'A. Analyst' WHERE id = '<claim id>';
+ALTER TABLE claims ENABLE TRIGGER claims_review_only;
+COMMIT;
+```
+
+The triggers are `claims_review_only`, `claims_no_delete` and `claims_no_truncate`, and `<table>_append_only` and `<table>_no_truncate` for `events`, `notes` and `outcomes`. Each correction changes a track record, so record it in [docs/DEVLOG.md](docs/DEVLOG.md).
 
 ### Deployment
 

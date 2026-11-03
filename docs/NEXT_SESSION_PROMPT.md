@@ -22,7 +22,7 @@ CURRENT STATE
   URLs must use www). Vercel project deepmint-web-7ald (team nmasambas-projects) builds apps/web
   from main. Inngest app "deepmint" is synced through the Vercel integration.
 - Pre-launch. Auth runs on a Clerk DEVELOPMENT instance (pk_test_ keys).
-- DB is Supabase. Migrations 0000-0009 are applied (each is pasted before its PR merges);
+- DB is Supabase. Migrations 0000-0010 are applied (each is pasted before its PR merges);
   0007_cool_mercury (claims.horizon_stated, claims.source_excerpt) was applied and verified on
   2026-10-05. The Mag-7 instruments were seeded on 2026-08-11.
 - Extraction LLM: OpenAI SDK -> Hugging Face router (https://router.huggingface.co/v1, HF_API_KEY).
@@ -66,11 +66,12 @@ WORKING RULES
      (drizzle-kit reads packages/db/.env or the shell, never .env.local).
      Do not use packages/db/run-migration.mjs.
    - Never run db:seed against production: it writes fictional Guides and 100 fake claims.
-5. The ledger is append-only. claims, events and notes are never updated or deleted. The only
-   allowed UPDATE is the admin status change pending_review -> active | rejected. Outcomes are
-   written once per claim and horizon; since migration 0009 unique keys enforce that and the
-   other ledger keys, but no DB constraint stops an update or delete yet, so the code must.
-   A bad row cannot be corrected later, so fail loudly rather than write a guessed value.
+5. The ledger is append-only. claims, events, notes and outcomes are never updated or deleted.
+   The only allowed UPDATE is the admin status change pending_review -> active | rejected.
+   Since migration 0009 unique keys hold the ledger keys, and since 0010 triggers refuse every
+   other UPDATE, DELETE and TRUNCATE, locally too (reset with docker compose down -v; use a
+   throwaway database for experiments). A bad row cannot be corrected later, so fail loudly
+   rather than write a guessed value.
 6. Smallest diff that fixes the problem. No drive-by refactors.
 7. One branch and one PR per change. Never commit to main and never merge; I merge.
    Run `pnpm check` and the touched packages' tests before opening the PR.

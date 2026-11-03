@@ -8,5 +8,5 @@ export const notes = pgTable('notes', {
   entityId: uuid('entity_id').references(() => entities.id).notNull(),
   noteText: text('note_text').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  // NO updatedAt — append-only
+  // NO updatedAt — append-only; migration 0010's triggers refuse UPDATE and DELETE.
 });

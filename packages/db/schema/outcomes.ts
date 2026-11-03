@@ -16,6 +16,7 @@ export const outcomes = pgTable('outcomes', {
   targetHit: boolean('target_hit'),                                   // null if no target was set
   brierSlices: jsonb('brier_slices').$type<Array<{ daysBeforeResolution: number; priceCents: number; directionCorrect: boolean }>>(),
   computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
+  // NO updatedAt — written once; migration 0010's triggers refuse UPDATE and DELETE.
 }, (t) => [
   unique('outcomes_claim_horizon_unique').on(t.claimId, t.horizon),   // one outcome per claim per horizon
 ]);

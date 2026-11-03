@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **65 open issues: no high, 18 medium and 47 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **64 open issues: no high, 17 medium and 47 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -31,10 +31,10 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 4 | 6 |
 | [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 1 | 9 | 10 |
-| [Data model and shared code](#area-data) | 0 | 1 | 4 | 5 |
+| [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **18** | **47** | **65** |
+| **All** | **0** | **17** | **47** | **64** |
 
 <a id="area-scoring"></a>
 
@@ -559,16 +559,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 <a id="area-data"></a>
 
 ## Data model and shared code
-
-<a id="uniqueness-invariants-comment-only"></a>
-
-### Append-only rules exist only in comments
-
-**Medium** · data-integrity · `uniqueness-invariants-comment-only`
-
-- **What's wrong:** No trigger or permission enforces the append-only rule on `events`, `claims`, `notes` and `outcomes`. (Since migration 0009 the uniqueness rules are enforced: unique keys on outcomes per claim and horizon, events per content hash, instruments per ticker, scores per entity, metric, horizon, regime and date, and the consensus and influence aggregates per day; the writers insert with `ON CONFLICT DO NOTHING` or replace their rows in one transaction.)
-- **User impact:** Nothing in the database stops a bug or a hand-run statement from editing or deleting ledger rows, which would silently change track records and break the event hashes' audit trail.
-- **Evidence:** [`packages/db/schema/events.ts:15`](../packages/db/schema/events.ts#L15) · [`packages/db/schema/claims.ts`](../packages/db/schema/claims.ts)
 
 <a id="soft-delete-half-implemented"></a>
 
