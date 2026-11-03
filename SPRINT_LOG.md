@@ -256,7 +256,7 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 
 - **[PR #6](https://github.com/nmasamba/deepmint/pull/6): extractor integrity.**
   - `max_tokens` went from 1024 to 4096. A reply that is truncated (`finish_reason: "length"`), empty, unparseable or missing its `claims` array now throws, so the fallback model and then Inngest retries take over.
-  - `extract-claims` isolates failures per event and lists them in `failedEventIds`. Nothing re-drives them.
+  - `extract-claims` isolates failures per event, retries them in three rounds and lists what is left in `failedEventIds`.
   - Migration 0007 adds `claims.horizon_stated` and `claims.source_excerpt`. Each is stored only if it is found verbatim in the source. The migration was applied to Supabase on 2026-10-05.
   - The evidence gate decides `active` versus `pending_review` (see [Sprint 2, Superseded](#superseded)).
   - Both models now use the router's `:fastest` policy. The pinned Groq Llama fallback had started returning 404.

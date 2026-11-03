@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **63 open issues: no high, 16 medium and 47 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **62 open issues: no high, 15 medium and 47 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -30,11 +30,11 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Product (web app)](#area-product) | 0 | 6 | 14 | 20 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 4 | 6 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 5 | 7 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 1 | 9 | 10 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 9 | 9 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **16** | **47** | **63** |
+| **All** | **0** | **15** | **47** | **62** |
 
 <a id="area-scoring"></a>
 
@@ -418,7 +418,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · data-integrity · `merkle-audit-gaps`
 
-- **What's wrong:** `merkle-audit` (22:00 UTC daily) hashes claims whose `created_at` is in the previous UTC day. Claims inserted later with an earlier `created_at` (ratings dated two or more days back, nearly all backfill) are in no root. The leaf omits target, entry price, confidence and rationale. `bitcoin_tx_id` is never written, nothing reads `audit_roots`, and a re-run for a stored date fails on its UNIQUE `date`.
+- **What's wrong:** `merkle-audit` (22:00 UTC daily) hashes claims whose `created_at` is in the previous UTC day. Claims inserted later with an earlier `created_at` (ratings dated two or more days back, nearly all backfill, and extraction retries that finish after the audit) are in no root. The leaf omits target, entry price, confidence and rationale. `bitcoin_tx_id` is never written, nothing reads `audit_roots`, and a re-run for a stored date fails on its UNIQUE `date`.
 - **User impact:** No visible effect today, because roots are neither published nor anchored. Once published, most backfilled history would be uncovered, and entry price, target and confidence could change without breaking a root.
 - **Evidence:** [`apps/worker/functions/audit.ts:22-62`](../apps/worker/functions/audit.ts#L22-L62) · [`packages/shared/src/merkle.ts:7-16`](../packages/shared/src/merkle.ts#L7-L16) · [`packages/ingestion/src/extractor.ts:642-644`](../packages/ingestion/src/extractor.ts#L642-L644) · [`apps/worker/functions/backfill.ts:144`](../apps/worker/functions/backfill.ts#L144)
 
@@ -445,16 +445,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 <a id="area-ingestion"></a>
 
 ## Ingestion and extraction
-
-<a id="extraction-failures-never-retried"></a>
-
-### Failed extractions are never re-driven
-
-**Medium** · bug · `extraction-failures-never-retried`
-
-- **What's wrong:** `extract-claims` and backfill put events whose extraction failed after all retries into `failedEventIds`, which appears only in the run output. If `ingest-sources` fails for good (after its retries) before its single `ingestion/completed` send, the events it already stored are never extracted, and later runs skip them by hash. `events` has no extraction-status column.
-- **User impact:** A post whose extraction failed (LLM outage, bad key, exhausted credits) keeps no claims unless an operator re-drives it. Re-running the `extract-claims` run in the Inngest dashboard is safe, because events that already have claims are skipped.
-- **Evidence:** [`apps/worker/functions/extract.ts:69-79`](../apps/worker/functions/extract.ts#L69-L79) · [`apps/worker/functions/ingest.ts:86-95`](../apps/worker/functions/ingest.ts#L86-L95) · [`apps/worker/functions/ingest.ts:124-129`](../apps/worker/functions/ingest.ts#L124-L129) · [`apps/worker/functions/backfill.ts:167-176`](../apps/worker/functions/backfill.ts#L167-L176) · [`packages/ingestion/src/extractor.ts:586-594`](../packages/ingestion/src/extractor.ts#L586-L594)
 
 <a id="firm-reattribution-all-lanes"></a>
 

@@ -86,7 +86,7 @@ The jobs tied to the US market run on US Eastern time (`TZ=America/New_York` in 
 
 Other jobs run in a chain rather than on a clock:
 
-- Extraction runs right after ingest, but only when ingest found new posts.
+- Extraction runs right after ingest, but only when ingest found new posts. Posts that fail are retried after 1, 4 and 16 hours, and their claims keep the date the post was stored.
 - Scoring runs after the markout (or a backfill), but only if it wrote at least one outcome. Consensus and influence are recalculated after scoring too, as well as on their daily schedule.
 
 **Horizons.** Every claim uses one of six horizons:

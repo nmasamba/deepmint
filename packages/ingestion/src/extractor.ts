@@ -548,10 +548,12 @@ export type SourceKind = "wall_street_rating" | "analyst_feed" | "self_logged";
 
 export interface ProcessExtractionOptions {
   /**
-   * The true historical timestamp for backfilled claims. Inserted directly
-   * (never via UPDATE) so the append-only claims invariant holds. Defaults to
-   * the DB's now() for the live forward path. An extracted rating_date takes
-   * precedence, since it is the date the call was actually made.
+   * The claim's timestamp: the true historical date for backfilled claims, and
+   * when the post was stored for live ones, so a retried extraction is dated
+   * like the first attempt. Inserted directly (never via UPDATE) so the
+   * append-only claims invariant holds. Defaults to the DB's now(). An
+   * extracted rating_date takes precedence, since it is the date the call was
+   * actually made.
    */
   createdAt?: Date;
   /**

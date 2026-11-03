@@ -1,5 +1,5 @@
 import { inngest } from "../inngest";
-import { db, eq, and } from "@deepmint/db";
+import { db, eq, and, isNull } from "@deepmint/db";
 import { events, claims, outcomes, instruments } from "@deepmint/db/schema";
 import {
   computeContentHash,
@@ -133,15 +133,16 @@ export const backfillFunction = inngest.createFunction(
             return { inserted: false, eventId: raced!.id };
           },
         );
-        if (!ingested.inserted) continue;
-        eventsInserted += 1;
+        if (ingested.inserted) eventsInserted += 1;
         // Text naming no Mag-7 instrument cannot yield a claim; skipping it
         // keeps the run well under Inngest's per-run step limit.
         if (!mentionsMag7(item.rawText)) continue;
 
-        // processExtraction skips an event that already has claims, so a
-        // retry cannot duplicate them. Once the step's own retries are spent,
-        // skip the post rather than fail the rest of the backfill.
+        // An existing event goes through here too, so re-sending a backfill
+        // re-drives any post whose extraction failed. processExtraction skips
+        // an event that already has claims, so neither that nor a retry can
+        // duplicate them. Once the step's own retries are spent, skip the post
+        // rather than fail the rest of the backfill.
         const extracted = await step.run(
           `extract-${ingested.eventId}`,
           async () => {
@@ -163,10 +164,13 @@ export const backfillFunction = inngest.createFunction(
             // Only active claims may be matured and scored here. A claim held
             // for review must not earn an outcome before anyone approves it.
             // Counted from the table, so a retry after a partial run is exact.
+            // A re-drive leaves claims that already have an outcome alone,
+            // without pricing them again.
             const rows = await db
               .select({ id: claims.id, status: claims.status })
               .from(claims)
-              .where(eq(claims.eventId, ingested.eventId));
+              .leftJoin(outcomes, eq(outcomes.claimId, claims.id))
+              .where(and(eq(claims.eventId, ingested.eventId), isNull(outcomes.id)));
             return {
               claimIds: rows.filter((c) => c.status === "active").map((c) => c.id),
               pending: rows.filter((c) => c.status === "pending_review").length,
