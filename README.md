@@ -81,12 +81,13 @@ The jobs tied to the US market run on US Eastern time (`TZ=America/New_York` in 
 | Markout | Checks matured claims against closing prices | 17:00 | 21:00 / 22:00 | Mon–Fri |
 | Market regime | Records the day's market conditions (S&P 500 trend, VIX, sector spread) for the leaderboard | 17:30 | 21:30 / 22:30 | Mon–Fri |
 | Broker sync | Imports trades from linked brokerage accounts | 18:00 | 22:00 / 23:00 | Mon–Fri |
+| Consensus and influence | Recalculates each ticker's consensus and each Guide's influence, so a claim's decay and expiry count even when none matures | 18:30 | 22:30 / 23:30 | Every day |
 | Merkle audit | Fingerprints the previous UTC day's claims | 18:00 / 17:00 | 22:00 | Every day |
 
 Other jobs run in a chain rather than on a clock:
 
 - Extraction runs right after ingest, but only when ingest found new posts.
-- Scoring runs after the markout (or a backfill), but only if it wrote at least one outcome. Consensus and influence are recalculated after scoring. So **consensus is not refreshed on days when no claim matures**.
+- Scoring runs after the markout (or a backfill), but only if it wrote at least one outcome. Consensus and influence are recalculated after scoring too, as well as on their daily schedule.
 
 **Horizons.** Every claim uses one of six horizons:
 

@@ -17,6 +17,7 @@ interface TickerClientSectionProps {
     avgTargetPriceCents: number | null;
     targetDispersionBps: number | null;
     activeClaims: number;
+    asOfDate: string;
   } | null;
   priceCents: number | null;
   ticker: string;
@@ -71,6 +72,7 @@ export function TickerClientSection({
           currentPriceCents={priceCents}
           targetDispersionBps={consensus.targetDispersionBps}
           activeClaims={consensus.activeClaims}
+          asOfDate={consensus.asOfDate}
         />
       )}
 

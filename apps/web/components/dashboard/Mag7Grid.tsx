@@ -43,7 +43,7 @@ export function Mag7Grid() {
             </span>
           </div>
 
-          {signal ? (
+          {signal?.activeClaims ? (
             <div className="mt-2">
               <ConsensusSignalBadge
                 direction={signal.direction}
@@ -56,10 +56,13 @@ export function Mag7Grid() {
                   {signal.longCount}L / {signal.shortCount}S
                 </span>
               </div>
+              <p className="mt-1 text-xs text-text-secondary/60">
+                As of {signal.asOfDate}
+              </p>
             </div>
           ) : (
             <p className="mt-2 text-xs text-text-secondary">
-              No signals yet
+              {signal ? "No live claims" : "No signals yet"}
             </p>
           )}
         </Link>

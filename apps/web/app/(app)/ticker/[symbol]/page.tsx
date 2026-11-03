@@ -48,7 +48,8 @@ export default async function TickerPage({ params }: TickerPageProps) {
       .where(eq(consensusSignals.instrumentId, instrument.id))
       .orderBy(desc(consensusSignals.asOfDate))
       .limit(1)
-      .then((rows: Array<typeof consensusSignals.$inferSelect>) => rows[0] ?? null),
+      // A row with no live claims means there is no signal to show.
+      .then((rows: Array<typeof consensusSignals.$inferSelect>) => (rows[0]?.activeClaims ? rows[0] : null)),
     getLatestClose(ticker).catch((err) => {
       // eslint-disable-next-line no-console
       console.warn(`[ticker] latest close unavailable for ${ticker}:`, err instanceof Error ? err.message : err);
@@ -174,6 +175,7 @@ export default async function TickerPage({ params }: TickerPageProps) {
                 avgTargetPriceCents: consensus.avgTargetPriceCents,
                 targetDispersionBps: consensus.targetDispersionBps,
                 activeClaims: consensus.activeClaims,
+                asOfDate: consensus.asOfDate,
               }
             : null
         }

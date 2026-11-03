@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **64 open issues: no high, 17 medium and 47 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **63 open issues: no high, 16 medium and 47 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -29,12 +29,12 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
 | [Product (web app)](#area-product) | 0 | 6 | 14 | 20 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 4 | 6 |
-| [Workers and schedules](#area-workers) | 0 | 3 | 5 | 8 |
+| [Workers and schedules](#area-workers) | 0 | 2 | 5 | 7 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 1 | 9 | 10 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **17** | **47** | **64** |
+| **All** | **0** | **16** | **47** | **63** |
 
 <a id="area-scoring"></a>
 
@@ -391,16 +391,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `daily-digest` never looks up a user's email. It sends from `digest@deepmint.app` to `user+<clerkUserId>@deepmint.app`, with links to `https://deepmint.app`. The Daily/Weekly choice in Settings (`digestFrequency`) is never read. A 24-hour lookback on a Mon–Fri 08:00 ET cron misses Friday 08:00 to Sunday 08:00 ET, including Friday's ingest and markout. Resend returns errors instead of throwing, so rejected sends count as sent.
 - **User impact:** No user receives a digest. Today it skips entirely (`RESEND_API_KEY` last recorded empty). Setting the key would still reach nobody, and the run summary would count rejected sends as sent.
 - **Evidence:** [`apps/worker/functions/digest.ts:22`](../apps/worker/functions/digest.ts#L22) · [`apps/worker/functions/digest.ts:32-33`](../apps/worker/functions/digest.ts#L32-L33) · [`apps/worker/functions/digest.ts:56`](../apps/worker/functions/digest.ts#L56) · [`apps/worker/functions/digest.ts:156-173`](../apps/worker/functions/digest.ts#L156-L173)
-
-<a id="aggregates-refresh-only-after-markout"></a>
-
-### Consensus and influence refresh only on days a claim matures
-
-**Medium** · bug · `aggregates-refresh-only-after-markout`
-
-- **What's wrong:** `consensus-signal` and `influence-aggregate` run only on `scoring/completed`, which follows `markouts/completed`, which is sent only when markout (or a backfill) writes an outcome. No cron recomputes them.
-- **User impact:** On days when no claim matures, consensus and influence are not recomputed, however many claims arrived; the live-claim window and decay freeze too, so claims whose horizon has passed keep counting in the last stored signal. The UI shows no as-of date, so stale signals look current. If no claim has ever matured, no consensus row exists.
-- **Evidence:** [`apps/worker/functions/markout.ts:136-144`](../apps/worker/functions/markout.ts#L136-L144) · [`apps/worker/functions/score.ts:323-331`](../apps/worker/functions/score.ts#L323-L331) · [`apps/worker/functions/consensus-signal.ts:21`](../apps/worker/functions/consensus-signal.ts#L21) · [`apps/worker/functions/influence-aggregate.ts:14`](../apps/worker/functions/influence-aggregate.ts#L14)
 
 <a id="backfill-prices-deactivates-on-error"></a>
 
