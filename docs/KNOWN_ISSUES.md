@@ -106,13 +106,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="profile-edit-and-clerk-sync"></a>
 
-### Users cannot edit their profile, and Clerk changes never sync
+### Deleting a Clerk account leaves the public profile in place
 
 **Medium** · feature-gap · `profile-edit-and-clerk-sync`
 
-- **What's wrong:** `entity.update` (display name, bio, style tags) exists but no UI calls it. The Clerk webhook handles only `user.created`, an existing entity is never refreshed from Clerk, and nothing ever sets `entities.deleted_at`.
-- **User impact:** A user's public name and avatar are fixed at creation, even after they change them in Clerk's account panel, and bio and style tags cannot be set. Deleting a Clerk account leaves the public profile, claims and leaderboard rows in place.
-- **Evidence:** [`packages/api/routers/entities.ts:40-70`](../packages/api/routers/entities.ts#L40-L70) · [`apps/web/app/api/webhooks/clerk/route.ts:60`](../apps/web/app/api/webhooks/clerk/route.ts#L60) · [`packages/db/queries/ensureEntityForClerkUser.ts:38-39`](../packages/db/queries/ensureEntityForClerkUser.ts#L38-L39) · [`apps/web/components/layout/Topbar.tsx:61`](../apps/web/components/layout/Topbar.tsx#L61)
+- **What's wrong:** The Clerk webhook handles `user.created` and `user.updated`, not `user.deleted`, and nothing ever sets `entities.deleted_at`. (Since wave 5 Clerk's name and avatar sync on `user.updated`, once the endpoint subscribes to it, the slug never changes, and users edit their bio and style tags in Settings.)
+- **User impact:** Deleting a Clerk account leaves the public profile, claims and leaderboard rows in place.
+- **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts`](../apps/web/app/api/webhooks/clerk/route.ts)
 
 <a id="claim-provenance-not-visible"></a>
 
@@ -260,13 +260,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="unused-trpc-procedures"></a>
 
-### 17 of 72 tRPC procedures have no UI caller
+### 16 of 72 tRPC procedures have no UI caller
 
 **Low** · dead-code · `unused-trpc-procedures`
 
-- **What's wrong:** 14 are called nowhere: `entity.update`, `entity.search`, `instruments.detail`, `.list`, `.mag7`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
-- **User impact:** Maintenance cost; 5 of the 14 answer signed-out callers.
-- **Evidence:** [`packages/api/routers/entities.ts:40`](../packages/api/routers/entities.ts#L40) · [`packages/api/routers/instruments.ts:401`](../packages/api/routers/instruments.ts#L401) · [`packages/api/routers/leaderboard.ts:104`](../packages/api/routers/leaderboard.ts#L104) · [`packages/api/routers/influence.ts:124`](../packages/api/routers/influence.ts#L124)
+- **What's wrong:** 13 are called nowhere: `entity.search`, `instruments.detail`, `.list`, `.mag7`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
+- **User impact:** Maintenance cost; 5 of the 13 answer signed-out callers.
+- **Evidence:** [`packages/api/routers/instruments.ts:401`](../packages/api/routers/instruments.ts#L401) · [`packages/api/routers/leaderboard.ts:104`](../packages/api/routers/leaderboard.ts#L104) · [`packages/api/routers/influence.ts:124`](../packages/api/routers/influence.ts#L124)
 
 <a id="area-workers"></a>
 

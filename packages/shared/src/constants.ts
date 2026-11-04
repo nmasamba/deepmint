@@ -28,6 +28,11 @@ export const RATIONALE_TAGS = [
 
 export const CLAIM_RATE_LIMIT = 10; // per hour per user
 
+/** Limits on the profile fields a user edits in Settings. */
+export const PROFILE_BIO_MAX = 500;
+export const PROFILE_STYLE_TAGS_MAX = 10;
+export const PROFILE_STYLE_TAG_MAX = 30;
+
 /** Score horizons: "all" pools every horizon; the rest match outcomes.horizon. */
 export const SCORE_HORIZONS = ["all", "1d", "1w", "1m", "3m", "6m", "1y"] as const;
 

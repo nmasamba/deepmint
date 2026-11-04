@@ -3,6 +3,11 @@ import { z } from "zod";
 import { eq, ilike, asc, sql, isNull } from "@deepmint/db";
 import { entities, claims, outcomes } from "@deepmint/db/schema";
 import { publicEntityColumns } from "@deepmint/db/queries/publicEntity";
+import {
+  PROFILE_BIO_MAX,
+  PROFILE_STYLE_TAG_MAX,
+  PROFILE_STYLE_TAGS_MAX,
+} from "@deepmint/shared";
 import { router, publicProcedure, protectedProcedure, memberProcedure } from "../trpc";
 
 export const entityRouter = router({
@@ -37,13 +42,18 @@ export const entityRouter = router({
       return entity;
     }),
 
-  /** Update current user's profile (allowed fields only) */
+  /**
+   * Update the current user's bio and style tags. Name and avatar belong to
+   * Clerk and arrive through the user.updated webhook (D8).
+   */
   update: protectedProcedure
     .input(
       z.object({
-        displayName: z.string().min(1).max(100).optional(),
-        bio: z.string().max(500).optional(),
-        styleTags: z.array(z.string()).max(10).optional(),
+        bio: z.string().trim().max(PROFILE_BIO_MAX).optional(),
+        styleTags: z
+          .array(z.string().trim().min(1).max(PROFILE_STYLE_TAG_MAX))
+          .max(PROFILE_STYLE_TAGS_MAX)
+          .optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -57,10 +67,7 @@ export const entityRouter = router({
       const [updated] = await ctx.db
         .update(entities)
         .set({
-          ...(input.displayName !== undefined && {
-            displayName: input.displayName,
-          }),
-          ...(input.bio !== undefined && { bio: input.bio }),
+          ...(input.bio !== undefined && { bio: input.bio || null }),
           ...(input.styleTags !== undefined && { styleTags: input.styleTags }),
           updatedAt: new Date(),
         })
