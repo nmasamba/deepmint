@@ -116,7 +116,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 **`HF_API_KEY`**
 - **Powers:** claim extraction in `extract-claims` and in historical backfill. The OpenAI SDK points at the Hugging Face router, `https://router.huggingface.co/v1` (`packages/ingestion/src/extractor.ts:19-32`). It is not Anthropic's API and not OpenAI's. This is the only model in the system; scoring is deterministic statistics.
 - **Required:** yes, for extraction.
-- **If missing:** every extraction throws `HF_API_KEY environment variable is required for LLM extraction`, even for text with no Mag-7 mention, because the client is built before the pre-filter. `extract-claims` logs the event id as failed and moves on, and nothing re-drives it, so the event keeps no claims. Ingestion still stores events.
+- **If missing:** extracting any text that names a Mag-7 stock throws `HF_API_KEY environment variable is required for LLM extraction`; text that names none skips the model. `extract-claims` logs the event id as failed and retries it for 21 hours, then leaves it in `failedEventIds`, so the event keeps no claims. Ingestion still stores events.
 - **Get it:** huggingface.co → Settings → Access Tokens → a fine-grained token with permission to make calls to Inference Providers. Usage is billed to that Hugging Face account.
 - **Verify:**
   - With the key exported, run `pnpm --filter @deepmint/worker exec tsx -e 'import("@deepmint/ingestion").then(async (m) => console.log((await m.extractClaims("Buying AAPL, target $250 within 3 months")).model))'`. It prints the model and provider, for example `openai/gpt-oss-120b:fastest (cerebras)`.

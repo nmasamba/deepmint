@@ -70,6 +70,8 @@ export const backfillFunction = inngest.createFunction(
     let eventsInserted = 0;
     let claimsInserted = 0;
     let claimsPending = 0;
+    let claimsInvalid = 0;
+    let claimsDuplicate = 0;
     let outcomesInserted = 0;
     const newClaimIds: string[] = [];
     const failedEventIds: string[] = [];
@@ -146,7 +148,7 @@ export const backfillFunction = inngest.createFunction(
         const extracted = await step.run(
           `extract-${ingested.eventId}`,
           async () => {
-            await processExtraction(ingested.eventId, item.rawText, entityId, {
+            const processed = await processExtraction(ingested.eventId, item.rawText, entityId, {
               // Historical archive of a Guide's own published views — the
               // resolved entity IS the author, so attribution is inherent.
               sourceKind: "analyst_feed",
@@ -174,6 +176,8 @@ export const backfillFunction = inngest.createFunction(
             return {
               claimIds: rows.filter((c) => c.status === "active").map((c) => c.id),
               pending: rows.filter((c) => c.status === "pending_review").length,
+              invalid: processed.invalid,
+              duplicates: processed.duplicates,
             };
           },
         ).catch((err: unknown) => {
@@ -190,6 +194,8 @@ export const backfillFunction = inngest.createFunction(
 
         claimsInserted += extracted.claimIds.length;
         claimsPending += extracted.pending;
+        claimsInvalid += extracted.invalid;
+        claimsDuplicate += extracted.duplicates;
         newClaimIds.push(...extracted.claimIds);
       }
     }
@@ -261,13 +267,16 @@ export const backfillFunction = inngest.createFunction(
 
     console.log(
       `[backfill] ${eventsInserted} events, ${claimsInserted} active claims, ` +
-        `${claimsPending} pending review, ${outcomesInserted} outcomes, ` +
+        `${claimsPending} pending review, ${claimsInvalid} invalid, ` +
+        `${claimsDuplicate} duplicate, ${outcomesInserted} outcomes, ` +
         `${failedEventIds.length} extraction failures`,
     );
     return {
       eventsInserted,
       claimsInserted,
       claimsPending,
+      claimsInvalid,
+      claimsDuplicate,
       outcomesInserted,
       failedEventIds,
     };

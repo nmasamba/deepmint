@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **55 open issues: no high, 14 medium and 41 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **52 open issues: no high, 14 medium and 38 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -30,11 +30,11 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Product (web app)](#area-product) | 0 | 6 | 11 | 17 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 9 | 9 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 6 | 6 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **14** | **41** | **55** |
+| **All** | **0** | **14** | **38** | **52** |
 
 <a id="area-scoring"></a>
 
@@ -456,36 +456,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** A developer benchmarking a model can conclude that a dead model works.
 - **Evidence:** [`packages/ingestion/scripts/bench-providers.ts:4-9`](../packages/ingestion/scripts/bench-providers.ts#L4-L9) · [`packages/ingestion/scripts/bench-providers.ts:15`](../packages/ingestion/scripts/bench-providers.ts#L15) · [`packages/ingestion/scripts/bench-providers.ts:24-40`](../packages/ingestion/scripts/bench-providers.ts#L24-L40) · [`packages/ingestion/src/extractor.ts:418-436`](../packages/ingestion/src/extractor.ts#L418-L436)
 
-<a id="extractor-silent-drops"></a>
-
-### The extractor drops some valid calls without saying why
-
-**Low** · bug · `extractor-silent-drops`
-
-- **What's wrong:** The pre-filter matches "GOOG", but validation accepts only `GOOGL`, with no mapping and no trimming of `$` or spaces. Off-grid horizons are rejected despite a "map to nearest" comment. A ticker with no instruments row is skipped and counted nowhere. Ingestion does not check `is_active`, so deactivated instruments still receive claims.
-- **User impact:** Calls on GOOG, or with 60-day or 2-year horizons, never reach the ledger. Rejection reasons are not logged, and backfill ignores even the counts.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:320`](../packages/ingestion/src/extractor.ts#L320) · [`packages/ingestion/src/extractor.ts:466-487`](../packages/ingestion/src/extractor.ts#L466-L487) · [`packages/ingestion/src/extractor.ts:613-620`](../packages/ingestion/src/extractor.ts#L613-L620) · [`apps/worker/functions/backfill.ts:140-163`](../apps/worker/functions/backfill.ts#L140-L163)
-
-<a id="rationale-tags-vocabulary"></a>
-
-### Extracted rationale tags accept any string
-
-**Low** · data-integrity · `rationale-tags-vocabulary`
-
-- **What's wrong:** Self-logged claims accept only the 10 `RATIONALE_TAGS` (at most 10). Extracted claims store whatever strings the model returns, with no vocabulary, count, length or duplicate check, and the prompt's example lists all ten tags.
-- **User impact:** Claim cards can show invented, long or duplicate tags (duplicate React keys), and stored tags cannot be corrected.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:79`](../packages/ingestion/src/extractor.ts#L79) · [`packages/ingestion/src/extractor.ts:505-507`](../packages/ingestion/src/extractor.ts#L505-L507) · [`packages/api/routers/claims.ts:56-59`](../packages/api/routers/claims.ts#L56-L59)
-
-<a id="extractor-client-before-prefilter"></a>
-
-### `extractClaims` needs `HF_API_KEY` even for text it would skip
-
-**Low** · bug · `extractor-client-before-prefilter`
-
-- **What's wrong:** The LLM client, which throws without `HF_API_KEY`, is built before the Mag-7 pre-filter. Every production caller filters first, and the missing-key test relies on this order.
-- **User impact:** None for users; a code-order trap for tests and scripts.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:405-414`](../packages/ingestion/src/extractor.ts#L405-L414) · [`packages/ingestion/src/__tests__/extractor.test.ts:147-161`](../packages/ingestion/src/__tests__/extractor.test.ts#L147-L161)
-
 <a id="area-data"></a>
 
 ## Data model and shared code
@@ -516,7 +486,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · dead-code · `dead-and-duplicated-shared-code`
 
-- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `CLAIM_RATE_LIMIT`, `Mag7Ticker`, `historicalCacheKey` with `TTL_HISTORICAL`, and four `components/ui` files. Duplicated: the claims rate limit (hard-coded 10/h), a 7-ticker list in `instruments.mag7`, the rating enums and `SourceKind` in the extractor, and two local copies of the shared `formatBps`. (Since wave 2 there is one `slugify`, in `@deepmint/shared`.)
+- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `CLAIM_RATE_LIMIT`, `Mag7Ticker`, `historicalCacheKey` with `TTL_HISTORICAL`, and four `components/ui` files. Duplicated: the claims rate limit (hard-coded 10/h), a 7-ticker list in `instruments.mag7`, and two local copies of the shared `formatBps`. (Since wave 2 there is one `slugify`, in `@deepmint/shared`.)
 - **User impact:** None for users; noise for maintainers.
 - **Evidence:** [`packages/shared/src/errors.ts:1-45`](../packages/shared/src/errors.ts#L1-L45) · [`packages/shared/src/polygonCache.ts:80-85`](../packages/shared/src/polygonCache.ts#L80-L85) · [`packages/api/routers/claims.ts:34`](../packages/api/routers/claims.ts#L34)
 

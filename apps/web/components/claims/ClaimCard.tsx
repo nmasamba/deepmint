@@ -15,7 +15,7 @@ import {
   X,
   Clock,
 } from "lucide-react";
-import { formatCurrency, formatBps } from "@deepmint/shared";
+import { RATIONALE_TAGS, formatCurrency, formatBps } from "@deepmint/shared";
 import { sourceLabel } from "./ClaimProvenance";
 
 interface ClaimOutcome {
@@ -127,6 +127,12 @@ export function ClaimCard({
 
   const profilePath = `/${entity.type}/${entity.slug}`;
 
+  // Older extracted claims can hold invented or repeated tags. The ledger keeps
+  // them; the card shows only the vocabulary, each tag once.
+  const tags = [...new Set(claim.rationaleTags ?? [])].filter((t) =>
+    (RATIONALE_TAGS as readonly string[]).includes(t),
+  );
+
   return (
     <div className="rounded-lg border border-border bg-bg-secondary p-4 transition-colors hover:bg-bg-tertiary">
       {/* Header row */}
@@ -236,9 +242,9 @@ export function ClaimCard({
       )}
 
       {/* Rationale tags */}
-      {claim.rationaleTags && claim.rationaleTags.length > 0 && (
+      {tags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
-          {claim.rationaleTags.map((tag) => (
+          {tags.map((tag) => (
             <Badge
               key={tag}
               variant="outline"
