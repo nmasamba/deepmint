@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **57 open issues: no high, 14 medium and 43 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **55 open issues: no high, 14 medium and 41 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 6 | 13 | 19 |
+| [Product (web app)](#area-product) | 0 | 6 | 11 | 17 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 9 | 9 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **14** | **43** | **57** |
+| **All** | **0** | **14** | **41** | **55** |
 
 <a id="area-scoring"></a>
 
@@ -164,16 +164,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Users can trace a call to its source, but not check it against an audit root, so the "audited performance" and "verified track records" copy has only half of its evidence behind it.
 - **Evidence:** [`apps/worker/functions/audit.ts:56-62`](../apps/worker/functions/audit.ts#L56-L62)
 
-<a id="price-lookups-uncached-serial"></a>
-
-### Mirror valuations look up a price for every ticker ever mirrored
-
-**Low** · bug · `price-lookups-uncached-serial`
-
-- **What's wrong:** Mirrored portfolios never close positions ([mirror-portfolio-behaviour](#mirror-portfolio-behaviour)), so the Signal Simulate comparison must price every ticker a mirror has ever traded. (Since wave 2, paper and Signal Simulate valuations look up each distinct open ticker once through the cached `getLatestCloses`, paper trades fill through `getLatestClose`, and the ticker page reads a cached close and renders without one.)
-- **User impact:** Small while only the Mag 7 exist: a cold comparison takes at most 7 throttled lookups (about 75 s), then 5 minutes of cache.
-- **Evidence:** [`apps/worker/functions/signal-simulate.ts:78-104`](../apps/worker/functions/signal-simulate.ts#L78-L104) · [`packages/api/routers/signalSimulate.ts`](../packages/api/routers/signalSimulate.ts)
-
 <a id="instrument-universe-inconsistent"></a>
 
 ### Each surface uses a different instrument universe
@@ -193,16 +183,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Paper trades open, close and mark to the latest close, which during market hours is the previous session's. (Since wave 2 the ticker page labels its price "Last close" with the session date, and Learn says paper trades fill at the latest close; since the next-close entry change, claims no longer use it for entry prices.)
 - **User impact:** Paper P&L is off and can be gamed by trading after an intraday move, but only in the user's own sandbox.
 - **Evidence:** [`packages/api/routers/paper.ts:153`](../packages/api/routers/paper.ts#L153)
-
-<a id="mirror-portfolio-behaviour"></a>
-
-### Mirror portfolios buy on neutral calls, never close, and break the portfolio cap
-
-**Low** · bug · `mirror-portfolio-behaviour`
-
-- **What's wrong:** Neutral claims are mirrored as buys. Mirrored trades are never closed at the claim's horizon; after about 100 open trades the 1% allocation no longer fits and new signals are skipped silently. `signalSimulate.create` skips the 5-portfolio cap but counts toward it, and no procedure deletes a portfolio.
-- **User impact:** Mirror P&L does not track the mirrored calls. A user who mirrors five entities can never create a manual paper portfolio again, and the create form fails with no message.
-- **Evidence:** [`apps/worker/functions/signal-simulate.ts:62`](../apps/worker/functions/signal-simulate.ts#L62) · [`apps/worker/functions/signal-simulate.ts:86-104`](../apps/worker/functions/signal-simulate.ts#L86-L104) · [`packages/api/routers/paper.ts:29-40`](../packages/api/routers/paper.ts#L29-L40) · [`packages/api/routers/signalSimulate.ts:65-73`](../packages/api/routers/signalSimulate.ts#L65-L73)
 
 <a id="explore-stub-in-nav"></a>
 
@@ -359,7 +339,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Medium** · bug · `claims-created-only-self-logged`
 
 - **What's wrong:** Only `claims.submit` sends `claims/created`. `processExtraction` (live ingest and backfill) bulk-inserts claims with no event, and admin approval only flips the status. `signal-simulate` listens only for that event, and a Guide can never self-log.
-- **User impact:** "Mirror Signals" on any Guide's profile creates a $100,000 portfolio that never trades but still counts toward the 5-portfolio cap. Mirroring a Player works when that Player self-logs. Guide influence is still recorded through the Player branch of `influence-track`.
+- **User impact:** "Mirror Signals" on any Guide's profile creates a $100,000 portfolio that never trades but takes one of the 5 active mirror slots. Mirroring a Player works when that Player self-logs. Guide influence is still recorded through the Player branch of `influence-track`.
 - **Evidence:** [`packages/api/routers/claims.ts:116-128`](../packages/api/routers/claims.ts#L116-L128) · [`packages/api/routers/claims.ts:401-404`](../packages/api/routers/claims.ts#L401-L404) · [`packages/ingestion/src/extractor.ts:744`](../packages/ingestion/src/extractor.ts#L744) · [`apps/worker/functions/signal-simulate.ts:21`](../apps/worker/functions/signal-simulate.ts#L21) · [`apps/web/components/EntityProfileHeader.tsx:124-127`](../apps/web/components/EntityProfileHeader.tsx#L124-L127)
 
 <a id="digest-placeholder-recipient"></a>

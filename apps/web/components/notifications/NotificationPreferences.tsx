@@ -27,7 +27,7 @@ const PREF_LABELS: { key: string; label: string; description: string }[] = [
   {
     key: "signalTradeLogged",
     label: "Signal trade logged",
-    description: "When a trade is auto-logged in your signal portfolio",
+    description: "When a trade is auto-logged in your signal portfolio, or it runs out of cash",
   },
 ];
 

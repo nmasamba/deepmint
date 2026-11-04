@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, integer, numeric, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, numeric, timestamp, unique } from 'drizzle-orm/pg-core';
+import { claims } from './claims';
 import { entities } from './entities';
 import { instruments } from './instruments';
 import { tradeSideEnum } from './playerTrades';
@@ -15,10 +16,13 @@ export const paperTrades = pgTable('paper_trades', {
   id: uuid('id').primaryKey().defaultRandom(),
   portfolioId: uuid('portfolio_id').references(() => paperPortfolios.id).notNull(),
   instrumentId: uuid('instrument_id').references(() => instruments.id).notNull(),
+  claimId: uuid('claim_id').references(() => claims.id),              // the claim a mirror copied; null for a manual trade
   side: tradeSideEnum('side').notNull(),
   entryPriceCents: integer('entry_price_cents').notNull(),
   exitPriceCents: integer('exit_price_cents'),
   quantity: numeric('quantity', { precision: 18, scale: 8 }).notNull(),
   openedAt: timestamp('opened_at', { withTimezone: true }).defaultNow().notNull(),
   closedAt: timestamp('closed_at', { withTimezone: true }),
-});
+}, (t) => [
+  unique('paper_trades_claim_portfolio_unique').on(t.claimId, t.portfolioId), // one trade per mirrored claim per portfolio; also serves lookups by claim
+]);

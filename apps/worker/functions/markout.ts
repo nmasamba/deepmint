@@ -1,6 +1,6 @@
 import { inngest } from "../inngest";
-import { db, eq, and, asc, sql } from "@deepmint/db";
-import { claims, outcomes, instruments } from "@deepmint/db/schema";
+import { db, eq, and, asc, isNull, sql } from "@deepmint/db";
+import { claims, outcomes, instruments, paperTrades } from "@deepmint/db/schema";
 import { createNotification } from "@deepmint/db/queries/createNotification";
 import { computeMarkoutForClaim, HORIZON_MAP, formatDate } from "./markoutClaim";
 
@@ -109,21 +109,31 @@ export const markoutFunction = inngest.createFunction(
         if (!outcome) return "skipped";
 
         // Insert outcome. A backfill run may have written it while this
-        // one was pricing, so the unique (claim, horizon) key decides.
-        const inserted = await db
-          .insert(outcomes)
-          .values({
-            claimId: claim.id,
-            instrumentId: claim.instrumentId,
-            horizon: outcome.horizon,
-            entryPriceCents: outcome.entryPriceCents,
-            exitPriceCents: outcome.exitPriceCents,
-            returnBps: outcome.returnBps,
-            directionCorrect: outcome.directionCorrect,
-            targetHit: outcome.targetHit,
-          })
-          .onConflictDoNothing({ target: [outcomes.claimId, outcomes.horizon] })
-          .returning({ id: outcomes.id });
+        // one was pricing, so the unique (claim, horizon) key decides. Trades
+        // mirroring the claim close with it, at its exit price.
+        const inserted = await db.transaction(async (tx) => {
+          const rows = await tx
+            .insert(outcomes)
+            .values({
+              claimId: claim.id,
+              instrumentId: claim.instrumentId,
+              horizon: outcome.horizon,
+              entryPriceCents: outcome.entryPriceCents,
+              exitPriceCents: outcome.exitPriceCents,
+              returnBps: outcome.returnBps,
+              directionCorrect: outcome.directionCorrect,
+              targetHit: outcome.targetHit,
+            })
+            .onConflictDoNothing({ target: [outcomes.claimId, outcomes.horizon] })
+            .returning({ id: outcomes.id });
+          if (rows.length > 0) {
+            await tx
+              .update(paperTrades)
+              .set({ exitPriceCents: outcome.exitPriceCents, closedAt: new Date() })
+              .where(and(eq(paperTrades.claimId, claim.id), isNull(paperTrades.closedAt)));
+          }
+          return rows;
+        });
         if (inserted.length === 0) return "skipped";
 
         // Notify entity that their claim has been resolved

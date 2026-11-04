@@ -272,7 +272,7 @@ Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `
 pnpm --filter @deepmint/db db:migrate
 ```
 
-This applies the committed migrations 0000–0010. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
+This applies the committed migrations 0000–0011. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
 
 **4. Seed the local database (local only, once)**
 

@@ -4,6 +4,7 @@ import {
   paperPortfolios,
   paperTrades,
   instruments,
+  signalSimulatePortfolios,
 } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
@@ -19,7 +20,7 @@ import {
 const MAX_PORTFOLIOS = 5;
 
 export const paperRouter = router({
-  /** Create a new paper portfolio, with $100,000. Max 5 per entity. */
+  /** Create a new paper portfolio, with $100,000. Max 5 per entity, not counting mirrors. */
   createPortfolio: protectedProcedure
     .input(
       z.object({
@@ -27,11 +28,20 @@ export const paperRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Check portfolio count
+      // Check portfolio count. Mirrors have their own cap (signalSimulate.create).
       const [countResult] = await ctx.db
         .select({ count: sql<number>`count(*)::int` })
         .from(paperPortfolios)
-        .where(eq(paperPortfolios.entityId, ctx.entity.id));
+        .leftJoin(
+          signalSimulatePortfolios,
+          eq(signalSimulatePortfolios.paperPortfolioId, paperPortfolios.id),
+        )
+        .where(
+          and(
+            eq(paperPortfolios.entityId, ctx.entity.id),
+            isNull(signalSimulatePortfolios.id),
+          ),
+        );
 
       if ((countResult?.count ?? 0) >= MAX_PORTFOLIOS) {
         throw new TRPCError({

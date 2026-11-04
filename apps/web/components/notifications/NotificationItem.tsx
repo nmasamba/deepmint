@@ -19,6 +19,7 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
   outcome_matured: Target,
   rank_change: TrendingUp,
   signal_trade_logged: Copy,
+  signal_trade_skipped: Copy,
   new_claim_from_follow: Bell,
 };
 

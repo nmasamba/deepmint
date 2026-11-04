@@ -22,7 +22,7 @@ CURRENT STATE
   URLs must use www). Vercel project deepmint-web-7ald (team nmasambas-projects) builds apps/web
   from main. Inngest app "deepmint" is synced through the Vercel integration.
 - Pre-launch. Auth runs on a Clerk DEVELOPMENT instance (pk_test_ keys).
-- DB is Supabase. Migrations 0000-0010 are applied (each is pasted before its PR merges);
+- DB is Supabase. Migrations 0000-0011 are applied (each is pasted before its PR merges);
   0007_cool_mercury (claims.horizon_stated, claims.source_excerpt) was applied and verified on
   2026-10-05. The Mag-7 instruments were seeded on 2026-08-11.
 - Extraction LLM: OpenAI SDK -> Hugging Face router (https://router.huggingface.co/v1, HF_API_KEY).

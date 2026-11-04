@@ -8,6 +8,7 @@ const TYPE_TO_PREF: Record<string, keyof typeof notificationPreferences.$inferSe
   rank_change: "rankChange",
   new_claim_from_follow: "newClaimFromFollow",
   signal_trade_logged: "signalTradeLogged",
+  signal_trade_skipped: "signalTradeLogged",
 };
 
 /**
