@@ -114,7 +114,7 @@ export function ChoosePath() {
                 <li className="flex items-start gap-2 text-sm text-text-secondary">
                   <Shield className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                   <span>
-                    Connect your broker to verify trades and climb the ranks yourself
+                    Connect a broker for a Verified badge and 1.5&times; weight on your claims in consensus
                   </span>
                 </li>
               </ul>

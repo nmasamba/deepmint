@@ -180,15 +180,14 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Powers:** read-only broker linking for Players (Settings → Broker verification, through `broker.initLink`, `completeLink`, `syncTrades` and `disconnect`) and the `broker-sync` cron (18:00 US Eastern, Mon–Fri). The cron imports trades into `player_trades`.
 - **Read by:** `packages/api/lib/snaptrade.ts:17-18`.
 - **If missing:** the client is null. `broker.initLink` throws `PRECONDITION_FAILED`, Settings shows "Broker verification is not configured on this deployment", and `broker-sync` returns `snaptrade-not-configured`.
-- **What a key actually turns on. Fix these before enabling it:**
-  - "Verified" only means SnapTrade listed at least one account (`packages/api/routers/broker.ts:171-198`). Trades are never compared with claims.
-  - "Verified" earns a badge and ×1.5 consensus weight on all of the Player's live claims.
-  - Synced trades are stored but nothing reads them: they affect no score, rank or page.
+- **What a key actually turns on.** Linking stores every account the user connected. "Verified" takes at least one imported trade in a tracked stock on any of them, and a sync failure or a disconnect withdraws it. It earns a badge and ×1.5 consensus weight on the Player's live claims, and nothing else: synced trades are never compared with claims and affect no score or rank. Settings and the landing page say so.
+- **Fix these before enabling it:**
   - The per-user SnapTrade `userSecret` is stored in plaintext in `broker_links.metadata`.
-  - The first sync error leaves the link stuck in `error` with no recovery in the UI, while the badge and weight stay.
+  - A sync error that outlasts a run's retries leaves the link in `error`: the cron skips it and the Player must reconnect by hand.
   - `initLink` passes no redirect URL, so the return to `/settings?snaptrade_success=true` depends on the SnapTrade dashboard's settings.
+  - None of this has run against SnapTrade: linking and sync were tested with a stand-in for the SDK, so run a sandbox account through it first.
 - **Get it:** SnapTrade dashboard → API keys (client ID and consumer key).
-- **Verify:** Settings shows the connect flow instead of "not configured", and the next `broker-sync` run returns sync counts instead of `snaptrade-not-configured`.
+- **Verify:** Settings shows the connect flow instead of "not configured", the next `broker-sync` run returns sync counts instead of `snaptrade-not-configured`, and a sandbox account with a trade in a tracked stock goes from "Not verified yet" to Verified.
 - **Production:** empty (last recorded).
 
 ## Resend

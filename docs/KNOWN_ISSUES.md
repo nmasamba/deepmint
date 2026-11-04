@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **37 open issues: no high, 7 medium and 30 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **35 open issues: no high, 7 medium and 28 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,15 +26,15 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 1 | 2 | 3 |
+| [Scoring and ranking](#area-scoring) | 0 | 1 | 1 | 2 |
 | [Product (web app)](#area-product) | 0 | 3 | 8 | 11 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 3 | 4 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 2 | 3 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 4 | 5 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 2 | 2 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **7** | **30** | **37** |
+| **All** | **0** | **7** | **28** | **35** |
 
 <a id="area-scoring"></a>
 
@@ -49,16 +49,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `score.ts` passes an empty regime history to `computeRegimeAwareEIV`. Every entity therefore gets the fallback with a fixed 0.4 penalty, and `eiv` always equals `eiv_overall`. The current regime only sets the `regime_tag` string. `leaderboard.bestInCurrentConditions` returns the `eiv` rows from the latest scoring date with a matching tag, with no age limit, and does not return that date.
 - **User impact:** "Best in Current Conditions" is the plain overall-EIV top 5 from whichever scoring run last had that regime label, which may be weeks old. The 0.4 factor also shrinks every EIV, so the profile labels Strong Edge (≥60) and Moderate Edge (≥30) are harder to reach.
 - **Evidence:** [`apps/worker/functions/score.ts:188-199`](../apps/worker/functions/score.ts#L188-L199) · [`apps/worker/functions/score.ts:228-239`](../apps/worker/functions/score.ts#L228-L239) · [`packages/scoring/src/eiv.ts:34`](../packages/scoring/src/eiv.ts#L34) · [`packages/scoring/src/eiv.ts:52`](../packages/scoring/src/eiv.ts#L52) · [`packages/api/routers/leaderboard.ts:181-196`](../packages/api/routers/leaderboard.ts#L181-L196)
-
-<a id="broker-trades-never-scored"></a>
-
-### Broker-synced trades never affect scores or ranks
-
-**Low** · feature-gap · `broker-trades-never-scored`
-
-- **What's wrong:** Synced `player_trades` rows are read only by the two sync paths' duplicate checks. Linking a broker only sets `broker_link_status='verified'`, which gives a badge and a ×1.5 consensus weight on claims. The landing page says linking lets you "verify trades and climb the ranks", and Settings says "verified trades" get the multiplier.
-- **User impact:** Dormant while SnapTrade is unconfigured (last recorded). Once enabled, linking changes no score or rank.
-- **Evidence:** [`apps/worker/functions/score.ts:66-78`](../apps/worker/functions/score.ts#L66-L78) · [`packages/api/routers/broker.ts:171-196`](../packages/api/routers/broker.ts#L171-L196) · [`apps/web/components/landing/ChoosePath.tsx:118`](../apps/web/components/landing/ChoosePath.tsx#L118) · [`apps/web/components/settings/BrokerVerification.tsx:114-115`](../apps/web/components/settings/BrokerVerification.tsx#L114-L115)
 
 <a id="dead-scoring-code"></a>
 
@@ -198,16 +188,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Latent while only the Mag 7 exist. After an admin presses "Seed S&P 500 Top 50", every dashboard shows 57 tiles in no set order under the Mag 7 heading, 50 of them leading to "Coming soon", and each load runs 57 sequential queries.
 - **Evidence:** [`packages/api/routers/consensus.ts:26-49`](../packages/api/routers/consensus.ts#L26-L49) · [`apps/web/components/dashboard/Mag7Grid.tsx:31-34`](../apps/web/components/dashboard/Mag7Grid.tsx#L31-L34) · [`apps/web/app/(app)/dashboard/page.tsx:38-41`](../apps/web/app/%28app%29/dashboard/page.tsx#L38-L41) · [`packages/api/routers/instruments.ts:193-233`](../packages/api/routers/instruments.ts#L193-L233)
 
-<a id="broker-verified-means-any-account"></a>
-
-### Broker "verified" only proves that some brokerage account is linked
-
-**Low** · data-integrity · `broker-verified-means-any-account`
-
-- **What's wrong:** `completeLink` sets `broker_link_status='verified'` once SnapTrade lists any account, keeps only `accounts[0]`, and checks no trades. A later sync failure sets only `broker_links.sync_status='error'`, so the flag is never withdrawn.
-- **User impact:** Dormant while SnapTrade is unconfigured (last recorded). Once enabled, linking any account, even an empty one, earns a public Verified badge and ×1.5 consensus weight on all of the Player's live claims, and both survive a broken link. Fix before adding SnapTrade keys.
-- **Evidence:** [`packages/api/routers/broker.ts:170-198`](../packages/api/routers/broker.ts#L170-L198) · [`packages/api/routers/broker.ts:384-392`](../packages/api/routers/broker.ts#L384-L392) · [`packages/scoring/src/consensus.ts:97`](../packages/scoring/src/consensus.ts#L97) · [`apps/worker/functions/consensus-signal.ts:99`](../apps/worker/functions/consensus-signal.ts#L99)
-
 <a id="snaptrade-secret-plaintext"></a>
 
 ### SnapTrade user secrets are stored in plaintext
@@ -244,13 +224,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="broker-sync-error-sticky"></a>
 
-### One broker-sync failure stops syncing for good
+### One lasting broker-sync failure stops syncing
 
 **Low** · bug · `broker-sync-error-sticky`
 
-- **What's wrong:** Both sync paths pick only links with `sync_status='active'` and set `'error'` on any failure. Only `completeLink` sets `'active'` again; the cron's success path does not, so even an error that an Inngest retry recovers from sticks. The error state's Retry button only refetches. `completeLink` also sets `last_sync_at` to now, so trades from before the link are never fetched.
-- **User impact:** Dormant while SnapTrade is unconfigured. Once enabled, one error ends syncing for that Player while the Verified badge and ×1.5 weight stay.
-- **Evidence:** [`apps/worker/functions/broker-sync.ts:36-46`](../apps/worker/functions/broker-sync.ts#L36-L46) · [`apps/worker/functions/broker-sync.ts:118-137`](../apps/worker/functions/broker-sync.ts#L118-L137) · [`packages/api/routers/broker.ts:182-196`](../packages/api/routers/broker.ts#L182-L196) · [`apps/web/components/settings/BrokerVerification.tsx:149-169`](../apps/web/components/settings/BrokerVerification.tsx#L149-L169)
+- **What's wrong:** Both sync paths pick only links with `sync_status='active'`, so a link stays in `error` once a run's retries are spent, and the error state's Retry button only refetches. (Since wave 5 a retry that succeeds restores the link, the first sync reads back past the moment of linking, and the error state offers Reconnect.)
+- **User impact:** Dormant while SnapTrade is unconfigured. Once enabled, one lasting error ends syncing for that Player, and the Verified badge and ×1.5 weight stay off until they reconnect by hand, even if SnapTrade recovers.
+- **Evidence:** [`apps/worker/functions/broker-sync.ts`](../apps/worker/functions/broker-sync.ts) · [`packages/api/routers/broker.ts`](../packages/api/routers/broker.ts) · [`apps/web/components/settings/BrokerVerification.tsx`](../apps/web/components/settings/BrokerVerification.tsx)
 
 <a id="merkle-audit-gaps"></a>
 
@@ -326,7 +306,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · bug · `two-verified-flags`
 
-- **What's wrong:** Profile headers and the ticker Top Entities panel show Verified if `entities.is_verified` or `broker_link_status='verified'`. The leaderboard page, Settings, REST v1 and consensus read only `broker_link_status`. Only the seed sets `is_verified`. `broker_links.is_verified` is never reset and no UI reads it.
+- **What's wrong:** Profile headers and the ticker Top Entities panel show Verified if `entities.is_verified` or `broker_link_status='verified'`. The leaderboard page, Settings, REST v1 and consensus read only `broker_link_status`. Only the seed sets `is_verified`. No UI reads `broker_links.is_verified`.
 - **User impact:** None in production, where neither flag is set. In a seeded local database the badge differs between surfaces.
 - **Evidence:** [`apps/web/components/EntityProfileHeader.tsx:45-46`](../apps/web/components/EntityProfileHeader.tsx#L45-L46) · [`apps/web/components/ticker/TopEntitiesPanel.tsx:54-56`](../apps/web/components/ticker/TopEntitiesPanel.tsx#L54-L56) · [`apps/web/app/(app)/leaderboard/page.tsx:191-192`](../apps/web/app/%28app%29/leaderboard/page.tsx#L191-L192) · [`apps/web/app/api/v1/leaderboard/route.ts:107`](../apps/web/app/api/v1/leaderboard/route.ts#L107)
 
