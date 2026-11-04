@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **50 open issues: no high, 14 medium and 36 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **49 open issues: no high, 14 medium and 35 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 6 | 10 | 16 |
+| [Product (web app)](#area-product) | 0 | 6 | 9 | 15 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 5 | 5 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **14** | **36** | **50** |
+| **All** | **0** | **14** | **35** | **49** |
 
 <a id="area-scoring"></a>
 
@@ -213,16 +213,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** The chart plots only Start and Now; no equity history is stored. Learn describes it as a way to "track your performance".
 - **User impact:** A straight line that tells users nothing the Total Return card does not.
 - **Evidence:** [`apps/web/components/paper/EquityCurve.tsx:21-26`](../apps/web/components/paper/EquityCurve.tsx#L21-L26) · [`apps/web/components/paper/PortfolioDetail.tsx:105-111`](../apps/web/components/paper/PortfolioDetail.tsx#L105-L111) · [`apps/web/lib/learnModules.ts:277`](../apps/web/lib/learnModules.ts#L277)
-
-<a id="notifications-dead-ends"></a>
-
-### Notifications are dead ends
-
-**Low** · feature-gap · `notifications-dead-ends`
-
-- **What's wrong:** Clicking a notification only marks it read; the stored `claimId`, ticker and rank metadata are never used to link anywhere. Outcome, rank-change and new-follower notifications are also written for ingested Guides, which have no user. (Since wave 2 the "New claim from followed" switch works: `notify-followers-new-claim` notifies followers of each active claim at most 2 days old that emits `claims/created`, which today means self-logged claims only; see [claims-created-only-self-logged](#claims-created-only-self-logged).)
-- **User impact:** No notification leads to the claim, ticker or follower it describes.
-- **Evidence:** [`apps/web/components/notifications/NotificationItem.tsx:40-50`](../apps/web/components/notifications/NotificationItem.tsx#L40-L50) · [`apps/worker/functions/markout.ts:111-117`](../apps/worker/functions/markout.ts#L111-L117)
 
 <a id="terminology-inconsistent"></a>
 

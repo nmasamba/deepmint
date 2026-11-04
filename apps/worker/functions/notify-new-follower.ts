@@ -19,7 +19,11 @@ export const notifyNewFollowerFunction = inngest.createFunction(
     await step.run("create-notification", async () => {
       // Get follower name
       const [follower] = await db
-        .select({ displayName: entities.displayName })
+        .select({
+          displayName: entities.displayName,
+          slug: entities.slug,
+          type: entities.type,
+        })
         .from(entities)
         .where(eq(entities.id, followerId))
         .limit(1);
@@ -30,7 +34,7 @@ export const notifyNewFollowerFunction = inngest.createFunction(
         entityId: followedId,
         type: "new_follower",
         title: `${follower.displayName} started following you`,
-        metadata: { followerId },
+        metadata: { followerId, followerSlug: follower.slug, followerType: follower.type },
       });
     });
   },

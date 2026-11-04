@@ -1,5 +1,5 @@
 import { db, eq } from "@deepmint/db";
-import { notifications, notificationPreferences } from "@deepmint/db/schema";
+import { entities, notifications, notificationPreferences } from "@deepmint/db/schema";
 
 // Maps notification type to the preference column name
 const TYPE_TO_PREF: Record<string, keyof typeof notificationPreferences.$inferSelect> = {
@@ -13,7 +13,8 @@ const TYPE_TO_PREF: Record<string, keyof typeof notificationPreferences.$inferSe
 
 /**
  * Create a notification for an entity, respecting their preferences.
- * Returns the notification if created, or null if the user has disabled this type.
+ * Returns the notification if created, or null if the user has disabled this
+ * type or the entity has no user to read it (an ingested Guide).
  */
 export async function createNotification(params: {
   entityId: string;
@@ -22,6 +23,13 @@ export async function createNotification(params: {
   body?: string;
   metadata?: Record<string, unknown>;
 }): Promise<typeof notifications.$inferSelect | null> {
+  const [entity] = await db
+    .select({ clerkUserId: entities.clerkUserId })
+    .from(entities)
+    .where(eq(entities.id, params.entityId))
+    .limit(1);
+  if (!entity?.clerkUserId) return null;
+
   // Check preferences
   const prefColumn = TYPE_TO_PREF[params.type];
   if (prefColumn) {

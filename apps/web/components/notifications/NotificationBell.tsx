@@ -86,6 +86,7 @@ export function NotificationBell() {
                   key={n.id}
                   notification={n}
                   onMarkRead={(id) => markRead.mutate({ notificationId: id })}
+                  onNavigate={() => setIsOpen(false)}
                 />
               ))
             ) : (
