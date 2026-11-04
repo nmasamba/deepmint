@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Trophy,
-  Search,
   ClipboardList,
   Briefcase,
   Copy,
@@ -24,8 +23,6 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
-  /** Only show for specific entity types */
-  entityType?: "player" | "guide" | "watcher";
   /** Also shown to signed-out visitors; everything else needs an account. */
   isPublic?: boolean;
 }
@@ -33,13 +30,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Leaderboard", href: "/leaderboard", icon: Trophy },
-  { label: "Explore", href: "/explore", icon: Search },
-  {
-    label: "My Claims",
-    href: "/my-claims",
-    icon: ClipboardList,
-    entityType: "player",
-  },
+  { label: "My Claims", href: "/my-claims", icon: ClipboardList },
   {
     label: "Paper Portfolio",
     href: "/paper-portfolio",

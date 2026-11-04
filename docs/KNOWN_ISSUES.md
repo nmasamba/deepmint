@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **35 open issues: no high, 7 medium and 28 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **33 open issues: no high, 7 medium and 26 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 1 | 1 | 2 |
-| [Product (web app)](#area-product) | 0 | 3 | 8 | 11 |
+| [Product (web app)](#area-product) | 0 | 3 | 6 | 9 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 2 | 3 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 4 | 5 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 2 | 2 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **7** | **28** | **35** |
+| **All** | **0** | **7** | **26** | **33** |
 
 <a id="area-scoring"></a>
 
@@ -104,26 +104,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Latent while only the Mag 7 exist, as in production since 2026-08-11, and Mag-7 only is the deliberate scope for now. Once an admin adds instruments (for example with the S&P button), users can claim and trade tickers whose pages say "Coming soon", and ingestion never produces Guide claims for them. Make every surface agree before expanding.
 - **Evidence:** [`packages/ingestion/src/extractor.ts:461-472`](../packages/ingestion/src/extractor.ts#L461-L472) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:18-30`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L18-L30) · [`packages/api/routers/claims.ts:73-91`](../packages/api/routers/claims.ts#L73-L91) · [`packages/api/routers/paper.ts:138-150`](../packages/api/routers/paper.ts#L138-L150)
 
-<a id="explore-stub-in-nav"></a>
-
-### Explore is a stub but a main navigation item
-
-**Low** · feature-gap · `explore-stub-in-nav`
-
-- **What's wrong:** `/explore` renders a heading and one line promising "AI-surfaced tickers, sectors, and weighted market signals", and nothing else. It is the third sidebar item and one of the four mobile bottom-bar tabs.
-- **User impact:** A quarter of the mobile tab bar leads to an empty page.
-- **Evidence:** [`apps/web/app/(app)/explore/page.tsx:1-10`](../apps/web/app/%28app%29/explore/page.tsx#L1-L10) · [`apps/web/components/layout/Sidebar.tsx:33`](../apps/web/components/layout/Sidebar.tsx#L33) · [`apps/web/components/layout/Sidebar.tsx:161`](../apps/web/components/layout/Sidebar.tsx#L161)
-
-<a id="watcher-nav-type-dead"></a>
-
-### Sidebar "watcher" entity type and per-type nav filtering are dead
-
-**Low** · dead-code · `watcher-nav-type-dead`
-
-- **What's wrong:** The sidebar's `NavItem.entityType` allows `"watcher"`, the only occurrence of that word in the code; entity types are `player` and `guide`. Nothing reads `entityType`, so "My Claims" shows for everyone, which is correct because every signed-in user is a Player.
-- **User impact:** None for users. It suggests a role model that does not exist.
-- **Evidence:** [`apps/web/components/layout/Sidebar.tsx:27`](../apps/web/components/layout/Sidebar.tsx#L27) · [`apps/web/components/layout/Sidebar.tsx:96`](../apps/web/components/layout/Sidebar.tsx#L96) · [`packages/db/schema/entities.ts:3`](../packages/db/schema/entities.ts#L3)
-
 <a id="equity-curve-placeholder"></a>
 
 ### Paper "Equity Curve" is a two-point placeholder
@@ -156,13 +136,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="api-docs-nav-for-all"></a>
 
-### "API Docs" is shown to everyone, but only admins can get keys
+### API Docs names no one to ask for a key
 
 **Low** · feature-gap · `api-docs-nav-for-all`
 
-- **What's wrong:** Every signed-in user sees API Docs (`/docs/api`). Keys can only be minted by admins, there is no request flow, and the page does not say how to get one or mention MCP.
-- **User impact:** Non-admins reach a full API reference they cannot use, with no way to ask for access.
-- **Evidence:** [`apps/web/components/layout/Sidebar.tsx:51`](../apps/web/components/layout/Sidebar.tsx#L51) · [`packages/api/routers/apiKeys.ts:17`](../packages/api/routers/apiKeys.ts#L17) · [`apps/web/app/(app)/docs/api/page.tsx:8-24`](../apps/web/app/%28app%29/docs/api/page.tsx#L8-L24)
+- **What's wrong:** Every signed-in user sees API Docs (`/docs/api`). Keys can only be minted by admins, and there is no request flow. (Since wave 5 the page says keys come from an admin and how to use the MCP server, but it publishes no address: the maintainer chose to leave one out on 2026-11-05.)
+- **User impact:** Non-admins can read how keys work, but have no way to reach an admin to ask for one.
+- **Evidence:** [`apps/web/app/(app)/docs/api/page.tsx`](../apps/web/app/%28app%29/docs/api/page.tsx) · [`packages/api/routers/apiKeys.ts`](../packages/api/routers/apiKeys.ts)
 
 <a id="ticker-requests-no-ui"></a>
 

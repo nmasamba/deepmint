@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Trophy,
-  Search,
   ClipboardList,
   Briefcase,
   Copy,
@@ -37,7 +36,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Leaderboard", href: "/leaderboard", icon: Trophy },
-  { label: "Explore", href: "/explore", icon: Search },
   { label: "My Claims", href: "/my-claims", icon: ClipboardList },
   { label: "Paper Portfolio", href: "/paper-portfolio", icon: Briefcase },
   { label: "Signal Simulate", href: "/signal-simulate", icon: Copy },
