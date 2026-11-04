@@ -56,7 +56,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Medium** · bug · `player-metrics-annualise-claim-returns`
 
-- **What's wrong:** Player metrics use each active claim's `return_bps` as one "daily" return, whatever its horizon (1 to 365 days). Sharpe is mean/std × √252 with no risk-free rate. Calmar compounds claim returns in sequence even when the positions overlapped, then annualises by 252 / number of claims. CVaR and consistency use the same series.
+- **What's wrong:** Player metrics use each active claim's `return_bps` as one "daily" return, whatever its horizon (1 to 365 days). Sharpe is mean/std × √252 with no risk-free rate. Calmar compounds claim returns in sequence even when the positions overlapped, then annualises by 252 / number of claims. CVaR and consistency use the same series. (Since wave 5 `dailyBookReturns` in `packages/scoring` builds a true daily book, but the scorer does not use it yet.)
 - **User impact:** Player Sharpe and Calmar on profiles, the Sharpe board and the ticker page's Top Players have no financial meaning. Three 1-year claims of +10%, +12% and +8% give a Sharpe of about 79, and long-horizon claimants are inflated by up to √252 against 1-day claimants.
 - **Evidence:** [`apps/worker/functions/score.ts:201-221`](../apps/worker/functions/score.ts#L201-L221) · [`packages/scoring/src/player.ts:12-18`](../packages/scoring/src/player.ts#L12-L18)
 
