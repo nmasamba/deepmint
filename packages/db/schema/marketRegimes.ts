@@ -1,7 +1,7 @@
 import { pgTable, uuid, varchar, numeric, integer, jsonb, date, timestamp } from 'drizzle-orm/pg-core';
 
 /**
- * One market-regime snapshot per trading day. Computing a regime takes ~25
+ * One market-regime snapshot per trading day. Computing a regime takes ~14
  * throttled Polygon calls (minutes), so a background job writes it once a day
  * and interactive pages read the latest row instead of recomputing.
  *

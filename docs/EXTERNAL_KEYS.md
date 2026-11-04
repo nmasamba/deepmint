@@ -141,7 +141,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Verify:**
   - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job, 17 since `notify-followers-new-claim`).
   - For the routers, follow and then unfollow any profile, and look for a `social/followed` event in the Inngest dashboard's event list. Do not test with a claim: claims are append-only.
-- **Production:** app `deepmint` is synced through the Vercel integration. The route sets no `maxDuration`.
+- **Production:** app `deepmint` is synced through the Vercel integration. The route sets `maxDuration = 300`.
 
 **`INNGEST_DEV` (local only).** This setup is derived from the SDK's behaviour; nothing in the repo exercises it.
 1. Put `INNGEST_DEV=1` in `apps/web/.env.local`.

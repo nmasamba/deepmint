@@ -315,8 +315,11 @@ export interface ExtractionResult {
 // per attempt) so the Inngest worker can retry the step cleanly instead of
 // hanging, and cap output size. 120s accommodates a large model's cold-start +
 // generation latency on the HF router while still failing far short of 10min.
+// No SDK retries: one model is one 120 s attempt, so primary plus fallback fit
+// the 300 s step budget (a hung primary used to take 3 × 120 s and kill the
+// step before the fallback ran). Inngest's step retries cover transient errors.
 const LLM_TIMEOUT_MS = 120_000;
-const LLM_MAX_RETRIES = 2;
+const LLM_MAX_RETRIES = 0;
 // A post naming several stocks overflowed 1024 (truncated JSON on 19% of real
 // posts); none did at 4096.
 const LLM_MAX_OUTPUT_TOKENS = 4096;

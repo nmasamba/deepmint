@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **62 open issues: no high, 15 medium and 47 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **61 open issues: no high, 15 medium and 46 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -32,9 +32,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Workers and schedules](#area-workers) | 0 | 2 | 5 | 7 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 9 | 9 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
-| [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 7 | 9 |
+| [Infrastructure, config and tooling](#area-infra) | 0 | 2 | 6 | 8 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **15** | **47** | **62** |
+| **All** | **0** | **15** | **46** | **61** |
 
 <a id="area-scoring"></a>
 
@@ -613,16 +613,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `db:seed` checks only that `DATABASE_URL` is set: there is no host or environment guard, confirmation or transaction. It inserts the Mag 7, five fictional verified Guides, three Players, 100 active claims backdated 90–365 days with random entry prices, trades, synthetic consensus, influence events and follows. Instruments have no unique index, so each run adds seven more Mag-7 rows, and a re-run on a seeded database fails on `entities_slug_unique` after partial writes. No script seeds only the Mag 7.
 - **User impact:** Run against production, it would duplicate the Mag-7 instruments and put fake Guides with backdated claims into the ledger; the next weekday markout would turn them into public scores. Cleanup would need hand-written SQL across about ten tables.
 - **Evidence:** [`packages/db/seed.ts:5-11`](../packages/db/seed.ts#L5-L11) · [`packages/db/seed.ts:51-65`](../packages/db/seed.ts#L51-L65) · [`packages/db/seed.ts:203-242`](../packages/db/seed.ts#L203-L242) · [`packages/db/drizzle/0000_medical_hammerhead.sql:102-114`](../packages/db/drizzle/0000_medical_hammerhead.sql#L102-L114)
-
-<a id="inngest-route-no-maxduration"></a>
-
-### `/api/inngest` sets no `maxDuration` for steps that can run for minutes
-
-**Low** · config · `inngest-route-no-maxduration`
-
-- **What's wrong:** Several steps are long single invocations under the project's default function limit (unverified; about 300 s with Fluid compute). Markout prices every due claim in one step at one 12.5 s call each, so about 24 due claims fill 300 s. Scoring starts with the uncached regime lookup (about 3 minutes). One LLM model can take 3 × 120 s.
-- **User impact:** Probably nothing at today's volume. As it grows, steps are killed and retried. If every markout attempt times out, scoring does not run that day, and a hung primary model uses up the step before the fallback model is tried.
-- **Evidence:** [`apps/web/app/api/inngest/route.ts:1-11`](../apps/web/app/api/inngest/route.ts#L1-L11) · [`apps/worker/functions/markout.ts:83-91`](../apps/worker/functions/markout.ts#L83-L91) · [`apps/worker/functions/score.ts:32-38`](../apps/worker/functions/score.ts#L32-L38) · [`packages/ingestion/src/extractor.ts:308-309`](../packages/ingestion/src/extractor.ts#L308-L309)
 
 <a id="domain-mismatch"></a>
 
