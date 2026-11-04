@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { createHash } from "crypto";
-import { computeClaimLeafHash, buildMerkleTree } from "../merkle";
+import {
+  computeClaimLeafHash,
+  computeClaimLeafHashV2,
+  buildMerkleTree,
+} from "../merkle";
 
 describe("computeClaimLeafHash", () => {
   const baseClaim = {
@@ -44,6 +48,111 @@ describe("computeClaimLeafHash", () => {
       createdAt: new Date("2026-01-16T12:00:00.000Z"),
     });
     expect(hash1).not.toBe(hash2);
+  });
+});
+
+describe("computeClaimLeafHash, version 1", () => {
+  it("never changes, because stored roots are checked with it", () => {
+    expect(
+      computeClaimLeafHash({
+        id: "claim-001",
+        entityId: "entity-001",
+        instrumentId: "instr-001",
+        direction: "long",
+        horizonDays: 30,
+        createdAt: new Date("2026-01-15T12:00:00.000Z"),
+      }),
+    ).toBe(
+      createHash("sha256")
+        .update("claim-001|entity-001|instr-001|long|30|2026-01-15T12:00:00.000Z")
+        .digest("hex"),
+    );
+  });
+});
+
+describe("computeClaimLeafHashV2", () => {
+  const claim = {
+    id: "claim-001",
+    eventId: "event-001",
+    entityId: "entity-001",
+    instrumentId: "instr-001",
+    direction: "long",
+    targetPriceCents: 25000,
+    horizonDays: 30,
+    confidence: 80,
+    rationale: "Strong iPhone cycle",
+    rationaleTags: ["earnings", "catalyst"],
+    entryPriceCents: 21000,
+    sourceKind: "wall_street_rating",
+    ratingGrade: "buy",
+    ratingAction: "upgrade",
+    analystName: "A. Analyst",
+    horizonStated: "within 30 days",
+    sourceExcerpt: "We see AAPL at $250 within 30 days.",
+    createdAt: new Date("2026-01-15T12:00:00.000Z"),
+    recordedAt: new Date("2026-01-17T09:30:00.000Z"),
+  };
+
+  it("is deterministic", () => {
+    expect(computeClaimLeafHashV2(claim)).toBe(
+      computeClaimLeafHashV2({ ...claim }),
+    );
+    expect(computeClaimLeafHashV2(claim)).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it.each([
+    ["id", "claim-002"],
+    ["eventId", null],
+    ["entityId", "entity-002"],
+    ["instrumentId", "instr-002"],
+    ["direction", "short"],
+    ["targetPriceCents", 25001],
+    ["horizonDays", 90],
+    ["confidence", 81],
+    ["rationale", "Weak iPhone cycle"],
+    ["rationaleTags", ["catalyst", "earnings"]],
+    ["entryPriceCents", 21001],
+    ["sourceKind", "analyst_feed"],
+    ["ratingGrade", "hold"],
+    ["ratingAction", "downgrade"],
+    ["analystName", "B. Analyst"],
+    ["horizonStated", "within 90 days"],
+    ["sourceExcerpt", "We see AAPL at $250 within 90 days."],
+    ["createdAt", new Date("2026-01-15T12:00:00.001Z")],
+    ["recordedAt", new Date("2026-01-17T09:30:00.001Z")],
+    ["recordedAt", null],
+  ])("changes when %s changes", (field, value) => {
+    expect(computeClaimLeafHashV2({ ...claim, [field]: value })).not.toBe(
+      computeClaimLeafHashV2(claim),
+    );
+  });
+
+  it("ignores the review decision, which can land after the root", () => {
+    const pending = { ...claim, status: "pending_review" };
+    const approved = { ...claim, status: "active" };
+    expect(computeClaimLeafHashV2(pending)).toBe(
+      computeClaimLeafHashV2(approved),
+    );
+  });
+
+  it("keeps fields apart, whatever the free text holds", () => {
+    const one = { ...claim, rationale: 'a","b', analystName: "c" };
+    const two = { ...claim, rationale: "a", analystName: 'b","c' };
+    expect(computeClaimLeafHashV2(one)).not.toBe(computeClaimLeafHashV2(two));
+    const pipes = { ...claim, rationale: "a|b", analystName: "c" };
+    const moved = { ...claim, rationale: "a", analystName: "b|c" };
+    expect(computeClaimLeafHashV2(pipes)).not.toBe(
+      computeClaimLeafHashV2(moved),
+    );
+  });
+
+  it("tells a null from an empty value", () => {
+    expect(computeClaimLeafHashV2({ ...claim, rationale: null })).not.toBe(
+      computeClaimLeafHashV2({ ...claim, rationale: "" }),
+    );
+    expect(computeClaimLeafHashV2({ ...claim, rationaleTags: null })).not.toBe(
+      computeClaimLeafHashV2({ ...claim, rationaleTags: [] }),
+    );
   });
 });
 

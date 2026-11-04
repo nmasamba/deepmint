@@ -68,7 +68,7 @@ flowchart TD
    - whether the target price was reached.
 6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures. Players also get risk measures such as the Sharpe ratio and maximum drawdown.
 7. **Leaderboard and consensus.** The leaderboard ranks authors by the new scores. For each stock, Deepmint recalculates the consensus: a weighted vote (bullish, bearish or neutral) of the active claims whose horizon has not yet passed, plus the average of their price targets and how widely those targets spread. Claims count for more when their author has a higher EIV, is a Guide or is a broker-verified Player, when they are newer and when their confidence is higher.
-8. **Nightly fingerprint.** Every night a job hashes the previous day's claims into a single Merkle root and stores it in the database. The roots are not yet published, anchored outside the database or checkable by users.
+8. **Nightly fingerprint.** Every night a job hashes the claims recorded the previous day, whatever date they carry, into a single Merkle root and stores it in the database. The roots are not yet published, anchored outside the database or checkable by users.
 
 ## When do things happen?
 
@@ -82,7 +82,7 @@ The jobs tied to the US market run on US Eastern time (`TZ=America/New_York` in 
 | Market regime | Records the day's market conditions (S&P 500 trend, VIX, sector spread) for the leaderboard | 17:30 | 21:30 / 22:30 | Mon–Fri |
 | Broker sync | Imports trades from linked brokerage accounts | 18:00 | 22:00 / 23:00 | Mon–Fri |
 | Consensus and influence | Recalculates each ticker's consensus and each Guide's influence, so a claim's decay and expiry count even when none matures | 18:30 | 22:30 / 23:30 | Every day |
-| Merkle audit | Fingerprints the previous UTC day's claims | 18:00 / 17:00 | 22:00 | Every day |
+| Merkle audit | Fingerprints the claims recorded on the previous UTC day | 18:00 / 17:00 | 22:00 | Every day |
 
 Other jobs run in a chain rather than on a clock:
 

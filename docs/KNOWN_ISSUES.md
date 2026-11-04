@@ -314,13 +314,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="merkle-audit-gaps"></a>
 
-### The Merkle audit misses backdated claims and leaves out prices
+### Merkle roots are stored but never published, and older claims have gaps
 
 **Low** · data-integrity · `merkle-audit-gaps`
 
-- **What's wrong:** `merkle-audit` (22:00 UTC daily) hashes claims whose `created_at` is in the previous UTC day. Claims inserted later with an earlier `created_at` (ratings dated two or more days back, nearly all backfill, and extraction retries that finish after the audit) are in no root. The leaf omits target, entry price, confidence and rationale. `bitcoin_tx_id` is never written, nothing reads `audit_roots`, and a re-run for a stored date fails on its UNIQUE `date`.
-- **User impact:** No visible effect today, because roots are neither published nor anchored. Once published, most backfilled history would be uncovered, and entry price, target and confidence could change without breaking a root.
-- **Evidence:** [`apps/worker/functions/audit.ts:22-62`](../apps/worker/functions/audit.ts#L22-L62) · [`packages/shared/src/merkle.ts:7-16`](../packages/shared/src/merkle.ts#L7-L16) · [`packages/ingestion/src/extractor.ts:642-644`](../packages/ingestion/src/extractor.ts#L642-L644) · [`apps/worker/functions/backfill.ts:144`](../apps/worker/functions/backfill.ts#L144)
+- **What's wrong:** `bitcoin_tx_id` is never written and nothing reads `audit_roots`, so a root proves nothing to anyone outside the database. Claims stored before migration 0012 have no `recorded_at`: those dated earlier than they were stored (ratings, backfill, retried extractions) are in no root, and those that are in a root were hashed by leaf version 1, which leaves out target, entry price, confidence and rationale. (Since wave 5 each day's root covers every claim recorded that day, whatever its date, hashes every column but the review status, and a re-run for a stored date changes nothing.)
+- **User impact:** No visible effect today, because roots are neither published nor anchored. Once published, older history would be only partly covered.
+- **Evidence:** [`apps/worker/functions/audit.ts`](../apps/worker/functions/audit.ts) · [`packages/db/schema/audit.ts`](../packages/db/schema/audit.ts)
 
 <a id="leaderboard-refresh-noop"></a>
 
