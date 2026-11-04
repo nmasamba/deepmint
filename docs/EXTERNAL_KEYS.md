@@ -56,7 +56,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
   1. Paste the migration's SQL into the Supabase SQL editor.
   2. Insert its journal row: `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('<sha256 hex of the .sql file>', <the migration's "when" from meta/_journal.json>);`. Add rows in order: drizzle compares only the newest row's `created_at` with each migration's `when`.
   3. Do not use `packages/db/run-migration.mjs`: it hard-codes the main checkout's migrations folder and exits 0 on failure.
-- **Never:** put the production URL in a local env file (the root `.env.local` points at local Docker), or run `db:seed` against production. The seed writes 5 fictional Guides, 3 fictional Players and 100 fake active claims into the append-only ledger, with no environment guard.
+- **Never:** put the production URL in a local env file (the root `.env.local` points at local Docker), or run `db:seed` against production. The seed writes 5 fictional Guides, 3 fictional Players and 100 fake active claims into the append-only ledger. It refuses a non-local host unless `SEED_ALLOW_REMOTE` names that host exactly, so never set that variable for production.
 
 ## Clerk (auth)
 

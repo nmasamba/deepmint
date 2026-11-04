@@ -16,6 +16,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx seed.ts",
+    "db:seed:instruments": "tsx seed-instruments.ts",
     "db:studio": "drizzle-kit studio",
     "check": "tsc --noEmit",
     "clean": "rm -rf dist .turbo"

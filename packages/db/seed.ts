@@ -1,14 +1,14 @@
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
+import { inArray } from "drizzle-orm";
 import * as schema from "./schema";
+import { MAG7_INSTRUMENTS, requireSeedTarget } from "./seed/common";
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error("DATABASE_URL environment variable is not set");
-}
+const client = postgres(requireSeedTarget());
+const rootDb = drizzle(client, { schema });
+type SeedDb = Parameters<Parameters<typeof rootDb.transaction>[0]>[0];
 
-const client = postgres(connectionString);
-const db = drizzle(client, { schema });
+const SEEDED_SLUGS = ["sarah-chen", "marcus-webb", "priya-patel", "david-kim", "elena-rodriguez", "alex-trading", "jordan-macro", "sam-momentum"];
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -32,36 +32,15 @@ function today(): string {
 
 // ── Seed Data ────────────────────────────────────────────────────
 
-async function seed() {
+async function seed(db: SeedDb) {
   // eslint-disable-next-line no-console
   console.log("🌱 Seeding database...\n");
 
   // ── 1. Instruments (Magnificent 7) ──
 
-  const mag7Data = [
-    { ticker: "AAPL", name: "Apple Inc.", sector: "Technology", industry: "Consumer Electronics" },
-    { ticker: "MSFT", name: "Microsoft Corporation", sector: "Technology", industry: "Software—Infrastructure" },
-    { ticker: "GOOGL", name: "Alphabet Inc.", sector: "Technology", industry: "Internet Content & Information" },
-    { ticker: "AMZN", name: "Amazon.com Inc.", sector: "Consumer Cyclical", industry: "Internet Retail" },
-    { ticker: "NVDA", name: "NVIDIA Corporation", sector: "Technology", industry: "Semiconductors" },
-    { ticker: "META", name: "Meta Platforms Inc.", sector: "Technology", industry: "Internet Content & Information" },
-    { ticker: "TSLA", name: "Tesla Inc.", sector: "Consumer Cyclical", industry: "Auto Manufacturers" },
-  ];
-
   const instrumentRows = await db
     .insert(schema.instruments)
-    .values(
-      mag7Data.map((i) => ({
-        ticker: i.ticker,
-        name: i.name,
-        assetClass: "equity" as const,
-        exchange: "NASDAQ" as const,
-        sector: i.sector,
-        industry: i.industry,
-        marketCapBucket: "mega",
-        isActive: true,
-      })),
-    )
+    .values(MAG7_INSTRUMENTS)
     .returning();
 
   // eslint-disable-next-line no-console
@@ -379,11 +358,36 @@ async function seed() {
 
   // eslint-disable-next-line no-console
   console.log("\n✅ Seed complete!\n");
+}
 
+/** Refuses, before any write, a database that already holds seeded rows. */
+async function assertEmpty() {
+  const [instrumentRows, entityRows] = await Promise.all([
+    rootDb
+      .select({ ticker: schema.instruments.ticker })
+      .from(schema.instruments)
+      .where(inArray(schema.instruments.ticker, MAG7_INSTRUMENTS.map((i) => i.ticker))),
+    rootDb
+      .select({ slug: schema.entities.slug })
+      .from(schema.entities)
+      .where(inArray(schema.entities.slug, SEEDED_SLUGS)),
+  ]);
+  if (instrumentRows.length > 0 || entityRows.length > 0) {
+    throw new Error(
+      `Already seeded: found ${instrumentRows.length} Mag-7 instruments and ${entityRows.length} seeded entities. ` +
+        "Nothing was written. To start again, reset with `docker compose down -v`.",
+    );
+  }
+}
+
+async function main() {
+  await assertEmpty();
+  // One transaction: a failure partway leaves nothing behind.
+  await rootDb.transaction(seed);
   await client.end();
 }
 
-seed().catch((err) => {
+main().catch((err) => {
   // eslint-disable-next-line no-console
   console.error("Seed failed:", err);
   process.exit(1);

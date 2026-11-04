@@ -285,7 +285,9 @@ The seed inserts:
 - the 7 Mag-7 instruments;
 - fictional data: 5 Guides (such as `sarah-chen`), 3 Players, 100 active claims backdated 90–365 days, player trades, synthetic consensus rows, influence events and follows.
 
-It writes **no outcomes or scores**. It is not idempotent, so run it once, on an empty database. **Never run it against production**: it writes fake claims into the append-only ledger.
+It writes **no outcomes or scores**. It runs in one transaction, on an empty database only: if the Mag-7 instruments or the seeded slugs already exist it stops without writing, and the way to start again is `docker compose down -v`, then steps 3 and 4. **Never run it against production**: it writes fake claims into the append-only ledger. It refuses any `DATABASE_URL` host other than localhost, `127.0.0.1`, `::1`, `host.docker.internal` or `postgres` (the compose service), unless `SEED_ALLOW_REMOTE` names that host exactly.
+
+To add only the Mag-7 instruments, with no fake data, run `db:seed:instruments`. It adds whichever are missing, so it can be run again, and it obeys the same host rule.
 
 **5. Run the app**
 
@@ -326,6 +328,7 @@ In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`.
 | `pnpm --filter <package> test` | Runs one package's tests |
 | `pnpm --filter @deepmint/db db:migrate` | Applies pending migrations (reads `packages/db/.env`) |
 | `pnpm --filter @deepmint/db db:generate` | Writes a new migration after a schema edit |
+| `pnpm --filter @deepmint/db db:seed:instruments` | Adds any missing Mag-7 instruments, and nothing else (reads `DATABASE_URL` from the shell) |
 | `pnpm --filter @deepmint/db db:studio` | Opens Drizzle Studio |
 | `pnpm --filter @deepmint/worker backfill <file>` | Sends a `backfill/requested` event |
 | `pnpm --filter @deepmint/web build` | Production build of the web app |
@@ -373,7 +376,7 @@ Example: `0007_cool_mercury.sql` adds `claims.horizon_stated` and `claims.source
 Keep in mind:
 
 - The `DATABASE_URL` in the root `.env.local` points at local Docker (port 5433), never at production.
-- Never run `db:seed` against production.
+- Never run `db:seed` against production. It refuses a remote host unless `SEED_ALLOW_REMOTE` names it.
 - Do not use `packages/db/run-migration.mjs`. It hard-codes the main checkout's path and exits 0 even when a migration fails.
 
 **Correcting the ledger.** Since migration 0010, triggers refuse every `UPDATE`, `DELETE` and `TRUNCATE` on `events`, `notes` and `outcomes`, and on `claims` everything but the review decision (`pending_review` to `active` or `rejected`, with no other column changed). Locally, reset with `docker compose down -v`, then migrate and seed again. A deliberate production correction names the trigger, changes the one row and turns the trigger back on, in one transaction, so nothing else gets through while it is off:
