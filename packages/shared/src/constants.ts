@@ -34,6 +34,12 @@ export const SCORE_HORIZONS = ["all", "1d", "1w", "1m", "3m", "6m", "1y"] as con
 /** Market regimes the scorer tags regime-aware scores with. */
 export const REGIME_TAGS = ["bull", "bear", "high_vol", "low_vol", "rotation"] as const;
 
+/**
+ * Scored outcomes an entity needs to rank, at that horizon on a horizon board.
+ * Below it a profile shows as provisional.
+ */
+export const MIN_RANKED_OUTCOMES = 10;
+
 /** Score metrics where lower is better; leaderboards rank them ascending. */
 export const LOWER_IS_BETTER_METRICS: readonly string[] = [
   "calibration_brier",

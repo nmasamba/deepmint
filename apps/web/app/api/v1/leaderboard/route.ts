@@ -19,7 +19,7 @@ export async function OPTIONS() {
  *   - limit (optional): 1-100, default 25
  *
  * Rows come from tRPC leaderboard.top, the query behind the web and MCP
- * boards, so all three rank identically.
+ * boards, so all three rank identically, with the same sample floor.
  */
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req, "leaderboard:read");
@@ -96,6 +96,8 @@ export async function GET(req: NextRequest) {
         score: r.score,
         horizon: r.horizon,
         regimeTag: r.regimeTag,
+        sampleSize: r.sampleSize,
+        isSignificant: r.isSignificant,
       })),
     },
     { rateLimit: auth.rateLimit },

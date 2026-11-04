@@ -15,7 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { InfluenceTab } from "@/components/influence/InfluenceTab";
-import { eivLabel } from "@deepmint/shared";
+import { MIN_RANKED_OUTCOMES, eivLabel } from "@deepmint/shared";
 
 interface EntityProfileTabsProps {
   entityType: "player" | "guide";
@@ -90,9 +90,37 @@ function OverviewTab({
   };
 
   const eiv = getScore("eiv_overall");
+  const outcomeCount = getScore("outcome_count");
 
   return (
     <div className="space-y-6">
+      {outcomeCount !== null && (
+        <div className="flex flex-wrap items-center gap-2">
+          {outcomeCount < MIN_RANKED_OUTCOMES ? (
+            <Badge
+              variant="outline"
+              className="border-border text-xs text-text-secondary"
+              title={`Scores below ${MIN_RANKED_OUTCOMES} resolved claims are not ranked on the leaderboard`}
+            >
+              Provisional ({outcomeCount} of {MIN_RANKED_OUTCOMES})
+            </Badge>
+          ) : (
+            <span className="text-xs text-text-secondary">
+              Based on {outcomeCount} resolved claims
+            </span>
+          )}
+          {getScore("z_significant") === 1 && (
+            <Badge
+              variant="outline"
+              className="border-accent/30 text-xs text-accent"
+              title="Hit rate above 50% at p < 0.05, on at least 15 outcomes"
+            >
+              Statistically significant
+            </Badge>
+          )}
+        </div>
+      )}
+
       {/* EIV Card */}
       <div className="rounded-lg border-2 border-accent/30 bg-accent/5 p-6">
         <div className="flex items-center gap-2 text-accent text-sm mb-2">

@@ -286,7 +286,6 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
   - the Polygon news lane needs `INGEST_POLYGON_NEWS=1`.
 - **Tests without keys** (since wave 2): scoring 114, shared 32 (2 live Polygon tests skip), api 13 (3 database tests skip), ingestion 59 (6 live LLM and 5 database tests skip), web 33 skipped.
 - **Open issues to know first:**
-  - Leaderboards have no minimum sample size.
   - `claims/created` fires only for self-logged claims.
   - Sentry and R2 are inert.
   - The digest reaches no one.

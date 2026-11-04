@@ -132,7 +132,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - signing up, and logging your own claims;
 - extracting claims from Guide posts, with the evidence check and admin review;
 - the daily markout, scoring and consensus;
-- the leaderboard by Hit Rate, Sharpe, EIV and Avg Return;
+- the leaderboard by Hit Rate, Sharpe, EIV and Avg Return, for anyone with at least 10 scored outcomes;
 - Guide and Player profiles;
 - following, watchlists and in-app notifications;
 - paper portfolios;
@@ -144,7 +144,6 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - **Results.** Claim cards never show a claim's own result. A single claim's result appears only in the in-app "claim resolved" notification sent to its author; everyone else sees only the author's overall scores.
 - **Leaderboard.**
   - The market-conditions badge is a once-a-day snapshot. The current Polygon plan has no index data, so VIX is recorded as unavailable and the badge says "partial data"; the S&P 500 trend comes from the SPY fund instead of the index.
-  - There is no minimum number of outcomes, so one lucky call can top the board.
   - The "Most Influential" tab and the regime filters (Bull, Bear and so on) always come back empty.
 - **Daily ingestion.** The daily Guide collection does nothing until an operator switches on a Guide's feed by editing the database (there is no admin control for it) or enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
 - **Not working yet:**

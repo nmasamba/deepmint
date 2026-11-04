@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SCORE_HORIZONS, REGIME_TAGS } from "@deepmint/shared";
+import { MIN_RANKED_OUTCOMES, SCORE_HORIZONS, REGIME_TAGS } from "@deepmint/shared";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -108,6 +108,7 @@ export function GET() {
       "/leaderboard": {
         get: {
           summary: "Get top entities by metric",
+          description: `Ranks only entities with at least ${MIN_RANKED_OUTCOMES} scored outcomes at the requested horizon.`,
           operationId: "getLeaderboard",
           tags: ["Leaderboard"],
           "x-required-scope": "leaderboard:read",
@@ -281,6 +282,14 @@ export function GET() {
             score: { type: "number" },
             horizon: { type: ["string", "null"] },
             regimeTag: { type: ["string", "null"] },
+            sampleSize: {
+              type: "integer",
+              description: "Scored outcomes behind this row, at its horizon",
+            },
+            isSignificant: {
+              type: "boolean",
+              description: "Pooled hit rate above 50% at p < 0.05, on at least 15 outcomes",
+            },
           },
         },
         LeaderboardResponse: {

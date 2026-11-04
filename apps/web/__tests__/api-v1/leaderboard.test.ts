@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
+import { MIN_RANKED_OUTCOMES } from "@deepmint/shared";
 import { API_KEY, BASE_URL, fetchApi } from "./helpers";
 
 interface Row {
   rank: number;
   entity: { slug: string };
   score: number;
+  sampleSize: number;
+  isSignificant: boolean;
 }
 
 /** The same board from the public tRPC procedure the web and MCP use. */
@@ -60,6 +63,17 @@ describe.skipIf(skip)("GET /api/v1/leaderboard", () => {
     const res = await fetchApi("/api/v1/leaderboard?metric=hit_rate");
     expect(res.headers.get("x-ratelimit-limit")).toBeDefined();
     expect(res.headers.get("x-ratelimit-remaining")).toBeDefined();
+  });
+
+  it("ranks only entities above the sample floor, and shows each row's sample", async () => {
+    for (const horizon of ["all", "1m"]) {
+      const res = await fetchApi(`/api/v1/leaderboard?metric=hit_rate&horizon=${horizon}&limit=100`);
+      const { rows } = (await res.json()).data as { rows: Row[] };
+      for (const row of rows) {
+        expect(row.sampleSize).toBeGreaterThanOrEqual(MIN_RANKED_OUTCOMES);
+        expect(typeof row.isSignificant).toBe("boolean");
+      }
+    }
   });
 
   it("returns 400 for a horizon the scorer never writes", async () => {
