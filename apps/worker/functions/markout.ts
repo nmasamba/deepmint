@@ -1,13 +1,20 @@
 import { inngest } from "../inngest";
-import { db, eq, and, isNull, lte, sql } from "@deepmint/db";
-import { claims, outcomes, instruments } from "@deepmint/db/schema";
+import { db, eq, and, asc, isNull, sql } from "@deepmint/db";
+import { claims, outcomes, instruments, paperTrades } from "@deepmint/db/schema";
 import { createNotification } from "@deepmint/db/queries/createNotification";
 import { computeMarkoutForClaim, HORIZON_MAP, formatDate } from "./markoutClaim";
 
 /**
+ * Claims priced per run. Each is one step, and Inngest allows 1,000 steps per
+ * run. The oldest go first; any left over are picked up by the next run.
+ */
+const MAX_CLAIMS_PER_RUN = 500;
+
+/**
  * Markout worker: runs at 17:00 US Eastern on weekdays, after the day's bar is
  * final (16:30 ET).
- * Finds claims whose horizon has expired and computes exit prices + outcomes.
+ * Finds claims whose horizon has expired and computes exit prices + outcomes,
+ * one step per claim, so a run's length is not bound by one invocation's limit.
  */
 export const markoutFunction = inngest.createFunction(
   {
@@ -16,7 +23,7 @@ export const markoutFunction = inngest.createFunction(
     triggers: [{ cron: "TZ=America/New_York 0 17 * * 1-5" }],
   },
   async ({ step }) => {
-    const result = await step.run("compute-markouts", async () => {
+    const dueClaims = await step.run("find-due-claims", async () => {
       // Find active claims where createdAt + horizonDays <= now
       // and no outcome exists for that claim+horizon combo
       const pendingClaims = await db
@@ -40,7 +47,8 @@ export const markoutFunction = inngest.createFunction(
             // raw SQL expression isn't type-mapped and breaks the pg serializer.
             sql`${claims.createdAt} + (${claims.horizonDays} || ' days')::interval <= now()`
           )
-        );
+        )
+        .orderBy(asc(claims.createdAt));
 
       // Filter out claims that already have outcomes
       const claimsToProcess = [];
@@ -63,13 +71,18 @@ export const markoutFunction = inngest.createFunction(
 
       if (claimsToProcess.length === 0) {
         console.log("[markout] No pending outcomes to compute.");
-        return { computed: 0, skipped: 0, errors: 0 };
+        return [];
       }
 
+      if (claimsToProcess.length > MAX_CLAIMS_PER_RUN) {
+        console.warn(
+          `[markout] ${claimsToProcess.length} claims due; pricing the oldest ${MAX_CLAIMS_PER_RUN}, the rest next run`
+        );
+      }
+      const batch = claimsToProcess.slice(0, MAX_CLAIMS_PER_RUN);
+
       // Get instrument tickers for all claims
-      const instrumentIds = [
-        ...new Set(claimsToProcess.map((c) => c.instrumentId)),
-      ];
+      const instrumentIds = [...new Set(batch.map((c) => c.instrumentId))];
       const instrumentRows = await db
         .select({ id: instruments.id, ticker: instruments.ticker })
         .from(instruments)
@@ -77,28 +90,29 @@ export const markoutFunction = inngest.createFunction(
 
       const tickerMap = new Map(instrumentRows.map((i) => [i.id, i.ticker]));
 
-      let computed = 0;
-      let skipped = 0;
-      let errors = 0;
+      return batch.map((claim) => ({
+        ...claim,
+        ticker: tickerMap.get(claim.instrumentId) ?? null,
+      }));
+    });
 
-      for (const claim of claimsToProcess) {
-        try {
-          const ticker = tickerMap.get(claim.instrumentId);
-          if (!ticker) {
-            skipped++;
-            continue;
-          }
+    let computed = 0;
+    let skipped = 0;
+    let errors = 0;
 
-          const outcome = await computeMarkoutForClaim(claim, ticker);
-          if (!outcome) {
-            // Missing entry price or exit-price data — skip, retry next run.
-            skipped++;
-            continue;
-          }
+    for (const claim of dueClaims) {
+      const status = await step.run(`markout-${claim.id}`, async () => {
+        if (!claim.ticker) return "skipped";
 
-          // Insert outcome. A backfill run may have written it while this
-          // one was pricing, so the unique (claim, horizon) key decides.
-          const inserted = await db
+        const outcome = await computeMarkoutForClaim(claim, claim.ticker);
+        // Missing entry price or exit-price data — skip, retry next run.
+        if (!outcome) return "skipped";
+
+        // Insert outcome. A backfill run may have written it while this
+        // one was pricing, so the unique (claim, horizon) key decides. Trades
+        // mirroring the claim close with it, at its exit price.
+        const inserted = await db.transaction(async (tx) => {
+          const rows = await tx
             .insert(outcomes)
             .values({
               claimId: claim.id,
@@ -112,35 +126,45 @@ export const markoutFunction = inngest.createFunction(
             })
             .onConflictDoNothing({ target: [outcomes.claimId, outcomes.horizon] })
             .returning({ id: outcomes.id });
-          if (inserted.length === 0) {
-            skipped++;
-            continue;
+          if (rows.length > 0) {
+            await tx
+              .update(paperTrades)
+              .set({ exitPriceCents: outcome.exitPriceCents, closedAt: new Date() })
+              .where(and(eq(paperTrades.claimId, claim.id), isNull(paperTrades.closedAt)));
           }
+          return rows;
+        });
+        if (inserted.length === 0) return "skipped";
 
-          // Notify entity that their claim has been resolved
-          await createNotification({
-            entityId: claim.entityId,
-            type: "outcome_matured",
-            title: `Your ${claim.direction} claim on ${ticker} has been resolved`,
-            body: `Return: ${outcome.returnBps > 0 ? "+" : ""}${(outcome.returnBps / 100).toFixed(1)}% — ${outcome.directionCorrect ? "direction correct" : "direction incorrect"}`,
-            metadata: { claimId: claim.id, returnBps: outcome.returnBps, directionCorrect: outcome.directionCorrect, targetHit: outcome.targetHit, ticker },
-          }).catch((err) => {
-            console.warn(`[markout] Failed to send notification for claim ${claim.id}:`, err);
-          });
+        // Notify entity that their claim has been resolved
+        await createNotification({
+          entityId: claim.entityId,
+          type: "outcome_matured",
+          title: `Your ${claim.direction} claim on ${claim.ticker} has been resolved`,
+          body: `Return: ${outcome.returnBps > 0 ? "+" : ""}${(outcome.returnBps / 100).toFixed(1)}% — ${outcome.directionCorrect ? "direction correct" : "direction incorrect"}`,
+          metadata: { claimId: claim.id, returnBps: outcome.returnBps, directionCorrect: outcome.directionCorrect, targetHit: outcome.targetHit, ticker: claim.ticker },
+        }).catch((err) => {
+          console.warn(`[markout] Failed to send notification for claim ${claim.id}:`, err);
+        });
 
-          computed++;
-        } catch (err) {
-          console.error(`[markout] Error processing claim ${claim.id}:`, err);
-          errors++;
-        }
-      }
+        return "computed";
+      }).catch((err: unknown) => {
+        // Once the step's own retries are spent, leave the claim for the next
+        // run rather than fail the rest of the batch.
+        console.error(`[markout] Error processing claim ${claim.id}:`, err);
+        return "error";
+      });
 
-      console.log(
-        `[markout] Done: ${computed} computed, ${skipped} skipped, ${errors} errors`
-      );
+      if (status === "computed") computed++;
+      else if (status === "skipped") skipped++;
+      else errors++;
+    }
 
-      return { computed, skipped, errors };
-    });
+    console.log(
+      `[markout] Done: ${computed} computed, ${skipped} skipped, ${errors} errors`
+    );
+
+    const result = { computed, skipped, errors };
 
     // Send event to trigger scoring
     if (result.computed > 0) {

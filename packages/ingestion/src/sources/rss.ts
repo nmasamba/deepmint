@@ -38,17 +38,14 @@ export class RssSourceAdapter extends SourceAdapter {
           // Skip items that cannot reference a trackable Mag-7 instrument.
           if (!mentionsMag7(rawText)) continue;
 
-          const capturedAt = item.isoDate
-            ? new Date(item.isoDate)
-            : item.pubDate
-              ? new Date(item.pubDate)
-              : new Date();
+          const published = parseItemDate(item.isoDate ?? item.pubDate);
 
           captures.push({
             entityId: feed.entityId,
             sourceUrl: item.link ?? feed.feedUrl,
             rawText,
-            capturedAt,
+            capturedAt: published ?? new Date(),
+            undated: !published,
           });
         }
       } catch (err) {
@@ -61,4 +58,11 @@ export class RssSourceAdapter extends SourceAdapter {
 
     return captures;
   }
+}
+
+/** An item's date, or null if it has none or it cannot be read. */
+function parseItemDate(value: string | undefined): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }

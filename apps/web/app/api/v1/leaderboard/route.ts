@@ -19,7 +19,7 @@ export async function OPTIONS() {
  *   - limit (optional): 1-100, default 25
  *
  * Rows come from tRPC leaderboard.top, the query behind the web and MCP
- * boards, so all three rank identically.
+ * boards, so all three rank identically, with the same sample floor.
  */
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req, "leaderboard:read");
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(Math.max(1, isNaN(limitRaw) ? 25 : limitRaw), 100);
 
   const rows = await createCaller(
-    createContext({ userId: null, entity: null }),
+    createContext({ userId: null, entity: null, apiKeyVerified: true }),
   ).leaderboard.top({
     metric,
     entityType: (entityType as "player" | "guide" | null) ?? undefined,
@@ -96,6 +96,8 @@ export async function GET(req: NextRequest) {
         score: r.score,
         horizon: r.horizon,
         regimeTag: r.regimeTag,
+        sampleSize: r.sampleSize,
+        isSignificant: r.isSignificant,
       })),
     },
     { rateLimit: auth.rateLimit },

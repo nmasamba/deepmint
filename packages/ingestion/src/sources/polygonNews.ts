@@ -95,14 +95,17 @@ export class PolygonNewsSourceAdapter extends SourceAdapter {
         }
 
         seenUrls.add(sourceUrl);
+        // The article's own publish time, not now(): the content hash is
+        // computed over it, so a wall-clock value would produce a fresh hash
+        // every run and defeat event de-duplication. An article without a
+        // usable time is marked undated, which keeps it out of the hash.
+        const published = parsePublishedAt(article.published_utc);
         captures.push({
           entityId,
           sourceUrl,
           rawText,
-          // MUST be the article's own publish time, not now(): the content hash
-          // is computed over capturedAt, so a wall-clock value would produce a
-          // fresh hash every run and defeat event de-duplication entirely.
-          capturedAt: parsePublishedAt(article.published_utc),
+          capturedAt: published ?? new Date(),
+          undated: !published,
           publisher: publisherName,
         });
       }
@@ -142,9 +145,9 @@ export class PolygonNewsSourceAdapter extends SourceAdapter {
   }
 }
 
-/** Parse the article timestamp, falling back to now for a malformed value. */
-function parsePublishedAt(value: string | undefined): Date {
-  if (!value) return new Date();
+/** Parse the article timestamp; null when it is missing or malformed. */
+function parsePublishedAt(value: string | undefined): Date | null {
+  if (!value) return null;
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? new Date() : d;
+  return Number.isNaN(d.getTime()) ? null : d;
 }

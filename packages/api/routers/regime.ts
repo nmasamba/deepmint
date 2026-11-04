@@ -9,7 +9,7 @@ export const regimeRouter = router({
   /**
    * The latest stored market regime (one snapshot per weekday, computed in the
    * background), or null before the first snapshot exists. Never computes the
-   * regime here: that takes ~25 throttled Polygon calls.
+   * regime here: that takes ~14 throttled Polygon calls.
    */
   current: publicProcedure.query(() => getLatestMarketRegime()),
 

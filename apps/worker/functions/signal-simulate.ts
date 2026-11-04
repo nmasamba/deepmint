@@ -1,18 +1,58 @@
 import { inngest } from "../inngest";
-import { db, eq, and, sql } from "@deepmint/db";
+import { db, eq, and, gt, sql } from "@deepmint/db";
 import {
   signalSimulatePortfolios,
   paperTrades,
   paperPortfolios,
   instruments,
+  notifications,
 } from "@deepmint/db/schema";
 import { getCurrentPrice } from "@deepmint/shared";
+import { availableCashCents } from "@deepmint/api/lib/paperAccounting";
 import { createNotification } from "@deepmint/db/queries/createNotification";
+
+/**
+ * Tell the owner a mirror is out of cash, once: not again until one of its
+ * trades has closed, since only that frees cash.
+ */
+async function notifyOutOfCash(
+  sim: { entityId: string; paperPortfolioId: string },
+  portfolioName: string,
+  trades: Array<{ closedAt: Date | null }>,
+  ticker: string,
+) {
+  const lastClosedAt = trades.reduce<Date | null>(
+    (latest, t) => (t.closedAt && (!latest || t.closedAt > latest) ? t.closedAt : latest),
+    null,
+  );
+
+  const [alreadyTold] = await db
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.entityId, sim.entityId),
+        eq(notifications.type, "signal_trade_skipped"),
+        sql`${notifications.metadata}->>'portfolioId' = ${sim.paperPortfolioId}`,
+        lastClosedAt ? gt(notifications.createdAt, lastClosedAt) : undefined,
+      ),
+    )
+    .limit(1);
+  if (alreadyTold) return;
+
+  await createNotification({
+    entityId: sim.entityId,
+    type: "signal_trade_skipped",
+    title: `${portfolioName} is out of cash`,
+    body: `Skipped a ${ticker} signal. Later signals are skipped too until a trade closes.`,
+    metadata: { portfolioId: sim.paperPortfolioId, ticker },
+  }).catch(() => {});
+}
 
 /**
  * Signal-simulate worker: triggered by claims/created event.
  * Auto-logs paper trades for all active signal-simulate portfolios
- * that mirror the claim's author.
+ * that mirror the claim's author. Markout closes them with the claim.
  */
 export const signalSimulateFunction = inngest.createFunction(
   {
@@ -21,7 +61,10 @@ export const signalSimulateFunction = inngest.createFunction(
     triggers: [{ event: "claims/created" }],
   },
   async ({ event, step }) => {
-    const { entityId, instrumentId, direction, entryPriceCents } = event.data;
+    const { claimId, entityId, instrumentId, direction, entryPriceCents } = event.data;
+
+    // A neutral claim takes no position, so there is nothing to mirror.
+    if (direction === "neutral") return { tradesCreated: 0 };
 
     const result = await step.run("auto-log-signal-trades", async () => {
       // Find all active signal-simulate portfolios mirroring this entity
@@ -83,40 +126,33 @@ export const signalSimulateFunction = inngest.createFunction(
           .from(paperTrades)
           .where(eq(paperTrades.portfolioId, sim.paperPortfolioId));
 
-        // Available buying power = starting balance − capital tied up in OPEN
-        // positions + realized P&L from CLOSED positions. An open short ties up
-        // its notional as collateral (like a long); crediting short proceeds as
-        // spendable cash would let the simulator over-allocate the portfolio.
-        let committed = 0;
-        let realized = 0;
-        for (const t of trades) {
-          const qty = Number(t.quantity);
-          const isClosed = !!(t.closedAt && t.exitPriceCents);
-          if (isClosed) {
-            realized +=
-              t.side === "buy"
-                ? Math.round((t.exitPriceCents! - t.entryPriceCents) * qty)
-                : Math.round((t.entryPriceCents - t.exitPriceCents!) * qty);
-          } else {
-            committed += Math.round(t.entryPriceCents * qty);
-          }
-        }
-        const cash = portfolio.startingBalanceCents - committed + realized;
+        const cash = availableCashCents(portfolio.startingBalanceCents, trades);
 
         // 1% allocation per signal trade
         const allocationCents = Math.round(portfolio.startingBalanceCents * 0.01);
-        if (cash < allocationCents || priceCents <= 0) continue;
+        if (priceCents <= 0) continue;
+        if (cash < allocationCents) {
+          await notifyOutOfCash(sim, portfolio.name, trades, instrument.ticker);
+          continue;
+        }
 
         // Quantity: allocation / price (store as string for numeric column)
         const quantity = (allocationCents / priceCents).toFixed(8);
 
-        await db.insert(paperTrades).values({
-          portfolioId: sim.paperPortfolioId,
-          instrumentId,
-          side,
-          entryPriceCents: priceCents,
-          quantity,
-        });
+        // A step retry after a partial run must not open the trade twice.
+        const inserted = await db
+          .insert(paperTrades)
+          .values({
+            portfolioId: sim.paperPortfolioId,
+            instrumentId,
+            claimId,
+            side,
+            entryPriceCents: priceCents,
+            quantity,
+          })
+          .onConflictDoNothing({ target: [paperTrades.claimId, paperTrades.portfolioId] })
+          .returning({ id: paperTrades.id });
+        if (inserted.length === 0) continue;
 
         // Notify the portfolio owner
         await createNotification({

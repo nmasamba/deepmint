@@ -1,19 +1,33 @@
 import { describe, it, expect } from "vitest";
+import { MIN_RANKED_OUTCOMES } from "@deepmint/shared";
 import { API_KEY, BASE_URL, fetchApi } from "./helpers";
 
 interface Row {
   rank: number;
   entity: { slug: string };
   score: number;
+  sampleSize: number;
+  isSignificant: boolean;
 }
 
-/** The same board from the public tRPC procedure the web and MCP use. */
-async function trpcTop(input: Record<string, unknown>): Promise<Row[]> {
-  const res = await fetch(
-    `${BASE_URL}/api/trpc/leaderboard.top?input=${encodeURIComponent(JSON.stringify({ json: input }))}`,
-  );
-  const body = await res.json();
-  return body.result.data.json;
+/** The same board through MCP, which calls leaderboard.top like the web app. */
+async function mcpTop(args: Record<string, unknown>): Promise<Row[]> {
+  const res = await fetch(`${BASE_URL}/api/mcp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      Authorization: `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "get_leaderboard", arguments: args },
+    }),
+  });
+  const line = (await res.text()).split("\n").find((l) => l.startsWith("data:"));
+  return JSON.parse(JSON.parse(line!.slice(5)).result.content[0].text);
 }
 
 const skip = !API_KEY;
@@ -62,6 +76,17 @@ describe.skipIf(skip)("GET /api/v1/leaderboard", () => {
     expect(res.headers.get("x-ratelimit-remaining")).toBeDefined();
   });
 
+  it("ranks only entities above the sample floor, and shows each row's sample", async () => {
+    for (const horizon of ["all", "1m"]) {
+      const res = await fetchApi(`/api/v1/leaderboard?metric=hit_rate&horizon=${horizon}&limit=100`);
+      const { rows } = (await res.json()).data as { rows: Row[] };
+      for (const row of rows) {
+        expect(row.sampleSize).toBeGreaterThanOrEqual(MIN_RANKED_OUTCOMES);
+        expect(typeof row.isSignificant).toBe("boolean");
+      }
+    }
+  });
+
   it("returns 400 for a horizon the scorer never writes", async () => {
     const res = await fetchApi("/api/v1/leaderboard?metric=hit_rate&horizon=12m");
     expect(res.status).toBe(400);
@@ -91,13 +116,13 @@ describe.skipIf(skip)("GET /api/v1/leaderboard", () => {
   );
 
   it.each(["eiv_overall", "hit_rate", "max_drawdown"])(
-    "matches the tRPC board for %s",
+    "matches the MCP board for %s",
     async (metric) => {
       const res = await fetchApi(`/api/v1/leaderboard?metric=${metric}&limit=50`);
       const v1 = (await res.json()).data.rows as Row[];
-      const trpc = await trpcTop({ metric, limit: 50 });
+      const mcp = await mcpTop({ metric, limit: 50 });
       expect(v1.map((r) => [r.rank, r.entity.slug, r.score])).toEqual(
-        trpc.map((r) => [r.rank, r.entity.slug, r.score]),
+        mcp.map((r) => [r.rank, r.entity.slug, r.score]),
       );
     },
   );

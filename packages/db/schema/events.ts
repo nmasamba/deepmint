@@ -12,5 +12,6 @@ export const events = pgTable('events', {
                                                                       // text; null for a Guide's own feed
   capturedAt: timestamp('captured_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  // NO updatedAt — this table is immutable
+  // NO updatedAt — this table is immutable; migration 0010's triggers refuse
+  // UPDATE and DELETE.
 });

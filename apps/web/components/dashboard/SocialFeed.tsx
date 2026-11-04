@@ -82,6 +82,7 @@ export function SocialFeed() {
           instrument={item.instrument}
           outcomes={item.outcomes}
           notesCount={item.notesCount}
+          source={item.source}
           exitDate={item.exitDate}
           exitClosed={item.exitClosed}
           showEntity

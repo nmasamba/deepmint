@@ -1,5 +1,5 @@
 import { db, inArray, sql } from "@deepmint/db";
-import { outcomes, notes } from "@deepmint/db/schema";
+import { events, outcomes, notes } from "@deepmint/db/schema";
 import { markoutDueDate, isSessionFinal, type MarkoutInput } from "@deepmint/scoring";
 
 export interface ClaimOutcomeSummary {
@@ -10,14 +10,22 @@ export interface ClaimOutcomeSummary {
   targetHit: boolean | null;
 }
 
+/** Where an extracted claim came from. The post's raw text is never public. */
+export interface ClaimSource {
+  sourceUrl: string | null;
+  publisher: string | null;
+  capturedAt: Date;
+  contentHash: string;
+}
+
 /**
- * Add each claim's outcomes and notes count to a page of claim rows, in two
- * queries for the whole page, plus its exit date under the markout rules and
- * whether that session has closed. A claim card can then tell a scored claim
- * from one awaiting its result and from one still running.
+ * Add each claim's outcomes, notes count and source to a page of claim rows, in
+ * three queries for the whole page, plus its exit date under the markout rules
+ * and whether that session has closed. A claim card can then tell a scored
+ * claim from one awaiting its result and from one still running.
  */
 export async function enrichClaimRows<
-  T extends { claim: MarkoutInput & { id: string } },
+  T extends { claim: MarkoutInput & { id: string; eventId: string | null } },
 >(
   rows: T[],
   now: Date = new Date(),
@@ -26,6 +34,7 @@ export async function enrichClaimRows<
     T & {
       outcomes: ClaimOutcomeSummary[];
       notesCount: number;
+      source: ClaimSource | null;
       exitDate: string;
       exitClosed: boolean;
     }
@@ -33,8 +42,9 @@ export async function enrichClaimRows<
 > {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.claim.id);
+  const eventIds = rows.flatMap((r) => (r.claim.eventId ? [r.claim.eventId] : []));
 
-  const [outcomeRows, noteRows] = await Promise.all([
+  const [outcomeRows, noteRows, eventRows] = await Promise.all([
     db
       .select({
         id: outcomes.id,
@@ -51,6 +61,16 @@ export async function enrichClaimRows<
       .from(notes)
       .where(inArray(notes.claimId, ids))
       .groupBy(notes.claimId),
+    db
+      .select({
+        id: events.id,
+        sourceUrl: events.sourceUrl,
+        publisher: events.publisher,
+        capturedAt: events.capturedAt,
+        contentHash: events.contentHash,
+      })
+      .from(events)
+      .where(inArray(events.id, eventIds)),
   ]);
 
   const outcomesByClaim = new Map<string, ClaimOutcomeSummary[]>();
@@ -60,6 +80,9 @@ export async function enrichClaimRows<
     outcomesByClaim.set(claimId, list);
   }
   const notesByClaim = new Map(noteRows.map((n) => [n.claimId, n.count]));
+  const sourcesByEvent = new Map<string, ClaimSource>(
+    eventRows.map(({ id, ...source }) => [id, source]),
+  );
 
   return rows.map((row) => {
     const exitDate = markoutDueDate(row.claim);
@@ -67,6 +90,7 @@ export async function enrichClaimRows<
       ...row,
       outcomes: outcomesByClaim.get(row.claim.id) ?? [],
       notesCount: notesByClaim.get(row.claim.id) ?? 0,
+      source: sourcesByEvent.get(row.claim.eventId ?? "") ?? null,
       exitDate,
       exitClosed: isSessionFinal(exitDate, now),
     };

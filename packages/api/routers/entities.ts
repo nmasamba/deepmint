@@ -3,7 +3,7 @@ import { z } from "zod";
 import { eq, ilike, asc, sql, isNull } from "@deepmint/db";
 import { entities, claims, outcomes } from "@deepmint/db/schema";
 import { publicEntityColumns } from "@deepmint/db/queries/publicEntity";
-import { router, publicProcedure, protectedProcedure } from "../trpc";
+import { router, publicProcedure, protectedProcedure, memberProcedure } from "../trpc";
 
 export const entityRouter = router({
   /** Get current authenticated user's entity */
@@ -18,7 +18,7 @@ export const entityRouter = router({
   }),
 
   /** Get entity by URL slug */
-  bySlug: publicProcedure
+  bySlug: memberProcedure
     .input(z.object({ slug: z.string() }))
     .query(async ({ ctx, input }) => {
       const [entity] = await ctx.db
@@ -71,7 +71,7 @@ export const entityRouter = router({
     }),
 
   /** Search entities by display name */
-  search: publicProcedure
+  search: memberProcedure
     .input(
       z.object({
         q: z.string().min(1).max(100),

@@ -8,8 +8,9 @@ import { getHistoricalPrices } from "@deepmint/shared";
  *
  * Triggered by `instruments/batch-added` event when new instruments are added.
  * Validates that Polygon.io has historical data for each new ticker by fetching
- * the last 365 days of daily bars. If Polygon returns no data, the instrument
- * is deactivated and flagged for manual review.
+ * the last 365 days of daily bars. If Polygon answers with no data, the
+ * instrument is deactivated and flagged for manual review. A failed lookup
+ * proves nothing, so it is retried and then leaves the instrument as it was.
  *
  * Deepmint does not persist a prices table — markouts fetch on demand — so
  * this worker primarily exists as a data-availability sanity check before the
@@ -26,6 +27,12 @@ export const backfillPricesFunction = inngest.createFunction(
       (event.data as { instrumentIds?: string[] })?.instrumentIds ?? [];
 
     if (instrumentIds.length === 0) {
+      return { processed: 0, ok: 0, failed: 0 };
+    }
+
+    // Without a key every lookup comes back empty, which is not "no data".
+    if (!process.env.POLYGON_API_KEY) {
+      console.warn("[backfill-prices] POLYGON_API_KEY is not set; skipping verification");
       return { processed: 0, ok: 0, failed: 0 };
     }
 
@@ -47,23 +54,31 @@ export const backfillPricesFunction = inngest.createFunction(
 
     const failed: string[] = [];
     const ok: string[] = [];
+    const unverified: string[] = [];
 
     for (const instrument of targets) {
+      // A thrown error (a 429, a 5xx) retries the step; only a good answer
+      // with no bars means no data.
       const verified = await step.run(
         `verify-${instrument.ticker}`,
         async () => {
-          try {
-            const bars = await getHistoricalPrices(instrument.ticker, from, to);
-            return bars.length > 0;
-          } catch {
-            return false;
-          }
+          const bars = await getHistoricalPrices(instrument.ticker, from, to);
+          return bars.length > 0;
         },
-      );
+      ).catch((err: unknown) => {
+        console.error(
+          `[backfill-prices] Could not verify ${instrument.ticker}, leaving it as it is:`,
+          err instanceof Error ? err.message : err,
+        );
+        return null;
+      });
 
-      if (verified) {
+      if (verified === null) {
+        unverified.push(instrument.id);
+      } else if (verified) {
         ok.push(instrument.id);
       } else {
+        console.warn(`[backfill-prices] No price data for ${instrument.ticker}; deactivating`);
         failed.push(instrument.id);
       }
     }
@@ -85,6 +100,7 @@ export const backfillPricesFunction = inngest.createFunction(
       ok: ok.length,
       failed: failed.length,
       failedIds: failed,
+      unverifiedIds: unverified,
     };
   },
 );

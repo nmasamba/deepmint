@@ -49,5 +49,6 @@ export const claims = pgTable('claims', {
   horizonStated: text('horizon_stated'),                              // author's own horizon words, when stated
   sourceExcerpt: text('source_excerpt'),                              // quote verified verbatim against the event text
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  // NO updatedAt — immutable
+  // NO updatedAt — immutable. Migration 0010's triggers refuse every UPDATE but
+  // pending_review → active | rejected, and every DELETE.
 });

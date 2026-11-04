@@ -10,9 +10,9 @@ import { extractClaims, isExplicitHorizon, verifyVerbatim } from "../extractor";
 
 const HAS_API_KEY = !!process.env.HF_API_KEY;
 
-// Live LLM calls (120s timeout + up to 2 retries) need headroom over the raw
-// per-request timeout, so give each live test a generous budget. These hit a
-// real model on the HF router and are inherently latency-bound.
+// Live LLM calls (120s timeout per model, with a fallback model) need headroom
+// over the raw per-request timeout, so give each live test a generous budget.
+// These hit a real model on the HF router and are inherently latency-bound.
 const LIVE_TIMEOUT = 420000;
 
 describe.skipIf(!HAS_API_KEY)("extractClaims (live LLM)", () => {
@@ -150,9 +150,11 @@ describe("extractClaims (no API key)", () => {
     delete process.env.HF_API_KEY;
 
     try {
-      await expect(extractClaims("test text")).rejects.toThrow(
+      await expect(extractClaims("NVDA looks cheap")).rejects.toThrow(
         "HF_API_KEY environment variable is required",
       );
+      // Text the pre-filter skips never needs the client.
+      await expect(extractClaims("test text")).resolves.toMatchObject({ validClaims: [], model: null });
     } finally {
       if (originalKey) {
         process.env.HF_API_KEY = originalKey;

@@ -15,7 +15,8 @@ import {
   X,
   Clock,
 } from "lucide-react";
-import { formatCurrency, formatBps } from "@deepmint/shared";
+import { RATIONALE_TAGS, formatCurrency, formatBps } from "@deepmint/shared";
+import { sourceLabel } from "./ClaimProvenance";
 
 interface ClaimOutcome {
   id: string;
@@ -51,11 +52,15 @@ interface ClaimCardProps {
   };
   outcomes?: ClaimOutcome[];
   notesCount?: number;
+  /** The event the claim was extracted from; null for a self-logged claim. */
+  source: { publisher: string | null } | null;
   /** Session (YYYY-MM-DD) whose close prices the exit, under the markout rules. */
   exitDate: string;
   /** True once that session has closed: the result is due. */
   exitClosed: boolean;
   showEntity?: boolean;
+  /** False on the claim's own page. */
+  linkToDetail?: boolean;
 }
 
 const HORIZON_LABELS: Record<number, string> = {
@@ -98,9 +103,11 @@ export function ClaimCard({
   instrument,
   outcomes = [],
   notesCount = 0,
+  source,
   exitDate,
   exitClosed,
   showEntity = true,
+  linkToDetail = true,
 }: ClaimCardProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -119,6 +126,12 @@ export function ClaimCard({
         : Minus;
 
   const profilePath = `/${entity.type}/${entity.slug}`;
+
+  // Older extracted claims can hold invented or repeated tags. The ledger keeps
+  // them; the card shows only the vocabulary, each tag once.
+  const tags = [...new Set(claim.rationaleTags ?? [])].filter((t) =>
+    (RATIONALE_TAGS as readonly string[]).includes(t),
+  );
 
   return (
     <div className="rounded-lg border border-border bg-bg-secondary p-4 transition-colors hover:bg-bg-tertiary">
@@ -156,7 +169,7 @@ export function ClaimCard({
           </div>
         </div>
 
-        <span className="shrink-0 text-xs text-text-secondary">
+        <span suppressHydrationWarning className="shrink-0 text-xs text-text-secondary">
           {relativeTime(claim.createdAt)}
         </span>
       </div>
@@ -178,6 +191,17 @@ export function ClaimCard({
         {claim.confidence !== null && (
           <Badge variant="outline" className="border-border text-text-secondary">
             {claim.confidence}% conf
+          </Badge>
+        )}
+        {linkToDetail ? (
+          <Link href={`/claims/${claim.id}`} title="See this claim's source and result">
+            <Badge variant="outline" className="border-border text-text-secondary hover:text-accent">
+              {sourceLabel(source)}
+            </Badge>
+          </Link>
+        ) : (
+          <Badge variant="outline" className="border-border text-text-secondary">
+            {sourceLabel(source)}
           </Badge>
         )}
         {claim.entryPriceCents === null && (
@@ -218,9 +242,9 @@ export function ClaimCard({
       )}
 
       {/* Rationale tags */}
-      {claim.rationaleTags && claim.rationaleTags.length > 0 && (
+      {tags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
-          {claim.rationaleTags.map((tag) => (
+          {tags.map((tag) => (
             <Badge
               key={tag}
               variant="outline"

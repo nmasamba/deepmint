@@ -12,6 +12,8 @@ import { router, protectedProcedure } from "../trpc";
 import { getLatestCloses } from "@deepmint/shared";
 import { closeFor, valuePortfolio } from "../lib/paperAccounting";
 
+const MAX_ACTIVE_MIRRORS = 5;
+
 export const signalSimulateRouter = router({
   /** Create a signal-simulate portfolio that mirrors a followed entity's claims. */
   create: protectedProcedure
@@ -60,6 +62,23 @@ export const signalSimulateRouter = router({
         throw new TRPCError({
           code: "CONFLICT",
           message: "Already mirroring this entity",
+        });
+      }
+
+      const [mirrorCount] = await ctx.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(signalSimulatePortfolios)
+        .where(
+          and(
+            eq(signalSimulatePortfolios.entityId, ctx.entity.id),
+            eq(signalSimulatePortfolios.isActive, true),
+          ),
+        );
+
+      if ((mirrorCount?.count ?? 0) >= MAX_ACTIVE_MIRRORS) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Maximum ${MAX_ACTIVE_MIRRORS} active mirrors allowed`,
         });
       }
 

@@ -29,6 +29,8 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
+  /** Also shown to signed-out visitors; everything else needs an account. */
+  isPublic?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -38,7 +40,7 @@ const navItems: NavItem[] = [
   { label: "My Claims", href: "/my-claims", icon: ClipboardList },
   { label: "Paper Portfolio", href: "/paper-portfolio", icon: Briefcase },
   { label: "Signal Simulate", href: "/signal-simulate", icon: Copy },
-  { label: "Learn", href: "/learn", icon: GraduationCap },
+  { label: "Learn", href: "/learn", icon: GraduationCap, isPublic: true },
   { label: "API Docs", href: "/docs/api", icon: FileText },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
@@ -51,12 +53,14 @@ const adminNavItems: NavItem[] = [
 
 interface MobileNavProps {
   isAdmin: boolean;
+  isSignedIn: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function MobileNav({ isAdmin, open, onOpenChange }: MobileNavProps) {
+export function MobileNav({ isAdmin, isSignedIn, open, onOpenChange }: MobileNavProps) {
   const pathname = usePathname();
+  const items = isSignedIn ? navItems : navItems.filter((item) => item.isPublic);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -66,7 +70,7 @@ export function MobileNav({ isAdmin, open, onOpenChange }: MobileNavProps) {
       >
         <SheetHeader className="border-b border-border px-5 py-4">
           <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <Link href="/dashboard" onClick={() => onOpenChange(false)}>
+          <Link href={isSignedIn ? "/dashboard" : "/"} onClick={() => onOpenChange(false)}>
             <Image
               src="/logo-sidebar.png"
               alt="Deepmint"
@@ -78,7 +82,7 @@ export function MobileNav({ isAdmin, open, onOpenChange }: MobileNavProps) {
         </SheetHeader>
 
         <nav className="flex-1 space-y-1 px-3 py-4">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const isActive =
               pathname === item.href ||
               pathname.startsWith(item.href + "/");

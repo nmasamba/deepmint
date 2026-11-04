@@ -13,6 +13,7 @@ interface ConsensusBreakdownProps {
   currentPriceCents: number | null;
   targetDispersionBps: number | null;
   activeClaims: number;
+  asOfDate: string;
 }
 
 const COLORS = {
@@ -40,6 +41,7 @@ export function ConsensusBreakdown({
   currentPriceCents,
   targetDispersionBps,
   activeClaims,
+  asOfDate,
 }: ConsensusBreakdownProps) {
   const totalWeighted = weightedBullish + weightedBearish + weightedNeutral;
   const bullishPct =
@@ -101,6 +103,7 @@ export function ConsensusBreakdown({
             <span className="text-text-secondary">{neutralPct}%</span>
           </div>
         </div>
+        <p className="mt-2 text-xs text-text-secondary/60">As of {asOfDate}</p>
       </div>
 
       {/* Stats grid */}

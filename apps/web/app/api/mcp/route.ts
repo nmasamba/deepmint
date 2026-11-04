@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db, eq } from "@deepmint/db";
 import { instruments } from "@deepmint/db/schema";
 import { createCaller, createContext } from "@deepmint/api";
+import { MAG7_TICKERS, RATIONALE_TAGS } from "@deepmint/shared";
 import { authenticateRequest } from "../v1/lib/auth";
 import { resolveAgentEntity } from "./agentEntity";
 
@@ -12,9 +13,10 @@ import { resolveAgentEntity } from "./agentEntity";
  * READ tools expose the same aggregated data as the v1 REST API by calling the
  * tRPC routers via createCaller (single source of truth). WRITE tools let an
  * agent participate as a first-class entity — its claims are scored and audited
- * exactly like a human's. Auth reuses the dm_live_ API key + scope model;
- * write tools additionally require the claims:write scope. Per invariant #9,
- * only aggregated influence is ever exposed (no raw influence events).
+ * exactly like a human's. Auth reuses the dm_live_ API key + scope model: each
+ * tool checks its own scope, the one the matching REST route needs, and write
+ * tools need claims:write. Per invariant #9, only aggregated influence is ever
+ * exposed (no raw influence events).
  */
 
 /** Minimal structural shape of the MCP SDK's AuthInfo (avoids a deep subpath import). */
@@ -33,13 +35,26 @@ const errorText = (message: string) => ({
   isError: true,
 });
 
+/** The instrument for a Mag-7 ticker; any other ticker has none here. */
 async function instrumentIdForTicker(ticker: string): Promise<string | null> {
+  const symbol = ticker.toUpperCase();
+  if (!(MAG7_TICKERS as readonly string[]).includes(symbol)) return null;
   const [row] = await db
     .select({ id: instruments.id })
     .from(instruments)
-    .where(eq(instruments.ticker, ticker.toUpperCase()))
+    .where(eq(instruments.ticker, symbol))
     .limit(1);
   return row?.id ?? null;
+}
+
+const notMag7 = (ticker: string) =>
+  errorText(`${ticker} is not tracked. Deepmint covers the Mag 7: ${MAG7_TICKERS.join(", ")}.`);
+
+/** The error to return when a key lacks a tool's scope, else null. */
+function missingScope(authInfo: McpAuthInfo | undefined, scope: string) {
+  return authInfo?.scopes.includes(scope)
+    ? null
+    : errorText(`API key missing required scope: ${scope}`);
 }
 
 function agentEntityId(authInfo: McpAuthInfo | undefined): string | null {
@@ -48,18 +63,21 @@ function agentEntityId(authInfo: McpAuthInfo | undefined): string | null {
 }
 
 const handler = createMcpHandler((server) => {
-  const publicCaller = createCaller(
-    createContext({ userId: null, entity: null }),
+  // Every tool runs behind withMcpAuth below, so the key is already checked.
+  const keyCaller = createCaller(
+    createContext({ userId: null, entity: null, apiKeyVerified: true }),
   );
 
   // ---- READ tools -------------------------------------------------------
 
   server.tool(
     "get_current_regime",
-    "Get the current detected market regime (bull/bear/high_vol/low_vol/rotation) and its indicators (VIX, S&P 30d return, sector dispersion).",
+    "Get the current detected market regime (bull/bear/high_vol/low_vol/rotation) and its indicators (VIX, S&P 30d return, sector dispersion). Requires the consensus:read scope.",
     {},
-    async () => {
-      const regime = await publicCaller.regime.current();
+    async (_args, extra) => {
+      const denied = missingScope(extra.authInfo, "consensus:read");
+      if (denied) return denied;
+      const regime = await keyCaller.regime.current();
       return regime
         ? text(regime)
         : errorText("No market regime has been computed yet.");
@@ -68,46 +86,64 @@ const handler = createMcpHandler((server) => {
 
   server.tool(
     "get_consensus",
-    "Get the weighted consensus signal (direction + conviction) for a Mag-7 ticker: AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA.",
+    "Get the weighted consensus signal (direction + conviction) for a Mag-7 ticker: AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA. Requires the consensus:read scope.",
     { ticker: z.string().describe("Mag-7 ticker symbol, e.g. AAPL") },
-    async ({ ticker }) => {
+    async ({ ticker }, extra) => {
+      const denied = missingScope(extra.authInfo, "consensus:read");
+      if (denied) return denied;
       const id = await instrumentIdForTicker(ticker);
-      if (!id) return errorText(`Unknown instrument: ${ticker}`);
-      return text(await publicCaller.consensus.byInstrument({ instrumentId: id }));
+      if (!id) return notMag7(ticker);
+      return text(await keyCaller.consensus.byInstrument({ instrumentId: id }));
     },
   );
 
   server.tool(
     "get_leaderboard",
-    "Get top entities ranked by a metric (e.g. eiv_overall, hit_rate, sharpe). Optionally filter by entity type.",
+    "Get top entities ranked by a metric (e.g. eiv_overall, hit_rate, sharpe). Optionally filter by entity type. Requires the leaderboard:read scope.",
     {
       metric: z.string().describe("Score metric, e.g. eiv_overall, hit_rate"),
       entityType: z.enum(["player", "guide"]).optional(),
       limit: z.number().int().min(1).max(100).optional(),
     },
-    async ({ metric, entityType, limit }) =>
-      text(
-        await publicCaller.leaderboard.top({
+    async ({ metric, entityType, limit }, extra) => {
+      const denied = missingScope(extra.authInfo, "leaderboard:read");
+      if (denied) return denied;
+      return text(
+        await keyCaller.leaderboard.top({
           metric,
           entityType,
           limit: limit ?? 25,
         }),
-      ),
+      );
+    },
   );
 
   server.tool(
     "get_entity_track_record",
-    "Get a Guide or Player profile (and verification status) by slug.",
-    { slug: z.string().describe("Entity slug") },
-    async ({ slug }) => text(await publicCaller.entity.bySlug({ slug })),
+    "Get a Guide or Player's track record by slug: profile and verification status, latest scores, and active claims with their outcomes, newest first. Pass nextCursor back as cursor for older claims. Requires the scores:read scope.",
+    {
+      slug: z.string().describe("Entity slug"),
+      limit: z.number().int().min(1).max(100).optional().describe("Claims per call, default 20"),
+      cursor: z.string().optional().describe("nextCursor from the previous call"),
+    },
+    async ({ slug, limit, cursor }, extra) => {
+      const denied = missingScope(extra.authInfo, "scores:read");
+      if (denied) return denied;
+      const entity = await keyCaller.entity.bySlug({ slug });
+      const [scores, claims] = await Promise.all([
+        keyCaller.scores.byEntity({ entityId: entity.id }),
+        keyCaller.claims.list({ entityId: entity.id, limit: limit ?? 20, cursor }),
+      ]);
+      return text({ entity, scores, claims: claims.items, nextCursor: claims.nextCursor });
+    },
   );
 
   server.tool(
     "search_instruments",
-    "Search tracked instruments by ticker or name.",
+    "Search tracked instruments by ticker or name. Any valid key may call this.",
     { query: z.string().min(1).max(20) },
     async ({ query }) =>
-      text(await publicCaller.instruments.search({ q: query })),
+      text(await keyCaller.instruments.search({ q: query })),
   );
 
   // ---- WRITE tools (require claims:write + an owning entity) -------------
@@ -125,12 +161,12 @@ const handler = createMcpHandler((server) => {
       targetPriceDollars: z.number().positive().optional(),
       confidence: z.number().int().min(0).max(100).optional(),
       rationale: z.string().max(5000).optional(),
+      rationaleTags: z.array(z.enum(RATIONALE_TAGS)).max(10).optional(),
     },
     async (args, extra) => {
       const auth = extra.authInfo;
-      if (!auth?.scopes.includes("claims:write")) {
-        return errorText("API key missing required scope: claims:write");
-      }
+      const denied = missingScope(auth, "claims:write");
+      if (denied) return denied;
       const entityId = agentEntityId(auth);
       if (!entityId) {
         return errorText(
@@ -138,7 +174,7 @@ const handler = createMcpHandler((server) => {
         );
       }
       const id = await instrumentIdForTicker(args.ticker);
-      if (!id) return errorText(`Unknown instrument: ${args.ticker}`);
+      if (!id) return notMag7(args.ticker);
 
       try {
         const entity = await resolveAgentEntity(entityId);
@@ -159,6 +195,7 @@ const handler = createMcpHandler((server) => {
                 : undefined,
             confidence: args.confidence,
             rationale: args.rationale,
+            rationaleTags: args.rationaleTags,
           }),
         );
       } catch (err) {
@@ -178,9 +215,8 @@ const handler = createMcpHandler((server) => {
     },
     async (args, extra) => {
       const auth = extra.authInfo;
-      if (!auth?.scopes.includes("claims:write")) {
-        return errorText("API key missing required scope: claims:write");
-      }
+      const denied = missingScope(auth, "claims:write");
+      if (denied) return denied;
       const entityId = agentEntityId(auth);
       if (!entityId) {
         return errorText("API key is not bound to an entity.");
@@ -213,14 +249,14 @@ const handler = createMcpHandler((server) => {
 });
 
 /**
- * Transport-level auth: any valid dm_live_ key with at least consensus:read may
- * open an MCP session. Per-tool scope checks gate writes (claims:write).
+ * Transport-level auth: any valid dm_live_ key may open an MCP session, so a
+ * claims:write-only agent key works. Each tool then checks its own scope.
  */
 const verifyToken = async (
   req: Request,
   _bearerToken?: string,
 ): Promise<McpAuthInfo | undefined> => {
-  const auth = await authenticateRequest(req, "consensus:read");
+  const auth = await authenticateRequest(req, null);
   if (!auth.ok) return undefined;
   return {
     token: auth.key.id,

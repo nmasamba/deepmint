@@ -92,7 +92,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - `entity-scoring` (on `markouts/completed`); `consensus-signal` and `leaderboard-refresh` (on `scoring/completed`).
   - `leaderboard`, `consensus` and `scores` routers; the leaderboard page; profile Overview and Stats tabs; the dashboard consensus grid.
 - **Status today:**
-  - No job calls `checkAntiGaming`, `maeAndMfe`, `calmarRatio`, `continuousBrierScore` or `timeDecayedBrierScore`, so anti-gaming is not applied. `outcomes.brier_slices` (migration 0001) is never written.
+  - No job calls `maeAndMfe`, `calmarRatio`, `continuousBrierScore` or `timeDecayedBrierScore`. `checkAntiGaming` was never applied, and wave 4 deleted it in favour of a 10-outcome floor. `outcomes.brier_slices` (migration 0001) is never written.
   - "Regime-aware" EIV is not regime-aware in practice. The worker always passes an empty regime history, so the 0.4 penalty always applies and `eiv` equals `eiv_overall`.
   - Player metrics treat each claim's outcome as one daily return, whatever its horizon.
   - `polygonCache.ts` was meant to cache prices (1 h historical, 5 min current). In fact only regime indicators are cached (1 h, and only when Upstash is set); prices are never cached.
@@ -179,7 +179,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - PWA manifest, Serwist service worker and an `/offline` page.
 - **Status today:**
   - Since 2026-10-06 the regime is a stored daily snapshot (`market_regimes`, migration 0008), written on weekdays at 17:30 US Eastern; pages read it instead of recomputing. The plan has no index data (`I:VIX` and `I:SPX` return 403), so the S&P 500 30-day return is measured on SPY and VIX is recorded as defaulted, never as a made-up value.
-  - The web suite has 33 tests in 6 files (18 before wave 1, 26 before wave 2); an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
+  - The web suite has 58 tests in 6 files (18 before wave 1, 26 before wave 2, 33 before wave 3); an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
   - `/docs/api` is shown to every signed-in user, but only admins can mint keys.
   - Until wave 1, `/manifest.json` and `/offline` sat behind sign-in: the manifest returned 404 and the offline page was never precached, so neither worked. Both are public now, and the service worker precaches `/offline`.
 
@@ -256,7 +256,7 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 
 - **[PR #6](https://github.com/nmasamba/deepmint/pull/6): extractor integrity.**
   - `max_tokens` went from 1024 to 4096. A reply that is truncated (`finish_reason: "length"`), empty, unparseable or missing its `claims` array now throws, so the fallback model and then Inngest retries take over.
-  - `extract-claims` isolates failures per event and lists them in `failedEventIds`. Nothing re-drives them.
+  - `extract-claims` isolates failures per event, retries them in three rounds and lists what is left in `failedEventIds`.
   - Migration 0007 adds `claims.horizon_stated` and `claims.source_excerpt`. Each is stored only if it is found verbatim in the source. The migration was applied to Supabase on 2026-10-05.
   - The evidence gate decides `active` versus `pending_review` (see [Sprint 2, Superseded](#superseded)).
   - Both models now use the router's `:fastest` policy. The pinned Groq Llama fallback had started returning 404.
@@ -284,9 +284,8 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 - **Ingestion:** the weekday ingest does nothing unless one of the two lanes is configured:
   - RSS needs Guides with `is_allowlisted=true` and a `source_url`, set by hand in SQL;
   - the Polygon news lane needs `INGEST_POLYGON_NEWS=1`.
-- **Tests without keys** (since wave 2): scoring 114, shared 32 (2 live Polygon tests skip), api 13 (3 database tests skip), ingestion 59 (6 live LLM and 5 database tests skip), web 33 skipped.
+- **Tests without keys** (since wave 4): scoring 105, shared 32 (2 live Polygon tests skip), api 25 (18 database tests skip), ingestion 78 (6 live LLM and 5 database tests skip), web 58 skipped.
 - **Open issues to know first:**
-  - Leaderboards have no minimum sample size.
   - `claims/created` fires only for self-logged claims.
   - Sentry and R2 are inert.
   - The digest reaches no one.

@@ -13,7 +13,7 @@ export function SocialProof() {
       value: data?.claimsCount ?? 0,
     },
     {
-      label: "AI-Scored Outcomes",
+      label: "Scored Outcomes",
       value: data?.outcomesCount ?? 0,
     },
     {

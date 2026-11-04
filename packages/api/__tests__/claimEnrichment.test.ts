@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { db, eq, and, inArray, sql } from "@deepmint/db";
-import { claims, entities, follows, outcomes, notes } from "@deepmint/db/schema";
+import { claims, entities, events, follows, outcomes, notes } from "@deepmint/db/schema";
 import { markoutDueDate, isSessionFinal } from "@deepmint/scoring";
 import { createCaller } from "../root";
 import { createContext } from "../trpc";
@@ -51,6 +51,20 @@ describe.skipIf(!process.env.DATABASE_URL)("claim enrichment (local DB)", () => 
     expect(item?.outcomes.length).toBeGreaterThan(0);
     expect(item?.exitClosed).toBe(true);
     await expectMatchesTables(page.items);
+  });
+
+  it("claims.detail carries the source, never the post's raw text", async () => {
+    const [row] = await db
+      .select({ id: claims.id, contentHash: events.contentHash })
+      .from(claims)
+      .innerJoin(events, eq(claims.eventId, events.id))
+      .where(eq(claims.status, "active"))
+      .limit(1);
+    if (!row) return; // no extracted claims in this database yet
+
+    const detail = await publicCaller.claims.detail({ id: row.id });
+    expect(detail.source?.contentHash).toBe(row.contentHash);
+    expect(JSON.stringify(detail)).not.toContain("rawText");
   });
 
   it("social.feed is enriched the same way", async () => {

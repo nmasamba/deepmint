@@ -1,7 +1,7 @@
 {
   "name": "Deepmint",
   "short_name": "Deepmint",
-  "description": "AI-Ranked Analyst Track Records — Build a verifiable track record or follow the best analysts.",
+  "description": "Analyst track records, scored against the market. Build a verifiable track record or follow the best analysts.",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#080C14",

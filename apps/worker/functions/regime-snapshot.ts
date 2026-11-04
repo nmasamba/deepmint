@@ -8,7 +8,7 @@ import { getRegimeIndicators } from "@deepmint/shared";
  * Return the stored market-regime snapshot for `asOfDate` (YYYY-MM-DD),
  * computing and storing it first if it doesn't exist yet.
  *
- * Computing takes ~25 throttled Polygon calls (minutes), which is why it runs
+ * Computing takes ~14 throttled Polygon calls (minutes), which is why it runs
  * here in the background and interactive pages only ever read the row.
  *
  * Throws when every indicator fell back to its default: that is not a market

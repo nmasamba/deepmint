@@ -16,6 +16,7 @@ import {
   computeRegimeAwareEIV,
 } from "@deepmint/scoring";
 import type { MarketRegime } from "@deepmint/scoring";
+import { MIN_RANKED_OUTCOMES } from "@deepmint/shared";
 import { ensureRegimeSnapshot } from "./regime-snapshot";
 import { createNotification } from "@deepmint/db/queries/createNotification";
 
@@ -142,13 +143,28 @@ export const scoreFunction = inngest.createFunction(
           });
         };
 
+        const byHorizon = new Map<string, typeof entityOutcomes>();
+        for (const o of entityOutcomes) {
+          const h = o.horizon;
+          if (!byHorizon.has(h)) byHorizon.set(h, []);
+          byHorizon.get(h)!.push(o);
+        }
+
+        // What the boards rank on: the sample behind every score, pooled and
+        // per horizon, and whether the hit rate clears the z-test.
+        const zTest = zTestSignificance(hitRate(entityOutcomes), entityOutcomes.length);
+        addScore("outcome_count", entityOutcomes.length);
+        for (const [h, hOutcomes] of byHorizon) {
+          addScore("outcome_count", hOutcomes.length, h);
+        }
+        addScore("z_significant", zTest.isSignificant ? 1 : 0);
+
         if (entity.type === "guide") {
           // Guide metrics
           const hr = hitRate(entityOutcomes);
           addScore("hit_rate", hr);
           addScore("avg_return_bps", avgReturnBps(entityOutcomes));
 
-          const zTest = zTestSignificance(hr, entityOutcomes.length);
           addScore("z_score", zTest.zScore);
 
           // Brier score (only for claims with confidence)
@@ -184,12 +200,6 @@ export const scoreFunction = inngest.createFunction(
           addScore("target_coverage", targetCoverage(targetsData));
 
           // Hit rate by horizon
-          const byHorizon = new Map<string, typeof entityOutcomes>();
-          for (const o of entityOutcomes) {
-            const h = o.horizon;
-            if (!byHorizon.has(h)) byHorizon.set(h, []);
-            byHorizon.get(h)!.push(o);
-          }
           for (const [h, hOutcomes] of byHorizon) {
             addScore(`hit_rate`, hitRate(hOutcomes), h);
           }
@@ -282,15 +292,20 @@ export const scoreFunction = inngest.createFunction(
 
         const prevDate = prevDateRow?.asOfDate;
 
-        const [todayScores, prevScores] = await Promise.all([
+        // Ranks as the boards show them: only entities above the sample floor.
+        const rankedOn = (date: string) =>
           db.select({ entityId: scores.entityId, value: scores.value })
             .from(scores)
-            .where(sql`${scores.metric} = 'eiv_overall' AND ${scores.asOfDate} = ${today}`),
-          prevDate
-            ? db.select({ entityId: scores.entityId, value: scores.value })
-                .from(scores)
-                .where(sql`${scores.metric} = 'eiv_overall' AND ${scores.asOfDate} = ${prevDate}`)
-            : Promise.resolve([]),
+            .where(sql`${scores.metric} = 'eiv_overall' AND ${scores.asOfDate} = ${date}
+              AND ${scores.entityId} IN (
+                SELECT s.entity_id FROM ${scores} s
+                WHERE s.metric = 'outcome_count' AND s.horizon = 'all'
+                  AND s.as_of_date = ${date} AND s.value >= ${MIN_RANKED_OUTCOMES}
+              )`);
+
+        const [todayScores, prevScores] = await Promise.all([
+          rankedOn(today),
+          prevDate ? rankedOn(prevDate) : Promise.resolve([]),
         ]);
 
         if (prevScores.length > 0 && todayScores.length > 0) {

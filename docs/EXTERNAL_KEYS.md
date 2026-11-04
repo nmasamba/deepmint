@@ -56,7 +56,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
   1. Paste the migration's SQL into the Supabase SQL editor.
   2. Insert its journal row: `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('<sha256 hex of the .sql file>', <the migration's "when" from meta/_journal.json>);`. Add rows in order: drizzle compares only the newest row's `created_at` with each migration's `when`.
   3. Do not use `packages/db/run-migration.mjs`: it hard-codes the main checkout's migrations folder and exits 0 on failure.
-- **Never:** put the production URL in a local env file (the root `.env.local` points at local Docker), or run `db:seed` against production. The seed writes 5 fictional Guides, 3 fictional Players and 100 fake active claims into the append-only ledger, with no environment guard.
+- **Never:** put the production URL in a local env file (the root `.env.local` points at local Docker), or run `db:seed` against production. The seed writes 5 fictional Guides, 3 fictional Players and 100 fake active claims into the append-only ledger. It refuses a non-local host unless `SEED_ALLOW_REMOTE` names that host exactly, so never set that variable for production.
 
 ## Clerk (auth)
 
@@ -116,7 +116,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 **`HF_API_KEY`**
 - **Powers:** claim extraction in `extract-claims` and in historical backfill. The OpenAI SDK points at the Hugging Face router, `https://router.huggingface.co/v1` (`packages/ingestion/src/extractor.ts:19-32`). It is not Anthropic's API and not OpenAI's. This is the only model in the system; scoring is deterministic statistics.
 - **Required:** yes, for extraction.
-- **If missing:** every extraction throws `HF_API_KEY environment variable is required for LLM extraction`, even for text with no Mag-7 mention, because the client is built before the pre-filter. `extract-claims` logs the event id as failed and moves on, and nothing re-drives it, so the event keeps no claims. Ingestion still stores events.
+- **If missing:** extracting any text that names a Mag-7 stock throws `HF_API_KEY environment variable is required for LLM extraction`; text that names none skips the model. `extract-claims` logs the event id as failed and retries it for 21 hours, then leaves it in `failedEventIds`, so the event keeps no claims. Ingestion still stores events.
 - **Get it:** huggingface.co → Settings → Access Tokens → a fine-grained token with permission to make calls to Inference Providers. Usage is billed to that Hugging Face account.
 - **Verify:**
   - With the key exported, run `pnpm --filter @deepmint/worker exec tsx -e 'import("@deepmint/ingestion").then(async (m) => console.log((await m.extractClaims("Buying AAPL, target $250 within 3 months")).model))'`. It prints the model and provider, for example `openai/gpt-oss-120b:fastest (cerebras)`.
@@ -133,7 +133,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 
 **Variables:** `INNGEST_EVENT_KEY` (lets the app send events) and `INNGEST_SIGNING_KEY` (lets Inngest Cloud invoke `/api/inngest`). Both are read implicitly by inngest 4.1.0. The Vercel integration provides them as `INNGEST_WORKFLOW_INNGEST_EVENT_KEY` and `INNGEST_WORKFLOW_INNGEST_SIGNING_KEY`. `packages/api/lib/inngestEnv.ts` copies those onto the standard names when the standard names are unset. It runs before any Inngest client is built: `packages/api/trpc.ts` imports it on its first line, so it precedes the clients the claims, social and instruments routers build when they load, and `apps/worker/inngest.ts` and `apps/web/app/api/inngest/inngest-env.ts` (imported first by the route) import it too. An unprefixed `INNGEST_EVENT_KEY` is therefore not needed.
 
-- **Powers:** all 16 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 6 crons (ingest, markout, market regime, broker sync, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
+- **Powers:** all 17 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 8 crons (ingest, markout, market regime, broker sync, consensus, influence, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
 - **Required:** yes, in production.
 - **If missing:** the SDK runs in cloud mode unless `INNGEST_DEV` is set. In cloud mode `send()` throws without an event key, and `/api/inngest` cannot verify Inngest's requests without the signing key, so no function runs.
 - **Before wave 1** the tRPC routers' clients never saw the mapping, so with only the prefixed keys their `claims/created` and `social/followed` sends would have failed silently, and a stale compiled `apps/worker/inngest.js` without it shadowed `inngest.ts` in the production bundle. Both are fixed; whether production ever lacked an unprefixed `INNGEST_EVENT_KEY` was not recorded.
@@ -141,7 +141,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Verify:**
   - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job, 17 since `notify-followers-new-claim`).
   - For the routers, follow and then unfollow any profile, and look for a `social/followed` event in the Inngest dashboard's event list. Do not test with a claim: claims are append-only.
-- **Production:** app `deepmint` is synced through the Vercel integration. The route sets no `maxDuration`.
+- **Production:** app `deepmint` is synced through the Vercel integration. The route sets `maxDuration = 300`.
 
 **`INNGEST_DEV` (local only).** This setup is derived from the SDK's behaviour; nothing in the repo exercises it.
 1. Put `INNGEST_DEV=1` in `apps/web/.env.local`.
@@ -249,7 +249,7 @@ The RSS lane has no variable. It reads Guides with `is_allowlisted = true` and a
 
 These are read from the **root** `.env.local` by `apps/web/vitest.config.ts`.
 
-- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 33 tests in 6 files skip. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`.
+- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 58 tests in 6 files skip. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`.
   - Mint it at `/admin/api-keys` as an admin, in the database used by the server under test. The default read scopes are enough.
   - Admins are the only people who can mint keys; the UI offers only the 3 read scopes.
 - **`TEST_BASE_URL`**: default `http://localhost:3000`. The server must be running.

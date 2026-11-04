@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { Trophy, TrendingUp, Target, BarChart3, Users, ShieldCheck } from "lucide-react";
+import { MIN_RANKED_OUTCOMES } from "@deepmint/shared";
 import { RegimeBadge } from "@/components/leaderboard/RegimeBadge";
 import { BestInRegime } from "@/components/leaderboard/BestInRegime";
 
@@ -68,6 +69,8 @@ export default function LeaderboardPage() {
         entity: { ...row.entity, brokerLinkStatus: null },
         score: row.influenceEvents30d,
         horizon: "30d",
+        sampleSize: null,
+        isSignificant: false,
       }))
     : scoresQuery.data;
   const isLoading = isInfluence ? influenceQuery.isLoading : scoresQuery.isLoading;
@@ -192,7 +195,7 @@ export default function LeaderboardPage() {
           <div className="px-4 py-12 text-center text-text-secondary">
             {isInfluence
               ? "No influence recorded in the last 30 days."
-              : "No scores yet. Rankings appear once claims are resolved against real market prices."}
+              : `No one has ${MIN_RANKED_OUTCOMES} scored claims yet. Rankings appear once claims are resolved against real market prices.`}
           </div>
         ) : (
           <div className="divide-y divide-border">
@@ -231,6 +234,15 @@ export default function LeaderboardPage() {
                         aria-label="Broker verified"
                       />
                     )}
+                  {row.isSignificant && (
+                    <Badge
+                      variant="outline"
+                      className="hidden sm:inline-flex shrink-0 border-accent/30 text-accent text-xs"
+                      title="Hit rate above 50% at p < 0.05, on at least 15 outcomes"
+                    >
+                      Significant
+                    </Badge>
+                  )}
                 </div>
 
                 {/* Type */}
@@ -247,9 +259,16 @@ export default function LeaderboardPage() {
                   </Badge>
                 </div>
 
-                {/* Score */}
-                <span className="text-right font-mono text-sm text-text-primary">
-                  {formatScore(metric, row.score)}
+                {/* Score, with the sample behind it */}
+                <span className="text-right">
+                  <span className="block font-mono text-sm text-text-primary">
+                    {formatScore(metric, row.score)}
+                  </span>
+                  {row.sampleSize !== null && (
+                    <span className="block text-xs text-text-secondary">
+                      n={row.sampleSize}
+                    </span>
+                  )}
                 </span>
 
                 {/* Horizon */}

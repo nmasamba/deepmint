@@ -4,6 +4,49 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-11-04 — Remediation Waves 3 and 4: Append-Only Ledger, Claim Pages, Sample Floor, Public Pages
+
+Waves 3 and 4 of [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md): packages 28–44, one commit each, with migrations 0010 and 0011, in one PR under the pairs rule. Packages 21, 22 and 25 stay out: `RESEND_API_KEY`, `DIGEST_FROM_EMAIL`, `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY` and `NEXT_PUBLIC_SENTRY_DSN` were still empty or missing on 2026-11-04. The pair closes 19 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) entries and narrows 4 more; the register goes from 65 open issues (0 high, 18 medium, 47 low) to 46 (0 high, 11 medium, 35 low). Every package was re-verified against `6a0839b` before it changed.
+
+- **Problem, in short.** Nothing in the database stopped a ledger row being rewritten or deleted. Consensus and influence moved only on days a claim matured, so expired calls kept counting. A failed extraction stayed failed, and a later ingest step could strand posts it had stored. Markout priced every due claim in one invocation. `db:seed` had no guard. Claims had no page, so nobody could trace one to its source, notes could not be read or written in the app, and notifications led nowhere. MCP tools returned less than they promised. Mirror portfolios bought on neutral calls and never closed. The extractor dropped GOOG calls and invented tags without a word, and undated feed items came back as new events every day. One lucky call could top a leaderboard. Ticker pages and Learn were behind sign-in while leaderboard and profile data answered anyone through tRPC, and the site said AI scored calls, which it does not.
+- **Found while verifying, and fixed in the same packages:**
+  - **The regime lookup no longer fitted its step (31).** Package 2's queue, which runs calls 12.5 s apart, took it to 26 serial calls: 313 s measured, over the 300 s function limit, so `market-regime-snapshot` could not finish in one invocation. Each 30-day return now reads both closes from one range request: 14 calls, 163 s, with the same closes to the cent. It also no longer fails outright when the latest session's bar is not yet published.
+  - **A daily cron alone would have kept expired figures (29).** The consensus loop skipped instruments with no live claims and the aggregate wrote only Guides with events, so neither would ever have replaced an old row. Both now write a zero row, and readers treat it as no signal.
+  - **`captured_at` is the wrong date for a retried claim (30).** It is the feed's publish date, so using it would backdate live claims. Claims are dated by `events.created_at`, when Deepmint stored the post, which is the date the first attempt would have used.
+  - **A step retry could open a mirrored trade twice (37).** The planned `claim_id` index became a unique key on claim and portfolio, which also serves the lookup by claim.
+- **How it was verified.** Live, against the local Docker Postgres with 0010 and 0011 applied, the real Polygon and Hugging Face keys and the local Next dev server. `npx inngest-cli` is still blocked, so worker functions ran through their real handlers in a local harness, as in waves 1 and 2. Experiments that needed to change ledger rows ran in throwaway databases. Pages behind sign-in were checked through an uncommitted middleware tweak, and signed-in behaviour (notes, the notification bell) through an uncommitted session stub, each reverted after its check.
+  - **Migrations:** the exact paste blocks, each sent as a single query, ran on a copy of the pre-0010 database: every preflight and check said OK, a second paste of 0010 failed whole, and the preflight said STOP on a copy without 0009's journal row. `main` at `6a0839b`, run against that copy, reviewed, noted, mirrored, paper-traded, extracted, marked out and scored with no trigger refusal.
+  - **28, triggers:** 20 forbidden statements were refused, and approve, reject and supersede through the real code still work. A full pipeline run (feed capture, real extraction, review, backfill, markout, scoring, aggregates, audit) made 14 function runs with no errors and no trigger refusal.
+  - **29, daily refresh:** cron and event together left one row per instrument per date; GOOGL, with no live claims, got a zero row and reads "No live claims"; a Guide whose events aged out dropped to 0 on the profile and off the list.
+  - **30, re-drive:** with real Hugging Face calls, a post that failed on a bad key got its claim in round 1, dated as stored; one that never recovered went through all three rounds; an item too long to store did not stop the next, whose event reached extraction even though the following adapter then failed; a backfill failed, was re-driven, and did nothing on a third send.
+  - **31, step budgets:** 7 due claims ran as 7 steps, the longest 12.7 s; a primary model made to hang fell through to the real fallback in 125 s.
+  - **32, seed:** a seed on an empty database, a re-run that wrote nothing, a fake Supabase host refused before connecting, a failure injected at the last insert leaving nothing behind, and `db:seed:instruments` twice leaving 7 rows.
+  - **33, claim pages:** an extracted claim shows its 1,024-character post only as its quote, with no `rawText` in the page or its payload; pending and rejected claims return 404 signed out.
+  - **34, MCP:** the live suite passes 8 of 8 locally, with scope cases that mint and delete their own keys, and a real `submit_claim` stored its tags. The read-only calls on www are left to the maintainer, because sessions never touch production.
+  - **35, search:** `/` opens the box, and `/` typed in it stays text.
+  - **36, backfill-prices:** on a throwaway database, an invalid key and no key changed nothing, and the real key kept AAPL and deactivated a made-up ticker.
+  - **37, mirrors:** a neutral claim made no trade; a long claim sent twice made one, and markout closed it at the outcome's $348.22; two shortfalls gave one notice and a third after a close gave a second; 5 mirrors and 5 manual portfolios fit and both sixth attempts were refused.
+  - **38, extractor:** a GOOG post stored a GOOGL claim, and a claim on a deactivated or missing instrument was rejected with a logged reason. A "within 60 days" post came back from the model at 90 days and was held for review by the evidence gate.
+  - **39, feed dates:** two ingest runs over a real feed with an undated and a badly dated item stored 2 events and 2 claims, and the second run added nothing.
+  - **40, notes:** a note on the stub user's claim appeared at once; another user's claim shows no form.
+  - **41, notifications:** each type links correctly, and following one closes the dropdown, marks it read and opens the claim; a Guide with no user gets no row.
+  - **42, sample floor:** through the real scorer, six entities with 12 to 20 outcomes ranked with n shown; entities with 7 or fewer were off every board and read "Provisional (7 of 10)".
+  - **43, public pages:** all 12 moved reads answer 401 signed out, also when a Bearer key is sent to `/api/trpc`, and a new api test refuses them with no database, so CI covers it. Ticker, Learn and claim pages render signed out with no refused call, the top-bar search works there, and the leaderboard redirects to sign-in. REST v1 and MCP answer with a key and refuse without one, and the live web suite passes 58 of 58.
+  - **44, copy:** a search of the web app finds "AI" only in the Explore stub, which package 50 removes, and in comments about AI agents.
+  - `pnpm check` and `pnpm lint` (0 errors, 12 warnings, as after wave 2) pass, every suite passes with keys, and the whole CI job, reproduced in a fresh clone under `env -i` with no `.env.local` and empty Clerk keys, passes.
+- **Not fixed.**
+  - Packages 21, 22 and 25 wait for their keys (`digest-placeholder-recipient`, `snaptrade-secret-plaintext`, `broker-sync-error-sticky`, `sentry-inert`).
+  - An outage longer than the 21 hours of retry rounds still needs an operator: failed events are listed in the run's `failedEventIds`, and re-running it is safe.
+  - Claims inserted after their date, retried extractions included, are in no audit root until package 45 (`merkle-audit-gaps`).
+  - Mirrored trades opened before this change have no claim and stay open. Mirroring a Guide still logs nothing until package 56.
+  - Horizon boards stay empty locally: nobody has 10 outcomes at one horizon yet.
+  - `claims.list` stays public because ticker pages need it, as the maintainer asked, so its `entityId` filter still reads one entity's claims signed out. Claim pages are public too, so this reveals no claim that is otherwise hidden.
+  - Not checked with a real Clerk session: notes, the notification bell and the signed-in reads were checked through a local stub and api tests.
+- **Before merge.** Paste 0010 and then 0011 into Supabase; the PR gives each preflight, migration, journal row and check. Both can be pasted while today's code is deployed.
+- **After deploy.** Send one `markouts/completed` from the Inngest dashboard: the leaderboards are empty until a scoring run writes the new `outcome_count` rows.
+
+---
+
 ## 2026-11-02 — Remediation Wave 2: Ledger Keys, Public Reads, Paper Shorts
 
 Wave 2 of [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md): eight of its eleven packages (17–20, 23, 24, 26 and 27), one commit each, with migration 0009. Packages 21 (digest recipients), 22 (broker sync) and 25 (Sentry) are left out: their live tests need Resend, SnapTrade sandbox and Sentry keys that were not available. The wave closes 11 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) entries and narrows 5 more; the register goes from 76 open issues (0 high, 20 medium, 56 low) to 65 (0 high, 18 medium, 47 low). Every package was re-verified against `a90abfa` before it changed; no package's approach did.

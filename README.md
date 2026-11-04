@@ -31,7 +31,7 @@ Market predictions are everywhere: TV, newsletters, social media, bank research 
 Deepmint's answer:
 
 - **Record it before the outcome.** A claim is stored with its date before anyone knows how it turns out, and its scored move starts at the first market close after it was made. The exceptions are backfilled history (past posts loaded from an archive, dated to when they were published) and analyst ratings, which are dated to the day the rating was issued.
-- **Never rewrite it.** Claims are append-only. The only change allowed is an admin approving or rejecting a claim that was held for review. The application code enforces this; the database itself does not.
+- **Never rewrite it.** Claims are append-only. The only change allowed is an admin approving or rejecting a claim that was held for review. Database triggers enforce this, for events, notes and outcomes too.
 - **Put a deadline on every call.** Every claim has a horizon between 1 day and 1 year, so "eventually" does not count.
 - **Use real prices and plain statistics.** Results come from end-of-day closing prices (Polygon), and scores are ordinary statistics such as hit rate, average return and the Sharpe ratio. No AI is involved in scoring. The only AI in Deepmint is the model that reads text to pull out claims.
 
@@ -81,12 +81,13 @@ The jobs tied to the US market run on US Eastern time (`TZ=America/New_York` in 
 | Markout | Checks matured claims against closing prices | 17:00 | 21:00 / 22:00 | Mon–Fri |
 | Market regime | Records the day's market conditions (S&P 500 trend, VIX, sector spread) for the leaderboard | 17:30 | 21:30 / 22:30 | Mon–Fri |
 | Broker sync | Imports trades from linked brokerage accounts | 18:00 | 22:00 / 23:00 | Mon–Fri |
+| Consensus and influence | Recalculates each ticker's consensus and each Guide's influence, so a claim's decay and expiry count even when none matures | 18:30 | 22:30 / 23:30 | Every day |
 | Merkle audit | Fingerprints the previous UTC day's claims | 18:00 / 17:00 | 22:00 | Every day |
 
 Other jobs run in a chain rather than on a clock:
 
-- Extraction runs right after ingest, but only when ingest found new posts.
-- Scoring runs after the markout (or a backfill), but only if it wrote at least one outcome. Consensus and influence are recalculated after scoring. So **consensus is not refreshed on days when no claim matures**.
+- Extraction runs right after ingest, but only when ingest found new posts. Posts that fail are retried after 1, 4 and 16 hours, and their claims keep the date the post was stored.
+- Scoring runs after the markout (or a backfill), but only if it wrote at least one outcome. Consensus and influence are recalculated after scoring too, as well as on their daily schedule.
 
 **Horizons.** Every claim uses one of six horizons:
 
@@ -105,10 +106,10 @@ A claim's end date is its entry date plus the horizon in calendar days. (For old
 
 | Piece | Where | Who can use it |
 |---|---|---|
-| Web app | [www.deepmint.ai](https://www.deepmint.ai), hosted on Vercel. `deepmint.ai` redirects to `www`. | Only the landing, sign-in, sign-up and offline pages (and the app manifest) are public. Every other page needs an account. |
+| Web app | [www.deepmint.ai](https://www.deepmint.ai), hosted on Vercel. `deepmint.ai` redirects to `www`. | The landing, sign-in, sign-up and offline pages, ticker pages, Learn and claim pages (and the app manifest) are public. Every other page, including the leaderboard and profiles, needs an account. |
 | REST API | `https://www.deepmint.ai/api/v1`: `GET /entities/{slug}/scores`, `GET /instruments/{ticker}/consensus`, `GET /leaderboard?metric=…`, plus the spec at `/openapi.json` | The three data endpoints need an API key (`Authorization: Bearer dm_live_…`), and only admins can create keys. The spec needs no key; signed-in users can also browse it at `/docs/api`. |
-| AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Read tools (regime, consensus, leaderboard, track record, instrument search) need the default read scopes; the write tools (`submit_claim`, `add_note`) need `claims:write` and currently act as the admin who created the key ([known issue](docs/KNOWN_ISSUES.md#mcp-acts-as-admin)). |
-| App API (tRPC) | `/api/trpc` | Used by the web app itself. Its read-only public calls answer without sign-in. |
+| AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Each tool checks its own scope: `consensus:read` for regime and consensus, `leaderboard:read` for the leaderboard, `scores:read` for a track record (profile, scores, and claims with outcomes). Instrument search needs only a valid key. The write tools (`submit_claim`, `add_note`) need `claims:write` and currently act as the admin who created the key ([known issue](docs/KNOWN_ISSUES.md#mcp-acts-as-admin)). |
+| App API (tRPC) | `/api/trpc` | Used by the web app itself. Ticker, claim and market reads answer without sign-in; leaderboard and profile reads need a signed-in user. |
 | Background jobs | 17 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
 | Database | PostgreSQL on Supabase | Operators only |
 | Outside services | Clerk (sign-in), Polygon (end-of-day stock prices), Hugging Face router (the extraction model) | — |
@@ -131,8 +132,9 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - signing up, and logging your own claims;
 - extracting claims from Guide posts, with the evidence check and admin review;
 - the daily markout, scoring and consensus;
-- the leaderboard by Hit Rate, Sharpe, EIV and Avg Return;
+- the leaderboard by Hit Rate, Sharpe, EIV and Avg Return, for anyone with at least 10 scored outcomes;
 - Guide and Player profiles;
+- claim cards with each claim's result, and a page for each claim with its source, result and notes;
 - following, watchlists and in-app notifications;
 - paper portfolios;
 - the Learn modules;
@@ -140,11 +142,9 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 
 **Main limitations:**
 
-- **Results.** Claim cards never show a claim's own result. A single claim's result appears only in the in-app "claim resolved" notification sent to its author; everyone else sees only the author's overall scores.
 - **Leaderboard.**
   - The market-conditions badge is a once-a-day snapshot. The current Polygon plan has no index data, so VIX is recorded as unavailable and the badge says "partial data"; the S&P 500 trend comes from the SPY fund instead of the index.
-  - There is no minimum number of outcomes, so one lucky call can top the board.
-  - The "Most Influential" tab and the regime filters (Bull, Bear and so on) always come back empty.
+  - The regime filters (Bull, Bear and so on) always come back empty.
 - **Daily ingestion.** The daily Guide collection does nothing until an operator switches on a Guide's feed by editing the database (there is no admin control for it) or enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
 - **Not working yet:**
   - Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
@@ -152,8 +152,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
 - **Error tracking and snapshots.** Error tracking (Sentry) and source snapshots (Cloudflare R2) are not wired into the app. Setting their keys alone does not turn them on.
 - **Audit.** The nightly audit roots are not published, and they do not cover claims stored with an earlier date, such as backfilled history.
-- **Missing features.** There is no way to become a Guide, edit your profile, add notes to a claim or request a new stock.
-- **Wording.** The site's copy says "AI scores" calls. In fact scoring is plain statistics; AI is used only to extract claims.
+- **Missing features.** There is no way to become a Guide, edit your profile or request a new stock.
 
 The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 
@@ -197,7 +196,7 @@ apps/
   worker/      The 17 Inngest functions (served by apps/web) and the backfill CLI
 packages/
   api/         tRPC routers
-  db/          Drizzle schema, migrations (drizzle/0000–0009), seed script
+  db/          Drizzle schema, migrations (drizzle/0000–0011), seed scripts
   ingestion/   Feed adapters, LLM extractor, content hashing
   scoring/     Pure scoring functions: hit rate, Brier, Sharpe, EIV, consensus, regime
   shared/      Polygon price client, Merkle tree, constants (Mag-7 list, horizons)
@@ -271,7 +270,7 @@ Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `
 pnpm --filter @deepmint/db db:migrate
 ```
 
-This applies the committed migrations 0000–0009. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
+This applies the committed migrations 0000–0011. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
 
 **4. Seed the local database (local only, once)**
 
@@ -284,7 +283,9 @@ The seed inserts:
 - the 7 Mag-7 instruments;
 - fictional data: 5 Guides (such as `sarah-chen`), 3 Players, 100 active claims backdated 90–365 days, player trades, synthetic consensus rows, influence events and follows.
 
-It writes **no outcomes or scores**. It is not idempotent, so run it once, on an empty database. **Never run it against production**: it writes fake claims into the append-only ledger.
+It writes **no outcomes or scores**. It runs in one transaction, on an empty database only: if the Mag-7 instruments or the seeded slugs already exist it stops without writing, and the way to start again is `docker compose down -v`, then steps 3 and 4. **Never run it against production**: it writes fake claims into the append-only ledger. It refuses any `DATABASE_URL` host other than localhost, `127.0.0.1`, `::1`, `host.docker.internal` or `postgres` (the compose service), unless `SEED_ALLOW_REMOTE` names that host exactly.
+
+To add only the Mag-7 instruments, with no fake data, run `db:seed:instruments`. It adds whichever are missing, so it can be run again, and it obeys the same host rule.
 
 **5. Run the app**
 
@@ -325,6 +326,7 @@ In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`.
 | `pnpm --filter <package> test` | Runs one package's tests |
 | `pnpm --filter @deepmint/db db:migrate` | Applies pending migrations (reads `packages/db/.env`) |
 | `pnpm --filter @deepmint/db db:generate` | Writes a new migration after a schema edit |
+| `pnpm --filter @deepmint/db db:seed:instruments` | Adds any missing Mag-7 instruments, and nothing else (reads `DATABASE_URL` from the shell) |
 | `pnpm --filter @deepmint/db db:studio` | Opens Drizzle Studio |
 | `pnpm --filter @deepmint/worker backfill <file>` | Sends a `backfill/requested` event |
 | `pnpm --filter @deepmint/web build` | Production build of the web app |
@@ -336,11 +338,11 @@ These results were measured on 2026-11-02 with no `.env.local`.
 
 | Command | Result without keys | What enables more |
 |---|---|---|
-| `pnpm --filter @deepmint/scoring test` | 114 passed (7 files) | Nothing needed |
+| `pnpm --filter @deepmint/scoring test` | 105 passed (6 files) | Nothing needed |
 | `pnpm --filter @deepmint/shared test` | 32 passed, 2 skipped (5 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
-| `pnpm --filter @deepmint/api test` | 13 passed, 3 skipped (4 files) | `DATABASE_URL` in the root `.env.local` runs the 3 caller tests against that database (read-only). |
-| `pnpm --filter @deepmint/ingestion test` | 59 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
-| `pnpm --filter @deepmint/web test` | 33 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
+| `pnpm --filter @deepmint/api test` | 25 passed, 18 skipped (5 files) | `DATABASE_URL` in the root `.env.local` runs the 18 caller tests against that database (read-only). |
+| `pnpm --filter @deepmint/ingestion test` | 78 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
+| `pnpm --filter @deepmint/web test` | 58 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
 
 The worker has no tests.
 
@@ -372,8 +374,20 @@ Example: `0007_cool_mercury.sql` adds `claims.horizon_stated` and `claims.source
 Keep in mind:
 
 - The `DATABASE_URL` in the root `.env.local` points at local Docker (port 5433), never at production.
-- Never run `db:seed` against production.
+- Never run `db:seed` against production. It refuses a remote host unless `SEED_ALLOW_REMOTE` names it.
 - Do not use `packages/db/run-migration.mjs`. It hard-codes the main checkout's path and exits 0 even when a migration fails.
+
+**Correcting the ledger.** Since migration 0010, triggers refuse every `UPDATE`, `DELETE` and `TRUNCATE` on `events`, `notes` and `outcomes`, and on `claims` everything but the review decision (`pending_review` to `active` or `rejected`, with no other column changed). Locally, reset with `docker compose down -v`, then migrate and seed again. A deliberate production correction names the trigger, changes the one row and turns the trigger back on, in one transaction, so nothing else gets through while it is off:
+
+```sql
+BEGIN;
+ALTER TABLE claims DISABLE TRIGGER claims_review_only;
+UPDATE claims SET analyst_name = 'A. Analyst' WHERE id = '<claim id>';
+ALTER TABLE claims ENABLE TRIGGER claims_review_only;
+COMMIT;
+```
+
+The triggers are `claims_review_only`, `claims_no_delete` and `claims_no_truncate`, and `<table>_append_only` and `<table>_no_truncate` for `events`, `notes` and `outcomes`. Each correction changes a track record, so record it in [docs/DEVLOG.md](docs/DEVLOG.md).
 
 ### Deployment
 

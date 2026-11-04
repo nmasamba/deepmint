@@ -5,7 +5,8 @@ export const notifications = pgTable('notifications', {
   id: uuid('id').primaryKey().defaultRandom(),
   entityId: uuid('entity_id').references(() => entities.id).notNull(),
   type: varchar('type', { length: 50 }).notNull(),
-  // Types: new_follower, outcome_matured, rank_change, new_claim_from_follow, signal_trade_logged
+  // Types: new_follower, outcome_matured, rank_change, new_claim_from_follow, signal_trade_logged,
+  // signal_trade_skipped
   title: varchar('title', { length: 200 }).notNull(),
   body: text('body'),
   metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),

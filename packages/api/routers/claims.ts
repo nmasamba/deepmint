@@ -199,7 +199,7 @@ export const claimRouter = router({
       };
     }),
 
-  /** Get single claim with outcomes, notes, entity, and instrument */
+  /** Get single claim with outcomes, notes, source, entity, and instrument */
   detail: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
@@ -240,8 +240,8 @@ export const claimRouter = router({
         });
       }
 
-      // Fetch outcomes and notes in parallel
-      const [claimOutcomes, claimNotes] = await Promise.all([
+      // Fetch outcomes, notes and the card's enrichment in parallel
+      const [claimOutcomes, claimNotes, [enriched]] = await Promise.all([
         ctx.db
           .select()
           .from(outcomes)
@@ -257,10 +257,11 @@ export const claimRouter = router({
           .from(notes)
           .where(eq(notes.claimId, input.id))
           .orderBy(notes.createdAt),
+        enrichClaimRows([result]),
       ]);
 
       return {
-        ...result,
+        ...enriched!,
         outcomes: claimOutcomes,
         notes: claimNotes,
       };

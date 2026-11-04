@@ -1,16 +1,38 @@
 import { z } from "zod";
-import { publicProcedure, router } from "../trpc";
-import { db, desc, asc, eq, and, sql, isNull } from "@deepmint/db";
+import { memberProcedure, router } from "../trpc";
+import { alias } from "drizzle-orm/pg-core";
+import { db, desc, asc, eq, gte, and, isNull } from "@deepmint/db";
 import { scores, entities, instruments } from "@deepmint/db/schema";
-import { LOWER_IS_BETTER_METRICS } from "@deepmint/shared";
+import { LOWER_IS_BETTER_METRICS, MIN_RANKED_OUTCOMES } from "@deepmint/shared";
 import { getLatestMarketRegime } from "../lib/marketRegime";
 import { topByInstrument } from "../lib/topByInstrument";
 
+// The scorer's rows beside each ranked score: its entity's sample at that
+// horizon on that date, and whether the pooled hit rate cleared the z-test.
+const sample = alias(scores, "sample");
+const significance = alias(scores, "significance");
+
+const sampleRow = (horizon: string) =>
+  and(
+    eq(sample.entityId, scores.entityId),
+    eq(sample.asOfDate, scores.asOfDate),
+    eq(sample.metric, "outcome_count"),
+    eq(sample.horizon, horizon),
+  );
+
+const significanceRow = and(
+  eq(significance.entityId, scores.entityId),
+  eq(significance.asOfDate, scores.asOfDate),
+  eq(significance.metric, "z_significant"),
+  eq(significance.horizon, "all"),
+);
+
 export const leaderboardRouter = router({
   /**
-   * Top entities by metric. Public endpoint.
+   * Top entities by metric, among those with at least MIN_RANKED_OUTCOMES
+   * scored outcomes at the board's horizon.
    */
-  top: publicProcedure
+  top: memberProcedure
     .input(
       z.object({
         metric: z.string().min(1),
@@ -60,6 +82,7 @@ export const leaderboardRouter = router({
       if (!latestDate) return [];
 
       conditions.push(eq(scores.asOfDate, latestDate.asOfDate));
+      conditions.push(gte(sample.value, String(MIN_RANKED_OUTCOMES)));
 
       const rows = await db
         .select({
@@ -68,6 +91,8 @@ export const leaderboardRouter = router({
           horizon: scores.horizon,
           regimeTag: scores.regimeTag,
           asOfDate: scores.asOfDate,
+          sampleSize: sample.value,
+          significant: significance.value,
           entityName: entities.displayName,
           entitySlug: entities.slug,
           entityType: entities.type,
@@ -76,6 +101,8 @@ export const leaderboardRouter = router({
         })
         .from(scores)
         .innerJoin(entities, eq(scores.entityId, entities.id))
+        .innerJoin(sample, sampleRow(input.horizon))
+        .leftJoin(significance, significanceRow)
         .where(and(...conditions))
         // Best first: ascending for metrics where lower is better (Brier,
         // drawdown), which descending order listed worst first.
@@ -99,6 +126,8 @@ export const leaderboardRouter = router({
         score: parseFloat(row.value),
         horizon: row.horizon,
         regimeTag: row.regimeTag,
+        sampleSize: parseFloat(row.sampleSize),
+        isSignificant: parseFloat(row.significant ?? "0") === 1,
         // Surfaced so a caller can tell whether it is looking at a current
         // board or a stale one from a previous scoring run.
         asOfDate: row.asOfDate,
@@ -109,7 +138,7 @@ export const leaderboardRouter = router({
    * Top entities for a specific instrument by hit rate on it, with at least
    * MIN_TICKER_SAMPLE outcomes there (see topByInstrument).
    */
-  byTicker: publicProcedure
+  byTicker: memberProcedure
     .input(
       z.object({
         ticker: z.string().min(1),
@@ -134,9 +163,10 @@ export const leaderboardRouter = router({
 
   /**
    * Best entities in current market conditions.
-   * Auto-detects regime and returns top entities by EIV within that regime.
+   * Auto-detects regime and returns top entities by EIV within that regime,
+   * among those with at least MIN_RANKED_OUTCOMES scored outcomes.
    */
-  bestInCurrentConditions: publicProcedure
+  bestInCurrentConditions: memberProcedure
     .input(
       z.object({
         entityType: z.enum(["player", "guide"]).optional(),
@@ -180,6 +210,7 @@ export const leaderboardRouter = router({
       // if it referenced `entities`. Both are applied before LIMIT so the
       // result is the best N of the requested type, not a truncated mixed set.
       conditions.push(isNull(entities.deletedAt));
+      conditions.push(gte(sample.value, String(MIN_RANKED_OUTCOMES)));
       if (input.entityType) {
         conditions.push(eq(entities.type, input.entityType));
       }
@@ -188,6 +219,7 @@ export const leaderboardRouter = router({
         .select({
           entityId: scores.entityId,
           value: scores.value,
+          sampleSize: sample.value,
           entityName: entities.displayName,
           entitySlug: entities.slug,
           entityType: entities.type,
@@ -195,6 +227,7 @@ export const leaderboardRouter = router({
         })
         .from(scores)
         .innerJoin(entities, eq(scores.entityId, entities.id))
+        .innerJoin(sample, sampleRow("all"))
         .where(and(...conditions))
         .orderBy(desc(scores.value))
         .limit(input.limit);
@@ -211,6 +244,7 @@ export const leaderboardRouter = router({
             avatarUrl: row.entityAvatar,
           },
           eivScore: parseFloat(row.value),
+          sampleSize: parseFloat(row.sampleSize),
         })),
       };
     }),

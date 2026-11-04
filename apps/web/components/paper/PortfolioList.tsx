@@ -133,6 +133,10 @@ export function PortfolioList({ onSelect, selectedId }: PortfolioListProps) {
           New Portfolio
         </Button>
       )}
+
+      {showCreate && createMutation.error && (
+        <p className="text-xs text-red-500">{createMutation.error.message}</p>
+      )}
     </div>
   );
 }

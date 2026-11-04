@@ -1,5 +1,5 @@
 import { inngest } from "../inngest";
-import { db, eq, and, sql, desc } from "@deepmint/db";
+import { db, eq, and, inArray, sql, desc } from "@deepmint/db";
 import {
   claims,
   entities,
@@ -11,15 +11,19 @@ import { computeConsensusSignal, computeTargetStats } from "@deepmint/scoring";
 import type { ClaimWithWeight } from "@deepmint/scoring";
 
 /**
- * Consensus signal worker: triggered by scoring/completed event.
- * Computes weighted consensus signals for all Mag 7 instruments.
+ * Consensus signal worker: runs after scoring and every day at 18:30 US
+ * Eastern, so decay and the live-claim window move on days when no claim
+ * matures. Computes weighted consensus signals for all Mag 7 instruments.
  */
 export const consensusSignalFunction = inngest.createFunction(
   {
     id: "consensus-signal",
     retries: 2,
     concurrency: { limit: 1 },
-    triggers: [{ event: "scoring/completed" }],
+    triggers: [
+      { event: "scoring/completed" },
+      { cron: "TZ=America/New_York 30 18 * * *" },
+    ],
   },
   async ({ step }) => {
     const result = await step.run("compute-consensus-signals", async () => {
@@ -57,7 +61,8 @@ export const consensusSignalFunction = inngest.createFunction(
             ),
           );
 
-        if (activeClaims.length === 0) continue;
+        // No live claims still writes a row (zero counts, neutral), so an
+        // expired signal stops being the latest one.
 
         // Get entity data for weighting
         const entityIds = [...new Set(activeClaims.map((c) => c.entityId))];
@@ -68,9 +73,7 @@ export const consensusSignalFunction = inngest.createFunction(
             brokerLinkStatus: entities.brokerLinkStatus,
           })
           .from(entities)
-          .where(
-            sql`${entities.id} IN (${sql.join(entityIds.map(id => sql`${id}`), sql`, `)})`
-          );
+          .where(inArray(entities.id, entityIds));
 
         const entityMap = new Map(entityRows.map((e) => [e.id, e]));
 
@@ -81,9 +84,7 @@ export const consensusSignalFunction = inngest.createFunction(
             value: scores.value,
           })
           .from(scores)
-          .where(
-            sql`${scores.entityId} IN (${sql.join(entityIds.map(id => sql`${id}`), sql`, `)}) AND ${scores.metric} = 'eiv_overall'`
-          )
+          .where(and(inArray(scores.entityId, entityIds), eq(scores.metric, "eiv_overall")))
           .orderBy(desc(scores.asOfDate));
 
         const scoreMap = new Map<string, number>();

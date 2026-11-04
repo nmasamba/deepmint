@@ -439,12 +439,13 @@ async function stockReturn30d(ticker: string): Promise<number | null> {
   const pastStr = tradingDayOnOrBefore(new Date(today.getTime() - 30 * 86400000))
     .toISOString()
     .slice(0, 10);
-  const [currentEod, pastEod] = await Promise.all([
-    getEODPrice(ticker, currentStr).catch(() => null),
-    getEODPrice(ticker, pastStr).catch(() => null),
-  ]);
-  if (!currentEod || !pastEod || pastEod.closeCents <= 0) return null;
-  return (currentEod.closeCents - pastEod.closeCents) / pastEod.closeCents;
+  // One range request, not a lookup per close: at 12.5 s a call, two per ticker
+  // took the regime past its 300 s step.
+  const bars = await getHistoricalPrices(ticker, pastStr, currentStr).catch(() => []);
+  const pastBar = bars[0];
+  const currentBar = bars[bars.length - 1];
+  if (bars.length < 2 || !pastBar || !currentBar || pastBar.closeCents <= 0) return null;
+  return (currentBar.closeCents - pastBar.closeCents) / pastBar.closeCents;
 }
 
 export async function getSectorETFReturns30d(): Promise<Map<string, number>> {
@@ -484,7 +485,7 @@ export interface RegimeIndicatorsResult extends RegimeIndicators {
  * Results are cached in Redis for 1 hour. An indicator whose data is
  * unavailable falls back to a default and is named in `defaulted`.
  *
- * Slow (~25 throttled Polygon calls): call it from background jobs only.
+ * Slow (~14 throttled Polygon calls): call it from background jobs only.
  * Interactive reads use the stored snapshot (market_regimes).
  */
 export async function getRegimeIndicators(): Promise<RegimeIndicatorsResult> {

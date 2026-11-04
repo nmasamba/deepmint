@@ -3,7 +3,8 @@ import { db, eq, and, sql, gte } from "@deepmint/db";
 import { influenceEvents, influenceScores, entities, claims } from "@deepmint/db/schema";
 
 /**
- * Influence aggregation worker: triggered by scoring/completed event.
+ * Influence aggregation worker: runs after scoring and every day at 18:30 US
+ * Eastern, so the 30-day window moves on days when no claim matures.
  * Aggregates influence data per Guide for the last 30 days.
  * Upserts into influence_scores table.
  */
@@ -12,7 +13,10 @@ export const influenceAggregateFunction = inngest.createFunction(
     id: "influence-aggregate",
     retries: 2,
     concurrency: { limit: 1 },
-    triggers: [{ event: "scoring/completed" }],
+    triggers: [
+      { event: "scoring/completed" },
+      { cron: "TZ=America/New_York 30 18 * * *" },
+    ],
   },
   async ({ step }) => {
     const result = await step.run("aggregate-influence", async () => {
@@ -41,6 +45,19 @@ export const influenceAggregateFunction = inngest.createFunction(
         .where(counted)
         .groupBy(influenceEvents.guideEntityId);
 
+      // Replace the score for this guide+date in one transaction
+      const replaceScore = (values: typeof influenceScores.$inferInsert) =>
+        db.transaction(async (tx) => {
+          await tx
+            .delete(influenceScores)
+            .where(
+              sql`${influenceScores.guideEntityId} = ${values.guideEntityId}
+                  AND ${influenceScores.asOfDate} = ${today}`,
+            );
+
+          await tx.insert(influenceScores).values(values);
+        });
+
       let upserted = 0;
 
       for (const stat of guideStats) {
@@ -58,25 +75,35 @@ export const influenceAggregateFunction = inngest.createFunction(
 
         const topInstruments = topInstrumentRows.map((r) => r.instrumentId);
 
-        // Replace the score for this guide+date in one transaction
-        await db.transaction(async (tx) => {
-          await tx
-            .delete(influenceScores)
-            .where(
-              sql`${influenceScores.guideEntityId} = ${stat.guideEntityId}
-                  AND ${influenceScores.asOfDate} = ${today}`,
-            );
-
-          await tx.insert(influenceScores).values({
-            guideEntityId: stat.guideEntityId,
-            followerCount: stat.uniquePlayers,
-            influenceEvents30d: stat.totalEvents,
-            avgLagHours: stat.avgLag ? parseFloat(stat.avgLag).toFixed(2) : null,
-            topInstruments,
-            asOfDate: today,
-          });
+        await replaceScore({
+          guideEntityId: stat.guideEntityId,
+          followerCount: stat.uniquePlayers,
+          influenceEvents30d: stat.totalEvents,
+          avgLagHours: stat.avgLag ? parseFloat(stat.avgLag).toFixed(2) : null,
+          topInstruments,
+          asOfDate: today,
         });
 
+        upserted++;
+      }
+
+      // A Guide whose window has emptied gets a zero row, so its old figures
+      // stop being the latest.
+      const counted30d = new Set(guideStats.map((s) => s.guideEntityId));
+      const knownGuides = await db
+        .selectDistinct({ guideEntityId: influenceScores.guideEntityId })
+        .from(influenceScores);
+
+      for (const { guideEntityId } of knownGuides) {
+        if (counted30d.has(guideEntityId)) continue;
+        await replaceScore({
+          guideEntityId,
+          followerCount: 0,
+          influenceEvents30d: 0,
+          avgLagHours: null,
+          topInstruments: [],
+          asOfDate: today,
+        });
         upserted++;
       }
 

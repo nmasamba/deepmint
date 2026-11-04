@@ -6,7 +6,6 @@ import {
   Target,
   BarChart3,
   Users,
-  BrainCircuit,
 } from "lucide-react";
 
 export function ChoosePath() {
@@ -17,8 +16,8 @@ export function ChoosePath() {
           Pick a Side
         </h2>
         <p className="mt-2 text-center text-text-secondary">
-          Call the shots or ride with those who do. Either way, the AI is
-          watching.
+          Call the shots or ride with those who do. Either way, the market
+          keeps score.
         </p>
 
         <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -41,7 +40,7 @@ export function ChoosePath() {
               <p className="mt-4 text-sm leading-relaxed text-text-secondary">
                 You read the tape better than most and you know it. Deepmint
                 gives you a stage with receipts — every prediction locked,
-                timestamped, and scored by AI against the actual close. Build
+                timestamped, and scored against the actual close. Build
                 the track record that shuts the skeptics up.
               </p>
 
@@ -53,9 +52,9 @@ export function ChoosePath() {
                   </span>
                 </li>
                 <li className="flex items-start gap-2 text-sm text-text-secondary">
-                  <BrainCircuit className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                  <BarChart3 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                   <span>
-                    AI benchmarks you against Wall Street consensus automatically
+                    Hit rate, returns and calibration, scored automatically
                   </span>
                 </li>
                 <li className="flex items-start gap-2 text-sm text-text-secondary">
@@ -94,8 +93,8 @@ export function ChoosePath() {
 
               <p className="mt-4 text-sm leading-relaxed text-text-secondary">
                 You put real money on the line and you&apos;re tired of guessing
-                who actually knows what they&apos;re talking about. Deepmint&apos;s
-                AI cuts through the noise — rankings based on profit, not
+                who actually knows what they&apos;re talking about. Deepmint
+                cuts through the noise — rankings based on results, not
                 clout. Follow conviction, not charisma.
               </p>
 
@@ -103,11 +102,11 @@ export function ChoosePath() {
                 <li className="flex items-start gap-2 text-sm text-text-secondary">
                   <BarChart3 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                   <span>
-                    AI-ranked leaderboards — sorted by who actually delivers
+                    Leaderboards sorted by who actually delivers
                   </span>
                 </li>
                 <li className="flex items-start gap-2 text-sm text-text-secondary">
-                  <BrainCircuit className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                  <Users className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                   <span>
                     Weighted consensus shows where the smartest money is pointing
                   </span>

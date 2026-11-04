@@ -9,7 +9,7 @@ import {
   emailPreferences,
 } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
-import { router, publicProcedure, protectedProcedure } from "../trpc";
+import { router, memberProcedure, protectedProcedure } from "../trpc";
 import { enrichClaimRows } from "../lib/claimEnrichment";
 import { Redis } from "@upstash/redis";
 import { Inngest } from "inngest";
@@ -138,7 +138,7 @@ export const socialRouter = router({
     }),
 
   /** Paginated list of followers for an entity. */
-  followers: publicProcedure
+  followers: memberProcedure
     .input(
       z.object({
         entityId: z.string().uuid(),
@@ -182,7 +182,7 @@ export const socialRouter = router({
     }),
 
   /** Paginated list of entities this entity follows. */
-  following: publicProcedure
+  following: memberProcedure
     .input(
       z.object({
         entityId: z.string().uuid(),
@@ -226,7 +226,7 @@ export const socialRouter = router({
     }),
 
   /** Follower count for an entity (Redis-first, DB fallback). */
-  followerCount: publicProcedure
+  followerCount: memberProcedure
     .input(z.object({ entityId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       // Try Redis first

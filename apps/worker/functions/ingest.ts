@@ -62,9 +62,10 @@ export const ingestFunction = inngest.createFunction(
   },
   async ({ step }) => {
     const adapters = await getSourceAdapters();
-    const newEventIds: string[] = [];
+    let newEvents = 0;
 
     for (const adapter of adapters) {
+      const newEventIds: string[] = [];
       const captures = await step.run(
         `fetch-${adapter.name}`,
         async () => adapter.fetchLatest(),
@@ -80,7 +81,7 @@ export const ingestFunction = inngest.createFunction(
             const contentHash = computeContentHash(
               capture.sourceUrl,
               capture.rawText,
-              capturedAt,
+              capture.undated ? null : capturedAt,
             );
 
             const [existing] = await db
@@ -119,23 +120,34 @@ export const ingestFunction = inngest.createFunction(
             console.log(`New event captured: ${newEvent.id} (${contentHash.slice(0, 12)}...)`);
             return newEvent.id;
           },
-        );
+        ).catch((err: unknown) => {
+          // One capture must not cost the rest of the batch; an item that was
+          // not stored is captured again on a later run.
+          console.error(
+            `Capture failed for ${capture.sourceUrl}:`,
+            err instanceof Error ? err.message : err,
+          );
+          return null;
+        });
 
         if (eventId) {
           newEventIds.push(eventId);
         }
       }
-    }
 
-    if (newEventIds.length > 0) {
-      await step.sendEvent("trigger-extraction", {
-        name: "ingestion/completed",
-        data: { eventIds: newEventIds },
-      });
+      // Sent per adapter: an event stored without this send is never
+      // extracted, because later runs skip it by hash.
+      if (newEventIds.length > 0) {
+        await step.sendEvent(`trigger-extraction-${adapter.name}`, {
+          name: "ingestion/completed",
+          data: { eventIds: newEventIds },
+        });
+        newEvents += newEventIds.length;
+      }
     }
 
     return {
-      newEvents: newEventIds.length,
+      newEvents,
       totalProcessed: adapters.length,
     };
   },

@@ -31,7 +31,7 @@ export interface AuthFailure {
  *   1. Extract `Authorization: Bearer dm_live_xxx` header
  *   2. SHA-256 hash the key and look it up
  *   3. Verify isActive, not expired, not revoked
- *   4. Check the required scope
+ *   4. Check the required scope (null: any active key; the caller checks)
  *   5. Apply per-key rate limit
  *   6. Update lastUsedAt (best-effort)
  */
@@ -41,7 +41,8 @@ export async function authenticateRequest(
     | "scores:read"
     | "consensus:read"
     | "leaderboard:read"
-    | "claims:write",
+    | "claims:write"
+    | null,
 ): Promise<AuthResult | AuthFailure> {
   const header = req.headers.get("authorization");
   if (!header || !header.toLowerCase().startsWith("bearer ")) {
@@ -86,7 +87,7 @@ export async function authenticateRequest(
   }
 
   const scopes = (row.scopes as string[] | null) ?? [];
-  if (!scopes.includes(requiredScope)) {
+  if (requiredScope && !scopes.includes(requiredScope)) {
     return {
       ok: false,
       response: jsonError(

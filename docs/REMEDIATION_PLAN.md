@@ -8,9 +8,9 @@ The plan for fixing every open issue in [KNOWN_ISSUES.md](KNOWN_ISSUES.md), agre
 |---|---|---|---|
 | 0 | The three high-severity fixes | 0008 | **Done**: #11, #12, #13 (2026-10-06 and 07) |
 | 1 | 1–16: correctness, data integrity, tooling | – | **Done**: [#14](https://github.com/nmasamba/deepmint/pull/14) (2026-10-27) |
-| 2 | 17–27 | 0009 | **PR open**: [#15](https://github.com/nmasamba/deepmint/pull/15) (2026-11-02) with 17–20, 23, 24, 26 and 27; 21, 22 and 25 wait for their keys |
-| 3 | 28–36 | 0010 | Not started |
-| 4 | 37–44 | 0011 | Not started |
+| 2 | 17–27 | 0009 | **Merged**: [#15](https://github.com/nmasamba/deepmint/pull/15) (2026-11-03) with 17–20, 23, 24, 26 and 27; 21, 22 and 25 wait for their keys |
+| 3 | 28–36 | 0010 | **PR open**: [#16](https://github.com/nmasamba/deepmint/pull/16) (2026-11-04), with wave 4 |
+| 4 | 37–44 | 0011 | **PR open**: [#16](https://github.com/nmasamba/deepmint/pull/16) (2026-11-04), with wave 3 |
 | 5 | 45–53 | 0012 | Not started |
 | 6 | 54–57 | 0013 | Not started |
 | 7 | 58–63 | 0014 | Not started |
@@ -18,7 +18,7 @@ The plan for fixing every open issue in [KNOWN_ISSUES.md](KNOWN_ISSUES.md), agre
 | 9 | 68–72: dead code and tooling | – | Not started |
 | 10 | 73–77: last cleanup | – | Not started |
 
-From wave 3 the waves ship in pairs, one PR each: 3+4, 5+6, 7+8 and 9+10 (see [How it is delivered](#how-it-is-delivered)). Wave 2's packages 21, 22 and 25 go into the first of those PRs after their keys are in `.env.local`.
+From wave 3 the waves ship in pairs, one PR each: 3+4, 5+6, 7+8 and 9+10 (see [How it is delivered](#how-it-is-delivered)). Wave 2's packages 21, 22 and 25 go into the first of those PRs after their keys are in `.env.local`; their keys were still missing when the 3+4 PR opened.
 
 After wave 0 (`main` at `c86b730`), KNOWN_ISSUES lists 98 open issues: 0 high, 26 medium and 72 low. The [Coverage](#coverage) section places every one of them.
 
@@ -134,7 +134,7 @@ Maintainer decisions, 2026-10-06:
 | 40 | claim-notes-ui | claim-notes-no-ui | cmp/claims/ClaimNotes.tsx (new), app/(app)/claims/[id]/page.tsx | – | S | – |
 | 41 | notification-links | notifications-dead-ends (closes) | cmp/notifications/{NotificationItem,NotificationBell}.tsx, db/queries/createNotification.ts, W/notify-new-follower.ts | – | S | – |
 | 42 | leaderboard-min-sample | leaderboard-no-minimum-sample (closes) | W/score.ts, sh/constants.ts, api/routers/leaderboard.ts, app/api/v1/leaderboard/route.ts, app/api/v1/openapi.json/route.ts, app/(app)/leaderboard/page.tsx, cmp/EntityProfileTabs.tsx, sc/anti-gaming.ts and sc/\_\_tests\_\_/anti-gaming.test.ts (deleted), sc/index.ts, web/\_\_tests\_\_/api-v1/leaderboard.test.ts | – | M | D1 |
-| 43 | public-read-pages | signin-wall-vs-anonymous-trpc | web/middleware.ts, app/(app)/layout.tsx, cmp/layout/{Topbar,Sidebar,MobileNav}.tsx, cmp/{FollowButton,WatchButton,EntityProfileHeader}.tsx, cmp/signal-simulate/MirrorSignalsButton.tsx | – | M | D2 |
+| 43 | public-read-pages | signin-wall-vs-anonymous-trpc | web/middleware.ts, app/(app)/layout.tsx, cmp/layout/{Topbar,Sidebar,MobileNav}.tsx, cmp/WatchButton.tsx, api/trpc.ts, api/routers/{leaderboard,entities,scores,influence,social}.ts, app/api/v1/leaderboard/route.ts, app/api/mcp/route.ts, web/\_\_tests\_\_/api-trpc/public-reads.test.ts, api/\_\_tests\_\_/memberProcedures.test.ts | – | M | D2 |
 | 44 | copy-no-false-ai-claims | ai-scoring-copy-misleading (closes) | app/layout.tsx, cmp/landing/{HeroSection,HowItWorks,ChoosePath,Footer,SocialProof}.tsx, app/(app)/{paper-portfolio,settings,learn,dashboard}/page.tsx | – | S | D3 |
 
 ### Wave 5 (9 packages, migration 0012)
@@ -526,7 +526,7 @@ merkle-audit stays on UTC; only its docstring says so. Rewrite the EDT docstring
 
 score.ts writes `outcome_count` and `z_significant`; rank notifications use the floor. Delete `checkAntiGaming`. After deploy, send one `markouts/completed`.
 
-**43 public-read-pages [D2 option 1].** As the product plan. Prerequisites 12, 13, 14 and 18 are done by now.
+**43 public-read-pages [D2, the maintainer's option].** Ticker, Learn and claim pages open to signed-out visitors; the leaderboard and profiles stay behind sign-in. Their tRPC reads move to `memberProcedure`, which accepts a signed-in user or a server route that has checked an API key, so REST v1 and MCP keep working. Each procedure is decided by its callers: what the public pages and their chrome call stays public. Prerequisites 12, 13, 14 and 18 are done by now.
 
 **44 copy-no-false-ai-claims [D3 option 1].** As the product plan. The Explore stub text belongs to package 50.
 
@@ -729,7 +729,7 @@ Recommendation: 1, with N = 10 in a shared constant.
 
 Recommendation: 1. The data is already public through tRPC and REST, and package 18 lands first.
 
-**Decided (2026-10-06): the maintainer's own option.** Only ticker pages, Learn and claim pages are public; the leaderboard and profiles stay behind sign-in. Package 43 builds that. Still open, to settle when wave 4 starts: whether the leaderboard and profile tRPC procedures, which are public today, also move behind sign-in.
+**Decided (2026-10-06): the maintainer's own option.** Only ticker pages, Learn and claim pages are public; the leaderboard and profiles stay behind sign-in. Package 43 builds that. Settled on 2026-11-03: the leaderboard and profile tRPC procedures move behind sign-in too. In the maintainer's words: "move the leaderboard and profile tRPC procedures behind sign-in, keep the API-key REST and MCP routes working, and leave open anything the public ticker and claim pages need."
 
 **D3. How does product copy describe AI?** Needed by W4. Blocks 44.
 1. "AI" only for extraction.

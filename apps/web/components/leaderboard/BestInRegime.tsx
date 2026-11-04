@@ -65,6 +65,7 @@ export function BestInRegime() {
             <span className="font-mono text-xs text-accent">
               EIV {item.eivScore.toFixed(1)}
             </span>
+            <span className="text-[10px] text-text-secondary">n={item.sampleSize}</span>
           </Link>
         ))}
       </div>

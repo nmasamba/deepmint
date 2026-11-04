@@ -1,8 +1,15 @@
 import OpenAI from "openai";
 import { db, eq, and, sql, inArray } from "@deepmint/db";
-import { instruments, claims } from "@deepmint/db/schema";
+import {
+  instruments,
+  claims,
+  ratingGradeEnum,
+  ratingActionEnum,
+  sourceKindEnum,
+} from "@deepmint/db/schema";
 import {
   MAG7_TICKERS,
+  RATIONALE_TAGS,
   VALID_HORIZONS,
   type ValidHorizon,
   getEODPrice,
@@ -39,7 +46,7 @@ function getLLMClient(): OpenAI {
 // Primary model when LLM_MODEL is unset. Benchmarked fastest reliable model
 // for multi-claim extraction (~1s vs 120s+ timeouts on the now-deprecated
 // Qwen3-235B-A22B).
-const DEFAULT_MODEL = "openai/gpt-oss-120b:fastest";
+export const DEFAULT_MODEL = "openai/gpt-oss-120b:fastest";
 
 // Fallback model tried when the primary errors. A different model, so one
 // model being withdrawn cannot take out both. Override via LLM_MODEL_FALLBACK;
@@ -75,7 +82,7 @@ For each prediction found, return JSON:
       "confidence_description": "high conviction" | "speculative" | null,
       "confidence_score": 85 | 50 | null,
       "rationale_summary": "Strong iPhone cycle + services growth",
-      "rationale_tags": ["earnings", "technical", "macro", "sector", "catalyst", "valuation", "momentum", "contrarian", "insider", "regulatory"],
+      "rationale_tags": ["earnings", "catalyst"],
       "analyst_firm": "Morgan Stanley" | null,
       "analyst_name": "Katy Huberty" | null,
       "rating_grade": "strong_buy" | "buy" | "hold" | "sell" | "strong_sell" | null,
@@ -107,19 +114,16 @@ Rules:
 - Only extract EXPLICIT predictions with a directional view
 - Do NOT infer predictions that aren't clearly stated, and do NOT treat general market commentary as a prediction
 - horizon_days must be one of 1, 7, 30, 90, 180, 365
+- rationale_tags: only the tags the text supports, chosen from ${RATIONALE_TAGS.join(", ")}
 - If horizon is vague, use the most conservative interpretation
 - Set extraction_confidence to reflect your certainty about the extraction quality
 - Return empty claims array if no predictions found
 - IMPORTANT: Return ONLY valid JSON, no markdown formatting or code blocks`;
 
-export const RATING_GRADES = [
-  "strong_buy", "buy", "hold", "sell", "strong_sell",
-] as const;
+export const RATING_GRADES = ratingGradeEnum.enumValues;
 export type RatingGrade = (typeof RATING_GRADES)[number];
 
-export const RATING_ACTIONS = [
-  "initiate", "upgrade", "downgrade", "maintain", "reiterate",
-] as const;
+export const RATING_ACTIONS = ratingActionEnum.enumValues;
 export type RatingAction = (typeof RATING_ACTIONS)[number];
 
 /**
@@ -276,6 +280,26 @@ export function verifyVerbatim(value: unknown, sourceText: string): string | nul
   return pattern.test(normaliseForComparison(sourceText)) ? quote : null;
 }
 
+/**
+ * A model's ticker as a tracked symbol: `$` and spaces go, and GOOG (Alphabet's
+ * other share class, which the pre-filter matches) becomes GOOGL, the one
+ * tracked.
+ */
+export function normaliseTicker(value: unknown): string {
+  const ticker = String(value ?? "").trim().replace(/^\$\s*/, "").toUpperCase();
+  return ticker === "GOOG" ? "GOOGL" : ticker;
+}
+
+/** Keep the model's tags that are in the vocabulary, each once. */
+export function normaliseRationaleTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const tags = value
+    .filter((t: unknown): t is string => typeof t === "string")
+    .map((t) => t.trim().toLowerCase())
+    .filter((t) => (RATIONALE_TAGS as readonly string[]).includes(t));
+  return [...new Set(tags)];
+}
+
 export interface ExtractedClaim {
   instrumentTicker: string;
   direction: "long" | "short" | "neutral";
@@ -315,8 +339,11 @@ export interface ExtractionResult {
 // per attempt) so the Inngest worker can retry the step cleanly instead of
 // hanging, and cap output size. 120s accommodates a large model's cold-start +
 // generation latency on the HF router while still failing far short of 10min.
+// No SDK retries: one model is one 120 s attempt, so primary plus fallback fit
+// the 300 s step budget (a hung primary used to take 3 × 120 s and kill the
+// step before the fallback ran). Inngest's step retries cover transient errors.
 const LLM_TIMEOUT_MS = 120_000;
-const LLM_MAX_RETRIES = 2;
+const LLM_MAX_RETRIES = 0;
 // A post naming several stocks overflowed 1024 (truncated JSON on 19% of real
 // posts); none did at 4096.
 const LLM_MAX_OUTPUT_TOKENS = 4096;
@@ -412,16 +439,82 @@ async function callExtractionLLM(
   };
 }
 
+const VALID_TICKERS = new Set<string>(MAG7_TICKERS);
+const VALID_HORIZON_DAYS = new Set(VALID_HORIZONS as readonly number[]);
+const VALID_DIRECTIONS = new Set(["long", "short", "neutral"]);
+
+/** Validate one claim from the model, or say why it cannot be used. */
+export function normaliseClaim(
+  raw: Record<string, unknown>,
+  rawText: string,
+): { claim: ExtractedClaim } | { reason: string } {
+  const ticker = normaliseTicker(raw.instrument_ticker);
+  const direction = String(raw.direction ?? "");
+  const horizonDays = Number(raw.horizon_days);
+
+  if (!VALID_TICKERS.has(ticker)) {
+    return { reason: `Invalid ticker: ${ticker}` };
+  }
+  if (!VALID_DIRECTIONS.has(direction)) {
+    return { reason: `Invalid direction: ${direction}` };
+  }
+  if (!VALID_HORIZON_DAYS.has(horizonDays)) {
+    // Rejected, not snapped: scoring a call on a horizon its author never gave
+    // would misstate it (D22). The nearest is only for the log.
+    const nearest = [...VALID_HORIZON_DAYS].reduce((prev, curr) =>
+      Math.abs(curr - horizonDays) < Math.abs(prev - horizonDays) ? curr : prev,
+    );
+    return { reason: `Invalid horizon: ${horizonDays} (nearest valid: ${nearest})` };
+  }
+
+  return {
+    claim: {
+      instrumentTicker: ticker,
+      direction: direction as "long" | "short" | "neutral",
+      targetPrice: parseTargetPrice(raw.target_price),
+      horizonDays,
+      // Integer 0-100, the scale of the confidence column and the consensus
+      // weight boost.
+      confidenceScore: parseConfidenceScore(raw.confidence_score),
+      rationaleSummary: String(raw.rationale_summary ?? ""),
+      rationaleTags: normaliseRationaleTags(raw.rationale_tags),
+      // Attribution. Anything that fails validation degrades to null rather
+      // than rejecting the claim — an unattributed claim is still useful (it
+      // routes to review), whereas a wrongly attributed one is not.
+      analystFirm: isValidAnalystFirm(raw.analyst_firm)
+        ? raw.analyst_firm.trim()
+        : null,
+      analystName:
+        typeof raw.analyst_name === "string" && raw.analyst_name.trim().length > 0
+          ? raw.analyst_name.trim().slice(0, 200)
+          : null,
+      ratingGrade: (RATING_GRADES as readonly string[]).includes(
+        String(raw.rating_grade),
+      )
+        ? (String(raw.rating_grade) as RatingGrade)
+        : null,
+      ratingAction: (RATING_ACTIONS as readonly string[]).includes(
+        String(raw.rating_action),
+      )
+        ? (String(raw.rating_action) as RatingAction)
+        : null,
+      ratingDate: parseRatingDate(raw.rating_date),
+      horizonStated: verifyVerbatim(raw.horizon_stated, rawText),
+      sourceExcerpt: verifyVerbatim(raw.source_excerpt, rawText),
+    },
+  };
+}
+
 export async function extractClaims(
   rawText: string,
 ): Promise<ExtractionResult> {
-  const client = getLLMClient();
-
   // Skip the LLM call entirely when no Mag-7 instrument is referenced — most
   // scraped text is off-topic, so this removes the bulk of LLM volume.
   if (!mentionsMag7(rawText)) {
     return { validClaims: [], invalidClaims: [], extractionConfidence: 0, model: null };
   }
+
+  const client = getLLMClient();
 
   // Try the primary model, then the fallback if it errors (e.g. a provider
   // deprecated/dropped the model). Distinct model+provider for resilience.
@@ -468,71 +561,13 @@ export async function extractClaims(
   const validClaims: ExtractedClaim[] = [];
   const invalidClaims: Array<{ raw: Record<string, unknown>; reason: string }> = [];
 
-  const validTickers = new Set(MAG7_TICKERS);
-  const validHorizons = new Set(VALID_HORIZONS as readonly number[]);
-  const validDirections = new Set(["long", "short", "neutral"]);
-
   for (const raw of rawClaims) {
-    const ticker = String(raw.instrument_ticker ?? "").toUpperCase();
-    const direction = String(raw.direction ?? "");
-    const horizonDays = Number(raw.horizon_days);
-
-    if (!validTickers.has(ticker as (typeof MAG7_TICKERS)[number])) {
-      invalidClaims.push({ raw, reason: `Invalid ticker: ${ticker}` });
-      continue;
+    const normalised = normaliseClaim(raw, rawText);
+    if ("reason" in normalised) {
+      invalidClaims.push({ raw, reason: normalised.reason });
+    } else {
+      validClaims.push(normalised.claim);
     }
-    if (!validDirections.has(direction)) {
-      invalidClaims.push({ raw, reason: `Invalid direction: ${direction}` });
-      continue;
-    }
-    if (!validHorizons.has(horizonDays)) {
-      // Try to map to nearest valid horizon
-      const nearest = [...validHorizons].reduce((prev, curr) =>
-        Math.abs(curr - horizonDays) < Math.abs(prev - horizonDays) ? curr : prev,
-      );
-      invalidClaims.push({
-        raw,
-        reason: `Invalid horizon: ${horizonDays} (nearest valid: ${nearest})`,
-      });
-      continue;
-    }
-
-    validClaims.push({
-      instrumentTicker: ticker,
-      direction: direction as "long" | "short" | "neutral",
-      targetPrice: parseTargetPrice(raw.target_price),
-      horizonDays,
-      // Integer 0-100, the scale of the confidence column and the consensus
-      // weight boost.
-      confidenceScore: parseConfidenceScore(raw.confidence_score),
-      rationaleSummary: String(raw.rationale_summary ?? ""),
-      rationaleTags: Array.isArray(raw.rationale_tags)
-        ? raw.rationale_tags.filter((t: unknown): t is string => typeof t === "string")
-        : [],
-      // Attribution. Anything that fails validation degrades to null rather
-      // than rejecting the claim — an unattributed claim is still useful (it
-      // routes to review), whereas a wrongly attributed one is not.
-      analystFirm: isValidAnalystFirm(raw.analyst_firm)
-        ? raw.analyst_firm.trim()
-        : null,
-      analystName:
-        typeof raw.analyst_name === "string" && raw.analyst_name.trim().length > 0
-          ? raw.analyst_name.trim().slice(0, 200)
-          : null,
-      ratingGrade: (RATING_GRADES as readonly string[]).includes(
-        String(raw.rating_grade),
-      )
-        ? (String(raw.rating_grade) as RatingGrade)
-        : null,
-      ratingAction: (RATING_ACTIONS as readonly string[]).includes(
-        String(raw.rating_action),
-      )
-        ? (String(raw.rating_action) as RatingAction)
-        : null,
-      ratingDate: parseRatingDate(raw.rating_date),
-      horizonStated: verifyVerbatim(raw.horizon_stated, rawText),
-      sourceExcerpt: verifyVerbatim(raw.source_excerpt, rawText),
-    });
   }
 
   return { validClaims, invalidClaims, extractionConfidence, model: usedModel };
@@ -543,15 +578,17 @@ export async function extractClaims(
  * Routes to active/pending_review based on extraction confidence, attribution,
  * a stated horizon and a verified quote.
  */
-/** Which ingestion lane produced a claim; mirrors the DB `source_kind` enum. */
-export type SourceKind = "wall_street_rating" | "analyst_feed" | "self_logged";
+/** Which ingestion lane produced a claim. */
+export type SourceKind = (typeof sourceKindEnum.enumValues)[number];
 
 export interface ProcessExtractionOptions {
   /**
-   * The true historical timestamp for backfilled claims. Inserted directly
-   * (never via UPDATE) so the append-only claims invariant holds. Defaults to
-   * the DB's now() for the live forward path. An extracted rating_date takes
-   * precedence, since it is the date the call was actually made.
+   * The claim's timestamp: the true historical date for backfilled claims, and
+   * when the post was stored for live ones, so a retried extraction is dated
+   * like the first attempt. Inserted directly (never via UPDATE) so the
+   * append-only claims invariant holds. Defaults to the DB's now(). An
+   * extracted rating_date takes precedence, since it is the date the call was
+   * actually made.
    */
   createdAt?: Date;
   /**
@@ -635,8 +672,13 @@ export async function processExtraction(
 
   const result = await extractClaims(rawText);
 
+  for (const { reason } of result.invalidClaims) {
+    console.warn(`[extractor] Event ${eventId}: rejected a claim. ${reason}`);
+  }
+
   let inserted = 0;
   let pending = 0;
+  let invalid = result.invalidClaims.length;
   let duplicates = 0;
   // Every claim is resolved first and then written in ONE statement, so a
   // post's claims land together or not at all. Written one at a time, a
@@ -654,7 +696,13 @@ export async function processExtraction(
       .where(eq(instruments.ticker, claim.instrumentTicker))
       .limit(1);
 
-    if (!instrument) continue;
+    if (!instrument?.isActive) {
+      console.warn(
+        `[extractor] Event ${eventId}: rejected a claim. ${claim.instrumentTicker} is ${instrument ? "deactivated" : "not in instruments"}`,
+      );
+      invalid++;
+      continue;
+    }
 
     // --- Attribution -------------------------------------------------------
     // Credit the claim to the institution that ISSUED it, not to whoever
@@ -817,7 +865,7 @@ export async function processExtraction(
   return {
     inserted,
     pending,
-    invalid: result.invalidClaims.length,
+    invalid,
     duplicates,
     superseded: supersededIds.length,
     model: result.model,

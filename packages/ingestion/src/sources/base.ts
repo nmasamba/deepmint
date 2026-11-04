@@ -10,6 +10,12 @@ export interface RawCapture {
   rawText: string;
   capturedAt: Date;
   /**
+   * The source gave no usable date, so capturedAt is only when the item was
+   * seen. The content hash then leaves the date out, or every run would store
+   * the item again.
+   */
+  undated?: boolean;
+  /**
    * Publication that carried the text (Wall Street ratings lane). Left unset
    * for a Guide's own feed, where the author and the source are the same.
    */

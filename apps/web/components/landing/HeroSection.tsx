@@ -16,7 +16,7 @@ export function HeroSection() {
         </h1>
 
         <p className="max-w-xl text-lg text-text-secondary">
-          Deepmint is the AI-powered arena where analysts stake their
+          Deepmint is the arena where analysts stake their
           reputation on real predictions and traders finally know who&apos;s
           worth listening to. Every call recorded. Every outcome scored.
           No hiding.

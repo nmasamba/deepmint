@@ -5,6 +5,10 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  // Public read-only pages. The leaderboard and profiles stay behind sign-in.
+  "/ticker(.*)",
+  "/learn(.*)",
+  "/claims(.*)",
   // PWA assets: the manifest link sends no cookies, and the service worker
   // precaches both, so they must load signed out.
   "/manifest.json",

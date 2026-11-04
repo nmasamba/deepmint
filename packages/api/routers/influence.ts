@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { publicProcedure, protectedProcedure, router } from "../trpc";
-import { db, desc, eq, and, sql, isNull } from "@deepmint/db";
+import { memberProcedure, protectedProcedure, router } from "../trpc";
+import { db, desc, eq, and, gt, sql, isNull } from "@deepmint/db";
 import { influenceScores, entities, follows, instruments } from "@deepmint/db/schema";
 
 /**
@@ -8,8 +8,8 @@ import { influenceScores, entities, follows, instruments } from "@deepmint/db/sc
  * Raw influence_events are NEVER exposed through the API.
  */
 export const influenceRouter = router({
-  /** Top influencers by 30-day influence events. Public endpoint. */
-  topInfluencers: publicProcedure
+  /** Top influencers by 30-day influence events. */
+  topInfluencers: memberProcedure
     .input(
       z.object({
         // Influence is recorded for Guides only; "player" yields an empty list.
@@ -44,6 +44,8 @@ export const influenceRouter = router({
         .where(
           and(
             eq(influenceScores.asOfDate, latestDate.asOfDate),
+            // A Guide whose 30-day window has emptied keeps a zero row.
+            gt(influenceScores.influenceEvents30d, 0),
             // Soft-deleted entities must not be publicly ranked.
             isNull(entities.deletedAt),
             input.entityType ? eq(entities.type, input.entityType) : undefined,
@@ -86,8 +88,8 @@ export const influenceRouter = router({
       }));
     }),
 
-  /** Aggregated influence data for a specific Guide. Public endpoint. */
-  byGuide: publicProcedure
+  /** Aggregated influence data for a specific Guide. */
+  byGuide: memberProcedure
     .input(z.object({ entityId: z.string().uuid() }))
     .query(async ({ input }) => {
       // Get latest score for this guide
