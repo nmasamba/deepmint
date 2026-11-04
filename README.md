@@ -338,11 +338,11 @@ These results were measured on 2026-11-02 with no `.env.local`.
 
 | Command | Result without keys | What enables more |
 |---|---|---|
-| `pnpm --filter @deepmint/scoring test` | 114 passed (7 files) | Nothing needed |
+| `pnpm --filter @deepmint/scoring test` | 105 passed (6 files) | Nothing needed |
 | `pnpm --filter @deepmint/shared test` | 32 passed, 2 skipped (5 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
-| `pnpm --filter @deepmint/api test` | 13 passed, 3 skipped (4 files) | `DATABASE_URL` in the root `.env.local` runs the 3 caller tests against that database (read-only). |
-| `pnpm --filter @deepmint/ingestion test` | 59 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
-| `pnpm --filter @deepmint/web test` | 33 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
+| `pnpm --filter @deepmint/api test` | 25 passed, 18 skipped (5 files) | `DATABASE_URL` in the root `.env.local` runs the 18 caller tests against that database (read-only). |
+| `pnpm --filter @deepmint/ingestion test` | 78 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
+| `pnpm --filter @deepmint/web test` | 58 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
 
 The worker has no tests.
 
