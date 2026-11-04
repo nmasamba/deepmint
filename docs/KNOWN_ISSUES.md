@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **51 open issues: no high, 14 medium and 37 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **50 open issues: no high, 14 medium and 36 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 6 | 11 | 17 |
+| [Product (web app)](#area-product) | 0 | 6 | 10 | 16 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 5 | 5 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **14** | **37** | **51** |
+| **All** | **0** | **14** | **36** | **50** |
 
 <a id="area-scoring"></a>
 
@@ -264,16 +264,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** The request-to-coverage workflow does nothing end to end. It is dormant groundwork for the planned post-maturity expansion, so it matters only when that work starts.
 - **Evidence:** [`packages/api/routers/instruments.ts:400-454`](../packages/api/routers/instruments.ts#L400-L454) · [`packages/api/routers/instruments.ts:480-507`](../packages/api/routers/instruments.ts#L480-L507) · [`apps/web/app/(app)/admin/instruments/page.tsx:104-115`](../apps/web/app/%28app%29/admin/instruments/page.tsx#L104-L115)
 
-<a id="claim-notes-no-ui"></a>
-
-### Claim notes can only be added through MCP, and are never shown
-
-**Low** · feature-gap · `claim-notes-no-ui`
-
-- **What's wrong:** `claims.addNote` is called only by the MCP `add_note` tool, and no page shows notes; since wave 1 a claim card shows only how many it has.
-- **User impact:** Players cannot annotate or correct their own claims, though notes are the only correction mechanism for append-only claims.
-- **Evidence:** [`packages/api/routers/claims.ts:259-300`](../packages/api/routers/claims.ts#L259-L300) · [`apps/web/app/api/mcp/route.ts:167-203`](../apps/web/app/api/mcp/route.ts#L167-L203)
-
 <a id="area-api"></a>
 
 ## API: tRPC, REST v1, MCP, auth
@@ -320,12 +310,12 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="unused-trpc-procedures"></a>
 
-### 19 of 72 tRPC procedures have no UI caller
+### 17 of 72 tRPC procedures have no UI caller
 
 **Low** · dead-code · `unused-trpc-procedures`
 
-- **What's wrong:** 15 are called nowhere: `entity.update`, `entity.search`, `instruments.detail`, `.list`, `.mag7`, `.adminCreate`, `.requestTicker`, `claims.detail`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Three more are called only by MCP (`claims.addNote`, `consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
-- **User impact:** Maintenance cost; 11 of the 15 answer signed-out callers.
+- **What's wrong:** 14 are called nowhere: `entity.update`, `entity.search`, `instruments.detail`, `.list`, `.mag7`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
+- **User impact:** Maintenance cost; 10 of the 14 answer signed-out callers.
 - **Evidence:** [`packages/api/routers/entities.ts:40`](../packages/api/routers/entities.ts#L40) · [`packages/api/routers/instruments.ts:401`](../packages/api/routers/instruments.ts#L401) · [`packages/api/routers/claims.ts:199`](../packages/api/routers/claims.ts#L199) · [`packages/api/routers/leaderboard.ts:104`](../packages/api/routers/leaderboard.ts#L104) · [`packages/api/routers/influence.ts:124`](../packages/api/routers/influence.ts#L124)
 
 <a id="area-workers"></a>

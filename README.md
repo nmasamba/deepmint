@@ -153,7 +153,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
 - **Error tracking and snapshots.** Error tracking (Sentry) and source snapshots (Cloudflare R2) are not wired into the app. Setting their keys alone does not turn them on.
 - **Audit.** The nightly audit roots are not published, and they do not cover claims stored with an earlier date, such as backfilled history.
-- **Missing features.** There is no way to become a Guide, edit your profile, add notes to a claim or request a new stock.
+- **Missing features.** There is no way to become a Guide, edit your profile or request a new stock.
 - **Wording.** The site's copy says "AI scores" calls. In fact scoring is plain statistics; AI is used only to extract claims.
 
 The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).

@@ -5,6 +5,7 @@ import { createCaller, createContext } from "@deepmint/api";
 import { db, eq } from "@deepmint/db";
 import { entities } from "@deepmint/db/schema";
 import { ClaimCard } from "@/components/claims/ClaimCard";
+import { ClaimNotes } from "@/components/claims/ClaimNotes";
 import { ClaimProvenance } from "@/components/claims/ClaimProvenance";
 import { resolveIsAdmin } from "@/lib/adminRole";
 
@@ -45,6 +46,11 @@ export default async function ClaimPage({ params }: ClaimPageProps) {
         linkToDetail={false}
       />
       <ClaimProvenance claim={detail.claim} source={detail.source} outcomes={detail.outcomes} />
+      <ClaimNotes
+        claimId={detail.claim.id}
+        notes={detail.notes}
+        canAdd={entity?.id === detail.claim.entityId}
+      />
     </div>
   );
 }
