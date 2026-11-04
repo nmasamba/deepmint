@@ -21,7 +21,7 @@ Today Deepmint covers seven large US technology stocks, the "Magnificent 7": App
 | **Guides**: analysts and research firms | Their calls are collected for them. Deepmint reads their published posts, or an archive of past posts, and an AI model extracts the calls. A Guide needs no account. Nobody can sign up as a Guide or claim a Guide profile yet: the landing page's "Sign Up as a Guide" button creates an ordinary Player account. |
 | **Players**: everyone who signs up | Log your own claims in the web app. They are checked against real prices by the same rules as Guides' claims. You appear on the leaderboard next to the Guides. You can also run practice ("paper") portfolios with virtual money. |
 | **Followers** | This is not a separate account type. Any Player can follow Guides and other Players, read their claims in a "Following" feed, keep a watchlist of stocks, and use "Mirror Signals" to copy someone's calls into a paper portfolio. A mirror copies a call when it goes live, if the call is dated within the last 48 hours: an old rating or a late approval is not copied, and neither is a backfill or a neutral call. |
-| **Admins** | Admin rights are granted by the maintainer in Clerk. Admins approve or reject claims held for review, manage the list of stocks and issue API keys. |
+| **Admins** | Admin rights are granted by the maintainer in Clerk. Admins approve or reject claims held for review, switch Guides' feeds on, manage the list of stocks and issue API keys. |
 | **Developers and AI agents** | Read scores, consensus and leaderboards through a REST API, using a key issued by an admin. AI agents can use the same data through the MCP server at `/api/mcp`, with the same kind of key. |
 
 ## Why does it exist?
@@ -144,7 +144,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 
 - **Leaderboard.**
   - The market-conditions badge is a once-a-day snapshot. The current Polygon plan has no index data, so VIX is recorded as unavailable and the badge says "partial data"; the S&P 500 trend comes from the SPY fund instead of the index.
-- **Daily ingestion.** The daily Guide collection does nothing until an operator switches on a Guide's feed by editing the database (there is no admin control for it) or enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
+- **Daily ingestion.** The daily Guide collection does nothing until an admin switches on a Guide's feed at `/admin/guides` or an operator enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
 - **Not working yet:** Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
 - **Error tracking and snapshots.** Error tracking (Sentry) and source snapshots (Cloudflare R2) are not wired into the app. Setting their keys alone does not turn them on.
@@ -312,7 +312,7 @@ The archive format is documented at the top of [`apps/worker/scripts/backfill.ts
 
 **7. Make yourself an admin**
 
-In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`. The Admin section (Claim Review, Instruments, API Keys) then appears in the sidebar. There is no in-app way to grant admin.
+In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`. The Admin section (Claim Review, Guides, Instruments, API Keys) then appears in the sidebar. There is no in-app way to grant admin.
 
 ### Common commands
 

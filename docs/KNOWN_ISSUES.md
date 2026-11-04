@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **38 open issues: no high, 7 medium and 31 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **37 open issues: no high, 7 medium and 30 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -30,11 +30,11 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Product (web app)](#area-product) | 0 | 3 | 8 | 11 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 3 | 4 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 4 | 5 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 2 | 2 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **7** | **31** | **38** |
+| **All** | **0** | **7** | **30** | **37** |
 
 <a id="area-scoring"></a>
 
@@ -285,16 +285,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 <a id="area-ingestion"></a>
 
 ## Ingestion and extraction
-
-<a id="rss-lane-cannot-be-enabled"></a>
-
-### The RSS lane can only be switched on in SQL
-
-**Low** · feature-gap · `rss-lane-cannot-be-enabled`
-
-- **What's wrong:** The RSS lane reads only Guides with `is_allowlisted=true` and a `source_url`. Only the fake seed sets `is_allowlisted=true` (with no `source_url`); every other creator hard-codes false, and no API or admin page changes it.
-- **User impact:** Unless rows were edited by hand (not recorded) or `INGEST_POLYGON_NEWS=1` is set, the weekday ingest cron captures nothing. Turning on a backfilled Guide's feed takes a SQL `UPDATE` setting `is_allowlisted = true` on that one Guide's row.
-- **Evidence:** [`apps/worker/functions/ingest.ts:17-26`](../apps/worker/functions/ingest.ts#L17-L26) · [`apps/worker/functions/ingest.ts:42-49`](../apps/worker/functions/ingest.ts#L42-L49) · [`packages/db/seed.ts:105-117`](../packages/db/seed.ts#L105-L117) · [`packages/ingestion/src/sources/resolver.ts:70`](../packages/ingestion/src/sources/resolver.ts#L70)
 
 <a id="r2-snapshot-capture-dead"></a>
 

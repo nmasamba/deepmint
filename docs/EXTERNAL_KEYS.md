@@ -243,7 +243,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 | `VERCEL_URL` | `apps/web/components/providers/TRPCProvider.tsx:11` | Set by Vercel. The server-side tRPC base URL; `http://localhost:3000` without it. | Automatic |
 | `NODE_ENV` | `apps/web/next.config.ts:7` | Set by Next. `development` disables the service worker. | Automatic |
 
-The RSS lane has no variable. It reads Guides with `is_allowlisted = true` and a non-null `source_url`, and no UI or API sets those columns, so it is switched on by editing the database.
+The RSS lane has no variable. It reads Guides with `is_allowlisted = true` and a non-null `source_url`; an admin sets both per Guide at `/admin/guides`.
 
 ## Test-only variables
 

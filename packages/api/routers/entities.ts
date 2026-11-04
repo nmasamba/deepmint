@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, ilike, asc, sql, isNull } from "@deepmint/db";
+import { and, desc, eq, ilike, asc, ne, sql, isNull } from "@deepmint/db";
 import { entities, claims, outcomes } from "@deepmint/db/schema";
 import { publicEntityColumns } from "@deepmint/db/queries/publicEntity";
 import {
@@ -8,7 +8,13 @@ import {
   PROFILE_STYLE_TAG_MAX,
   PROFILE_STYLE_TAGS_MAX,
 } from "@deepmint/shared";
-import { router, publicProcedure, protectedProcedure, memberProcedure } from "../trpc";
+import {
+  router,
+  publicProcedure,
+  protectedProcedure,
+  memberProcedure,
+  adminProcedure,
+} from "../trpc";
 
 export const entityRouter = router({
   /** Get current authenticated user's entity */
@@ -96,6 +102,88 @@ export const entityRouter = router({
         .limit(input.limit);
 
       return results;
+    }),
+
+  /** Admin: every Guide with its feed, those switched on first. */
+  adminGuides: adminProcedure.query(({ ctx }) =>
+    ctx.db
+      .select({
+        id: entities.id,
+        displayName: entities.displayName,
+        slug: entities.slug,
+        sourceUrl: entities.sourceUrl,
+        isAllowlisted: entities.isAllowlisted,
+      })
+      .from(entities)
+      .where(and(eq(entities.type, "guide"), isNull(entities.deletedAt)))
+      .orderBy(desc(entities.isAllowlisted), asc(entities.displayName)),
+  ),
+
+  /**
+   * Admin: set a Guide's feed URL and whether the daily ingest reads it. The
+   * URL also identifies the Guide to the backfill resolver, so two Guides can
+   * never share one.
+   */
+  adminSetFeed: adminProcedure
+    .input(
+      z.object({
+        entityId: z.string().uuid(),
+        sourceUrl: z
+          .string()
+          .trim()
+          .url()
+          .max(500)
+          .regex(/^https?:\/\//i, "A feed URL must start with http:// or https://")
+          .nullable(),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.enabled && !input.sourceUrl) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "A feed needs a URL before it can be switched on",
+        });
+      }
+
+      if (input.sourceUrl) {
+        const [taken] = await ctx.db
+          .select({ displayName: entities.displayName })
+          .from(entities)
+          .where(
+            and(
+              eq(entities.sourceUrl, input.sourceUrl),
+              ne(entities.id, input.entityId),
+            ),
+          )
+          .limit(1);
+        if (taken) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `${taken.displayName} already uses this URL`,
+          });
+        }
+      }
+
+      const [updated] = await ctx.db
+        .update(entities)
+        .set({
+          sourceUrl: input.sourceUrl,
+          isAllowlisted: input.enabled,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(entities.id, input.entityId), eq(entities.type, "guide")))
+        .returning({
+          id: entities.id,
+          sourceUrl: entities.sourceUrl,
+          isAllowlisted: entities.isAllowlisted,
+        });
+
+      if (!updated) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Guide not found" });
+      }
+
+      return updated;
     }),
 
   /** Public stats for landing page (claim count, outcome count, entity count). */

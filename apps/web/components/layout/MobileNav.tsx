@@ -16,6 +16,7 @@ import {
   Shield,
   Database,
   KeyRound,
+  Rss,
 } from "lucide-react";
 import {
   Sheet,
@@ -47,6 +48,7 @@ const navItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [
   { label: "Claim Review", href: "/admin/review", icon: Shield },
+  { label: "Guides", href: "/admin/guides", icon: Rss },
   { label: "Instruments", href: "/admin/instruments", icon: Database },
   { label: "API Keys", href: "/admin/api-keys", icon: KeyRound },
 ];
