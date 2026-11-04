@@ -144,7 +144,6 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 
 - **Leaderboard.**
   - The market-conditions badge is a once-a-day snapshot. The current Polygon plan has no index data, so VIX is recorded as unavailable and the badge says "partial data"; the S&P 500 trend comes from the SPY fund instead of the index.
-  - The regime filters (Bull, Bear and so on) always come back empty.
 - **Daily ingestion.** The daily Guide collection does nothing until an operator switches on a Guide's feed by editing the database (there is no admin control for it) or enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
 - **Not working yet:**
   - Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.

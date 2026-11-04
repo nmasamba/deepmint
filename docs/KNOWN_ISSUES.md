@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **43 open issues: no high, 11 medium and 32 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **42 open issues: no high, 10 medium and 32 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 2 | 2 | 4 |
-| [Product (web app)](#area-product) | 0 | 4 | 9 | 13 |
+| [Product (web app)](#area-product) | 0 | 3 | 9 | 12 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **11** | **32** | **43** |
+| **All** | **0** | **10** | **32** | **42** |
 
 <a id="area-scoring"></a>
 
@@ -83,16 +83,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 <a id="area-product"></a>
 
 ## Product (web app)
-
-<a id="leaderboard-regime-filter-empty"></a>
-
-### Leaderboard regime filter always returns an empty board
-
-**Medium** · bug · `leaderboard-regime-filter-empty`
-
-- **What's wrong:** The regime chips filter on `scores.regime_tag`, but only metric `eiv` is written with a tag. Every metric the page offers is written with a null tag.
-- **User impact:** Choosing Bull, Bear, High Vol, Low Vol or Rotation empties the table, which then says "No scores yet. Rankings appear once claims are resolved against real market prices.", although scores exist. "All Regimes" and "Best in Current Conditions" work.
-- **Evidence:** [`apps/web/app/(app)/leaderboard/page.tsx:22-29`](../apps/web/app/%28app%29/leaderboard/page.tsx#L22-L29) · [`apps/web/app/(app)/leaderboard/page.tsx:157-160`](../apps/web/app/%28app%29/leaderboard/page.tsx#L157-L160) · [`packages/api/routers/leaderboard.ts:35-37`](../packages/api/routers/leaderboard.ts#L35-L37) · [`apps/worker/functions/score.ts:107-112`](../apps/worker/functions/score.ts#L107-L112) · [`apps/worker/functions/score.ts:198`](../apps/worker/functions/score.ts#L198)
 
 <a id="guide-signup-path-missing"></a>
 
