@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **52 open issues: no high, 14 medium and 38 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **51 open issues: no high, 14 medium and 37 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -30,11 +30,11 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Product (web app)](#area-product) | 0 | 6 | 11 | 17 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 6 | 6 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 5 | 5 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **14** | **38** | **52** |
+| **All** | **0** | **14** | **37** | **51** |
 
 <a id="area-scoring"></a>
 
@@ -415,16 +415,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** A Wall Street rating with no resolved firm is stored as `pending_review` under the publication's entity, which is an ordinary Guide. Approval only flips the status, so the publisher is then scored and ranked as a Guide. The review page does not say why the claim was held, and approval cannot be undone in the app.
 - **User impact:** Latent: only the Polygon news lane, off unless `INGEST_POLYGON_NEWS=1`, produces these claims.
 - **Evidence:** [`packages/ingestion/src/extractor.ts:671-685`](../packages/ingestion/src/extractor.ts#L671-L685) · [`packages/api/routers/claims.ts:370-407`](../packages/api/routers/claims.ts#L370-L407) · [`apps/web/app/(app)/admin/review/page.tsx:70-77`](../apps/web/app/%28app%29/admin/review/page.tsx#L70-L77)
-
-<a id="rss-undated-items-reingested"></a>
-
-### Undated RSS items are re-ingested on every run
-
-**Low** · data-integrity · `rss-undated-items-reingested`
-
-- **What's wrong:** An RSS item with no `isoDate` or `pubDate` gets `capturedAt = now()`, which is part of the content hash. Each weekday run therefore stores it as a new event, and extraction usually adds a new append-only claim. An RSS 2.0 item with a malformed `pubDate` is stored with `captured_at` 1970-01-01.
-- **User impact:** Latent: no RSS feed can be enabled without a database edit.
-- **Evidence:** [`packages/ingestion/src/sources/rss.ts:41-45`](../packages/ingestion/src/sources/rss.ts#L41-L45) · [`packages/ingestion/src/hasher.ts:13-17`](../packages/ingestion/src/hasher.ts#L13-L17) · [`apps/worker/functions/ingest.ts:80-95`](../apps/worker/functions/ingest.ts#L80-L95)
 
 <a id="rss-lane-cannot-be-enabled"></a>
 

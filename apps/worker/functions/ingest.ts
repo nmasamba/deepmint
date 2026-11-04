@@ -81,7 +81,7 @@ export const ingestFunction = inngest.createFunction(
             const contentHash = computeContentHash(
               capture.sourceUrl,
               capture.rawText,
-              capturedAt,
+              capture.undated ? null : capturedAt,
             );
 
             const [existing] = await db
