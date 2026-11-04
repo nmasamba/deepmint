@@ -63,7 +63,7 @@ flowchart TD
    Otherwise the claim waits in an admin review queue, where an admin approves or rejects it. A repeat of an existing call (same author, stock, direction, horizon and day) is skipped.
 4. **The horizon runs out.** A claim "matures" once its horizon has passed.
 5. **Markout.** Every weekday evening a job takes each matured active claim and looks up the closing price on its end date. It records the **outcome**:
-   - the return, in basis points;
+   - the return, in basis points (a neutral call takes no position, so its return is 0 and it counts only toward hit rate);
    - whether the direction was right (a neutral call is right if the price moved 2% or less either way);
    - whether the target price was reached.
 6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures. Players also get risk measures such as the Sharpe ratio and maximum drawdown.

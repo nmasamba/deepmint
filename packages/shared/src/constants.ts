@@ -40,6 +40,19 @@ export const REGIME_TAGS = ["bull", "bear", "high_vol", "low_vol", "rotation"] a
  */
 export const MIN_RANKED_OUTCOMES = 10;
 
+/**
+ * Score metrics worked out from positions alone. A neutral claim takes none, so
+ * these boards apply the floor to `position_count`, not `outcome_count`.
+ */
+export const RETURN_METRICS: readonly string[] = [
+  "avg_return_bps",
+  "sharpe",
+  "max_drawdown",
+  "calmar",
+  "cvar5",
+  "consistency",
+];
+
 /** Score metrics where lower is better; leaderboards rank them ascending. */
 export const LOWER_IS_BETTER_METRICS: readonly string[] = [
   "calibration_brier",

@@ -14,6 +14,7 @@ import {
   cvar5,
   detectRegime,
   computeRegimeAwareEIV,
+  outcomesWithPosition,
 } from "@deepmint/scoring";
 import type { MarketRegime } from "@deepmint/scoring";
 import { MIN_RANKED_OUTCOMES } from "@deepmint/shared";
@@ -71,6 +72,7 @@ export const scoreFunction = inngest.createFunction(
         const entityOutcomes = await db
           .select({
             claimId: outcomes.claimId,
+            direction: claims.direction,
             returnBps: outcomes.returnBps,
             directionCorrect: outcomes.directionCorrect,
             targetHit: outcomes.targetHit,
@@ -92,6 +94,11 @@ export const scoreFunction = inngest.createFunction(
           skipped++;
           continue;
         }
+
+        // Neutral claims count toward hit rate only. An entity with no other
+        // outcomes has no return record, so it gets no return metrics at all:
+        // a written 0 would rank it above anyone who lost money.
+        const positionOutcomes = outcomesWithPosition(entityOutcomes);
 
         // Get claim confidences for Brier score
         const entityClaims = await db
@@ -157,13 +164,16 @@ export const scoreFunction = inngest.createFunction(
         for (const [h, hOutcomes] of byHorizon) {
           addScore("outcome_count", hOutcomes.length, h);
         }
+        addScore("position_count", positionOutcomes.length);
         addScore("z_significant", zTest.isSignificant ? 1 : 0);
 
         if (entity.type === "guide") {
           // Guide metrics
           const hr = hitRate(entityOutcomes);
           addScore("hit_rate", hr);
-          addScore("avg_return_bps", avgReturnBps(entityOutcomes));
+          if (positionOutcomes.length > 0) {
+            addScore("avg_return_bps", avgReturnBps(positionOutcomes));
+          }
 
           addScore("z_score", zTest.zScore);
 
@@ -208,7 +218,7 @@ export const scoreFunction = inngest.createFunction(
           const eiv = computeRegimeAwareEIV(
             {
               hitRate: hr,
-              avgReturnBps: avgReturnBps(entityOutcomes),
+              avgReturnBps: avgReturnBps(positionOutcomes),
               brierScore: predictions.length > 0 ? brierScore(predictions) : 0.5,
               totalClaims: entityOutcomes.length,
             },
@@ -219,36 +229,38 @@ export const scoreFunction = inngest.createFunction(
           addScore("eiv_overall", eiv);
         } else if (entity.type === "player") {
           // Player metrics — computed from outcomes as daily returns
-          const dailyReturns = entityOutcomes.map((o) => o.returnBps / 10000);
+          const dailyReturns = positionOutcomes.map((o) => o.returnBps / 10000);
 
-          addScore("sharpe", sharpeRatio(dailyReturns));
+          if (dailyReturns.length > 0) {
+            addScore("sharpe", sharpeRatio(dailyReturns));
 
-          // Build equity curve from cumulative returns
-          const equityCurve = [1];
-          for (const r of dailyReturns) {
-            equityCurve.push(equityCurve[equityCurve.length - 1]! * (1 + r));
+            // Build equity curve from cumulative returns
+            const equityCurve = [1];
+            for (const r of dailyReturns) {
+              equityCurve.push(equityCurve[equityCurve.length - 1]! * (1 + r));
+            }
+
+            const md = maxDrawdown(equityCurve);
+            addScore("max_drawdown", md);
+
+            // Annualised return for Calmar
+            const totalReturn = equityCurve[equityCurve.length - 1]! - 1;
+            const annReturn = totalReturn * (252 / dailyReturns.length);
+            addScore("calmar", md > 0 ? annReturn / md : 0);
+
+            addScore("cvar5", cvar5(dailyReturns));
+            addScore("consistency", consistencyScore(dailyReturns));
+            addScore("avg_return_bps", avgReturnBps(positionOutcomes));
           }
-
-          const md = maxDrawdown(equityCurve);
-          addScore("max_drawdown", md);
-
-          // Annualised return for Calmar
-          const totalReturn = equityCurve[equityCurve.length - 1]! - 1;
-          const annReturn = totalReturn * (252 / Math.max(dailyReturns.length, 1));
-          addScore("calmar", md > 0 ? annReturn / md : 0);
-
-          addScore("cvar5", cvar5(dailyReturns));
-          addScore("consistency", consistencyScore(dailyReturns));
 
           // Hit rate (also useful for players)
           addScore("hit_rate", hitRate(entityOutcomes));
-          addScore("avg_return_bps", avgReturnBps(entityOutcomes));
 
           // EIV
           const eiv = computeRegimeAwareEIV(
             {
               hitRate: hitRate(entityOutcomes),
-              avgReturnBps: avgReturnBps(entityOutcomes),
+              avgReturnBps: avgReturnBps(positionOutcomes),
               brierScore: 0.5,
               totalClaims: entityOutcomes.length,
             },

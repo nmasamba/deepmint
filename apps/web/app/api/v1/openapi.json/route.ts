@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { MIN_RANKED_OUTCOMES, SCORE_HORIZONS, REGIME_TAGS } from "@deepmint/shared";
+import {
+  MIN_RANKED_OUTCOMES,
+  RETURN_METRICS,
+  SCORE_HORIZONS,
+  REGIME_TAGS,
+} from "@deepmint/shared";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -108,7 +113,7 @@ export function GET() {
       "/leaderboard": {
         get: {
           summary: "Get top entities by metric",
-          description: `Ranks only entities with at least ${MIN_RANKED_OUTCOMES} scored outcomes at the requested horizon.`,
+          description: `Ranks only entities with at least ${MIN_RANKED_OUTCOMES} scored outcomes at the requested horizon. Return metrics (${RETURN_METRICS.join(", ")}) count only outcomes of claims that took a position, so neutral claims do not count toward them.`,
           operationId: "getLeaderboard",
           tags: ["Leaderboard"],
           "x-required-scope": "leaderboard:read",

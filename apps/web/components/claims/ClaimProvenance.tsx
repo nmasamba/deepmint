@@ -11,6 +11,7 @@ interface ClaimSource {
 interface ClaimProvenanceProps {
   claim: {
     status: "pending_review" | "active" | "rejected" | null;
+    direction: "long" | "short" | "neutral";
     sourceKind: "wall_street_rating" | "analyst_feed" | "self_logged" | null;
     ratingGrade: string | null;
     ratingAction: string | null;
@@ -146,11 +147,15 @@ export function ClaimProvenance({ claim, source, outcomes }: ClaimProvenanceProp
                   <span className="font-mono">{formatCurrency(outcome.exitPriceCents)}</span>
                 </Row>
                 <Row label="Return">
-                  <span
-                    className={`font-mono ${outcome.returnBps >= 0 ? "text-green-500" : "text-red-500"}`}
-                  >
-                    {formatBps(outcome.returnBps)}
-                  </span>
+                  {claim.direction === "neutral" ? (
+                    "No position"
+                  ) : (
+                    <span
+                      className={`font-mono ${outcome.returnBps >= 0 ? "text-green-500" : "text-red-500"}`}
+                    >
+                      {formatBps(outcome.returnBps)}
+                    </span>
+                  )}
                 </Row>
                 <Row label="Direction">{outcome.directionCorrect ? "Correct" : "Incorrect"}</Row>
                 {outcome.targetHit !== null && (

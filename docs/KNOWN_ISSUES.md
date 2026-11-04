@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **44 open issues: no high, 11 medium and 33 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **43 open issues: no high, 11 medium and 32 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,7 +26,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 2 | 3 | 5 |
+| [Scoring and ranking](#area-scoring) | 0 | 2 | 2 | 4 |
 | [Product (web app)](#area-product) | 0 | 4 | 9 | 13 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
@@ -34,7 +34,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **11** | **33** | **44** |
+| **All** | **0** | **11** | **32** | **43** |
 
 <a id="area-scoring"></a>
 
@@ -69,16 +69,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Synced `player_trades` rows are read only by the two sync paths' duplicate checks. Linking a broker only sets `broker_link_status='verified'`, which gives a badge and a ×1.5 consensus weight on claims. The landing page says linking lets you "verify trades and climb the ranks", and Settings says "verified trades" get the multiplier.
 - **User impact:** Dormant while SnapTrade is unconfigured (last recorded). Once enabled, linking changes no score or rank.
 - **Evidence:** [`apps/worker/functions/score.ts:66-78`](../apps/worker/functions/score.ts#L66-L78) · [`packages/api/routers/broker.ts:171-196`](../packages/api/routers/broker.ts#L171-L196) · [`apps/web/components/landing/ChoosePath.tsx:118`](../apps/web/components/landing/ChoosePath.tsx#L118) · [`apps/web/components/settings/BrokerVerification.tsx:114-115`](../apps/web/components/settings/BrokerVerification.tsx#L114-L115)
-
-<a id="neutral-claim-scoring"></a>
-
-### Neutral claims feed raw price drift into returns
-
-**Low** · bug · `neutral-claim-scoring`
-
-- **What's wrong:** Markout negates the return only for shorts, so a neutral claim stores the raw price move as `return_bps`. That value feeds `avg_return_bps`, EIV and every Player risk metric. (The ±2% threshold differs from `computeSliceOutcome`, but that function is test-only.)
-- **User impact:** Market drift is credited or charged to neutral calls: a wrong neutral call before a +10% move adds +1000 bps to the author's average return.
-- **Evidence:** [`apps/worker/functions/markoutClaim.ts:102-108`](../apps/worker/functions/markoutClaim.ts#L102-L108) · [`apps/worker/functions/score.ts:139`](../apps/worker/functions/score.ts#L139) · [`apps/worker/functions/score.ts:202`](../apps/worker/functions/score.ts#L202)
 
 <a id="dead-scoring-code"></a>
 
