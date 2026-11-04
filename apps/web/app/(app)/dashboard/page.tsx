@@ -20,7 +20,7 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
             <p className="mt-1 text-text-secondary">
-              AI-curated predictions and analyst signals.
+              Consensus signals and the latest predictions.
             </p>
           </div>
           <SubmitClaimForm
@@ -36,7 +36,7 @@ export default function DashboardPage() {
         {/* Mag 7 Consensus Grid */}
         <div>
           <h2 className="mb-4 text-lg font-semibold text-text-primary">
-            AI Consensus — Mag 7
+            Consensus — Mag 7
           </h2>
           <Mag7Grid />
         </div>

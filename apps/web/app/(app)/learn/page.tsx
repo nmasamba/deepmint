@@ -15,7 +15,7 @@ export default function LearnPage() {
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Learn</h1>
           <p className="text-text-secondary">
-            Learn how AI scores analysts, reads track records, and surfaces alpha.
+            Learn how analysts are scored, how to read a track record, and how consensus works.
           </p>
         </div>
       </div>

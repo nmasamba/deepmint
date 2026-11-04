@@ -1,4 +1,4 @@
-import { GitFork, BrainCircuit, Flame } from "lucide-react";
+import { GitFork, LineChart, Flame } from "lucide-react";
 
 const steps = [
   {
@@ -8,16 +8,16 @@ const steps = [
       "Sign up as a Guide and put your calls on the record — or join as a Player to follow the sharpest minds and build your own edge. Two lanes, one scoreboard.",
   },
   {
-    icon: BrainCircuit,
-    title: "AI Scores the Outcome",
+    icon: LineChart,
+    title: "The Market Scores the Outcome",
     description:
-      "When the clock runs out, predictive AI grades every call against real market data. Accuracy, timing, conviction — nothing hides from the algorithm.",
+      "When the clock runs out, every call is graded against real closing prices. Accuracy, timing, conviction — nothing hides from the numbers.",
   },
   {
     icon: Flame,
     title: "The Best Rise the Ranks",
     description:
-      "AI-weighted leaderboards separate the signal from the noise. No bought followers, no cherry-picked wins. Just cold, audited performance — and the analysts who own it.",
+      "Leaderboards built on plain statistics separate the signal from the noise. No bought followers, no cherry-picked wins. Just cold, audited performance — and the analysts who own it.",
   },
 ];
 

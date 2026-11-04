@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **48 open issues: no high, 13 medium and 35 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **47 open issues: no high, 12 medium and 35 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 2 | 3 | 5 |
-| [Product (web app)](#area-product) | 0 | 6 | 9 | 15 |
+| [Product (web app)](#area-product) | 0 | 5 | 9 | 14 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 5 | 5 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **13** | **35** | **48** |
+| **All** | **0** | **12** | **35** | **47** |
 
 <a id="area-scoring"></a>
 
@@ -123,16 +123,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Only `/`, `/sign-in` and `/sign-up` are public pages. The leaderboard, profiles, tickers and Learn call `auth.protect()`, so the hero's "See Who's Leading" and the footer's Leaderboard and Learn links land on sign-in. `/api/trpc` is public, and the procedures those pages read (`leaderboard.top`, `claims.list`, `scores.byEntity`, `ticker.overview` and more) are `publicProcedure`, as are `entity.bySlug` and `consensus.*`.
 - **User impact:** Visitors cannot see the leaderboard, and a Guide or Player cannot share a track-record profile with anyone without an account. The wall costs conversions and sharing without keeping any data private.
 - **Evidence:** [`apps/web/middleware.ts:4-21`](../apps/web/middleware.ts#L4-L21) · [`apps/web/middleware.ts:31-33`](../apps/web/middleware.ts#L31-L33) · [`apps/web/components/landing/HeroSection.tsx:26-39`](../apps/web/components/landing/HeroSection.tsx#L26-L39) · [`apps/web/components/landing/Footer.tsx:22-30`](../apps/web/components/landing/Footer.tsx#L22-L30) · [`packages/api/trpc.ts:32`](../packages/api/trpc.ts#L32)
-
-<a id="ai-scoring-copy-misleading"></a>
-
-### Product copy promises AI scoring and scored paper trades that do not exist
-
-**Medium** · feature-gap · `ai-scoring-copy-misleading`
-
-- **What's wrong:** Site metadata, the landing page, Learn and Settings say AI grades, scores, ranks or benchmarks calls. The only model is the extraction LLM; scoring, regime detection and consensus are fixed formulas. The paper portfolio page says "AI tracks and scores your performance", but paper trades feed no score. No feature compares a user with "Wall Street consensus". The digest Settings calls "AI-generated" is a plain template.
-- **User impact:** Every visitor and search result is told something false about how the product works, in a product sold on trustworthy track records.
-- **Evidence:** [`apps/web/app/layout.tsx:18-42`](../apps/web/app/layout.tsx#L18-L42) · [`apps/web/components/landing/HowItWorks.tsx:12-20`](../apps/web/components/landing/HowItWorks.tsx#L12-L20) · [`apps/web/components/landing/ChoosePath.tsx:58`](../apps/web/components/landing/ChoosePath.tsx#L58) · [`apps/web/app/(app)/paper-portfolio/page.tsx:19`](../apps/web/app/%28app%29/paper-portfolio/page.tsx#L19) · [`apps/web/app/(app)/settings/page.tsx:51`](../apps/web/app/%28app%29/settings/page.tsx#L51) · [`apps/worker/functions/score.ts:135-239`](../apps/worker/functions/score.ts#L135-L239)
 
 <a id="profile-edit-and-clerk-sync"></a>
 
@@ -250,7 +240,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="consensus-mag7-returns-all-instruments"></a>
 
-### Dashboard "AI Consensus — Mag 7" grid lists every active instrument
+### Dashboard "Consensus — Mag 7" grid lists every active instrument
 
 **Medium** · bug · `consensus-mag7-returns-all-instruments`
 

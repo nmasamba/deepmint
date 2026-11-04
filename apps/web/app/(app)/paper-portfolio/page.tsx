@@ -16,7 +16,7 @@ export default function PaperPortfolioPage() {
           Paper Portfolio
         </h1>
         <p className="mt-1 text-text-secondary">
-          Practice trading with virtual money. AI tracks and scores your performance.
+          Practice trading with virtual money. Paper trades do not affect your scores.
         </p>
       </div>
 

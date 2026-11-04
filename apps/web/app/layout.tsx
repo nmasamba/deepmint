@@ -15,9 +15,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Deepmint — AI-Ranked Analyst Track Records",
+  title: "Deepmint — Analyst Track Records, Scored Against the Market",
   description:
-    "Build a verifiable track record as a Guide or follow the best analysts as a Player. AI scores every prediction against real outcomes and ranks who's actually good.",
+    "Build a verifiable track record as a Guide or follow the best analysts as a Player. Every prediction is scored against real outcomes, and the board shows who's actually good.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "https://www.deepmint.ai",
   ),
@@ -29,17 +29,17 @@ export const metadata: Metadata = {
     title: "Deepmint",
   },
   openGraph: {
-    title: "Deepmint — AI-Ranked Analyst Track Records",
+    title: "Deepmint — Analyst Track Records, Scored Against the Market",
     description:
-      "Prove your edge or find who has one. Deepmint uses predictive AI to score analysts against real market data and rank who to follow.",
+      "Prove your edge or find who has one. Deepmint scores analysts against real market data and ranks who to follow.",
     siteName: "Deepmint",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Deepmint — AI-Ranked Analyst Track Records",
+    title: "Deepmint — Analyst Track Records, Scored Against the Market",
     description:
-      "Build a verifiable track record or follow the best analysts — ranked by AI, not hype.",
+      "Build a verifiable track record or follow the best analysts — ranked by results, not hype.",
   },
   icons: {
     icon: [

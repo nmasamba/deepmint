@@ -14,7 +14,7 @@ export function Footer() {
             className="h-8 w-auto"
           />
           <p className="mt-1 text-xs text-text-secondary">
-            AI-ranked analysts. Verified track records.
+            Ranked analysts. Verified track records.
           </p>
         </div>
 
