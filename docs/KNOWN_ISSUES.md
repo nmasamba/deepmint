@@ -156,13 +156,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="claim-provenance-not-visible"></a>
 
-### The "audited" track record shows users no evidence
+### The "audited" track record cannot be checked against an audit root
 
 **Medium** · feature-gap · `claim-provenance-not-visible`
 
-- **What's wrong:** Claim lists do not join `events`, and `ClaimCard` renders no source URL, publisher, capture time or verified quote. The JSON already carries `sourceKind`, rating fields, `analystName`, `horizonStated` and `sourceExcerpt`. Only the admin review page shows the quote and raw text. Nothing reads `audit_roots`, and no Merkle proof is ever generated.
-- **User impact:** Users cannot trace a call to its source or check it against an audit root, so the "audited performance" and "verified track records" copy has nothing behind it.
-- **Evidence:** [`apps/web/components/claims/ClaimCard.tsx:28-56`](../apps/web/components/claims/ClaimCard.tsx#L28-L56) · [`packages/api/routers/claims.ts:166-187`](../packages/api/routers/claims.ts#L166-L187) · [`apps/web/app/(app)/admin/review/page.tsx:121-158`](../apps/web/app/%28app%29/admin/review/page.tsx#L121-L158) · [`apps/worker/functions/audit.ts:56-62`](../apps/worker/functions/audit.ts#L56-L62)
+- **What's wrong:** Nothing reads `audit_roots`, and no Merkle proof is ever generated. (Since wave 3 each claim has a page, `/claims/[id]`, with its source link, publisher, dates, verified quote, content hash and outcome, and claim cards carry a source chip that links to it.)
+- **User impact:** Users can trace a call to its source, but not check it against an audit root, so the "audited performance" and "verified track records" copy has only half of its evidence behind it.
+- **Evidence:** [`apps/worker/functions/audit.ts:56-62`](../apps/worker/functions/audit.ts#L56-L62)
 
 <a id="price-lookups-uncached-serial"></a>
 
