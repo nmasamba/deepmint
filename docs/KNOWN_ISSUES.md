@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **58 open issues: no high, 14 medium and 44 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **57 open issues: no high, 14 medium and 43 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -29,12 +29,12 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
 | [Product (web app)](#area-product) | 0 | 6 | 13 | 19 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
-| [Workers and schedules](#area-workers) | 0 | 2 | 5 | 7 |
+| [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 9 | 9 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **14** | **44** | **58** |
+| **All** | **0** | **14** | **43** | **57** |
 
 <a id="area-scoring"></a>
 
@@ -371,16 +371,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `daily-digest` never looks up a user's email. It sends from `digest@deepmint.app` to `user+<clerkUserId>@deepmint.app`, with links to `https://deepmint.app`. The Daily/Weekly choice in Settings (`digestFrequency`) is never read. A 24-hour lookback on a Mon–Fri 08:00 ET cron misses Friday 08:00 to Sunday 08:00 ET, including Friday's ingest and markout. Resend returns errors instead of throwing, so rejected sends count as sent.
 - **User impact:** No user receives a digest. Today it skips entirely (`RESEND_API_KEY` last recorded empty). Setting the key would still reach nobody, and the run summary would count rejected sends as sent.
 - **Evidence:** [`apps/worker/functions/digest.ts:22`](../apps/worker/functions/digest.ts#L22) · [`apps/worker/functions/digest.ts:32-33`](../apps/worker/functions/digest.ts#L32-L33) · [`apps/worker/functions/digest.ts:56`](../apps/worker/functions/digest.ts#L56) · [`apps/worker/functions/digest.ts:156-173`](../apps/worker/functions/digest.ts#L156-L173)
-
-<a id="backfill-prices-deactivates-on-error"></a>
-
-### `backfill-prices` deactivates an instrument on any error
-
-**Low** · bug · `backfill-prices-deactivates-on-error`
-
-- **What's wrong:** Each ticker's check catches any `getHistoricalPrices` error and returns false, and every false is deactivated. A transient 429 or 5xx therefore counts as "no data", and the function's retries never fire. Without a key every new instrument is deactivated. Nothing is logged.
-- **User impact:** Adding instruments can switch off valid tickers, removing them from claim submission, search and consensus. Reversible with Activate on `/admin/instruments`.
-- **Evidence:** [`apps/worker/functions/backfill-prices.ts:52-80`](../apps/worker/functions/backfill-prices.ts#L52-L80)
 
 <a id="broker-sync-error-sticky"></a>
 
