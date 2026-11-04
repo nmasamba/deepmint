@@ -10,13 +10,24 @@ interface Row {
   isSignificant: boolean;
 }
 
-/** The same board from the public tRPC procedure the web and MCP use. */
-async function trpcTop(input: Record<string, unknown>): Promise<Row[]> {
-  const res = await fetch(
-    `${BASE_URL}/api/trpc/leaderboard.top?input=${encodeURIComponent(JSON.stringify({ json: input }))}`,
-  );
-  const body = await res.json();
-  return body.result.data.json;
+/** The same board through MCP, which calls leaderboard.top like the web app. */
+async function mcpTop(args: Record<string, unknown>): Promise<Row[]> {
+  const res = await fetch(`${BASE_URL}/api/mcp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      Authorization: `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "get_leaderboard", arguments: args },
+    }),
+  });
+  const line = (await res.text()).split("\n").find((l) => l.startsWith("data:"));
+  return JSON.parse(JSON.parse(line!.slice(5)).result.content[0].text);
 }
 
 const skip = !API_KEY;
@@ -105,13 +116,13 @@ describe.skipIf(skip)("GET /api/v1/leaderboard", () => {
   );
 
   it.each(["eiv_overall", "hit_rate", "max_drawdown"])(
-    "matches the tRPC board for %s",
+    "matches the MCP board for %s",
     async (metric) => {
       const res = await fetchApi(`/api/v1/leaderboard?metric=${metric}&limit=50`);
       const v1 = (await res.json()).data.rows as Row[];
-      const trpc = await trpcTop({ metric, limit: 50 });
+      const mcp = await mcpTop({ metric, limit: 50 });
       expect(v1.map((r) => [r.rank, r.entity.slug, r.score])).toEqual(
-        trpc.map((r) => [r.rank, r.entity.slug, r.score]),
+        mcp.map((r) => [r.rank, r.entity.slug, r.score]),
       );
     },
   );

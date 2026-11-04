@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure, router } from "../trpc";
+import { memberProcedure, router } from "../trpc";
 import { alias } from "drizzle-orm/pg-core";
 import { db, desc, asc, eq, gte, and, isNull } from "@deepmint/db";
 import { scores, entities, instruments } from "@deepmint/db/schema";
@@ -30,9 +30,9 @@ const significanceRow = and(
 export const leaderboardRouter = router({
   /**
    * Top entities by metric, among those with at least MIN_RANKED_OUTCOMES
-   * scored outcomes at the board's horizon. Public endpoint.
+   * scored outcomes at the board's horizon.
    */
-  top: publicProcedure
+  top: memberProcedure
     .input(
       z.object({
         metric: z.string().min(1),
@@ -138,7 +138,7 @@ export const leaderboardRouter = router({
    * Top entities for a specific instrument by hit rate on it, with at least
    * MIN_TICKER_SAMPLE outcomes there (see topByInstrument).
    */
-  byTicker: publicProcedure
+  byTicker: memberProcedure
     .input(
       z.object({
         ticker: z.string().min(1),
@@ -166,7 +166,7 @@ export const leaderboardRouter = router({
    * Auto-detects regime and returns top entities by EIV within that regime,
    * among those with at least MIN_RANKED_OUTCOMES scored outcomes.
    */
-  bestInCurrentConditions: publicProcedure
+  bestInCurrentConditions: memberProcedure
     .input(
       z.object({
         entityType: z.enum(["player", "guide"]).optional(),

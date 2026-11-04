@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure, router } from "../trpc";
+import { memberProcedure, router } from "../trpc";
 import { db, eq, desc, and } from "@deepmint/db";
 import { scores } from "@deepmint/db/schema";
 
@@ -7,7 +7,7 @@ export const scoresRouter = router({
   /**
    * All latest scores for an entity.
    */
-  byEntity: publicProcedure
+  byEntity: memberProcedure
     .input(z.object({ entityId: z.string().uuid() }))
     .query(async ({ input }) => {
       // Get the latest as_of_date for this entity
@@ -34,7 +34,7 @@ export const scoresRouter = router({
   /**
    * Score time series for a specific metric (for charting).
    */
-  history: publicProcedure
+  history: memberProcedure
     .input(
       z.object({
         entityId: z.string().uuid(),

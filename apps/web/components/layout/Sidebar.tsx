@@ -25,6 +25,8 @@ interface NavItem {
   icon: React.ElementType;
   /** Only show for specific entity types */
   entityType?: "player" | "guide" | "watcher";
+  /** Also shown to signed-out visitors; everything else needs an account. */
+  isPublic?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -47,7 +49,7 @@ const navItems: NavItem[] = [
     href: "/signal-simulate",
     icon: Copy,
   },
-  { label: "Learn", href: "/learn", icon: GraduationCap },
+  { label: "Learn", href: "/learn", icon: GraduationCap, isPublic: true },
   { label: "API Docs", href: "/docs/api", icon: FileText },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
@@ -66,10 +68,12 @@ interface SidebarProps {
    * via a signed session-token claim read on the server.
    */
   isAdmin: boolean;
+  isSignedIn: boolean;
 }
 
-export function Sidebar({ isAdmin }: SidebarProps) {
+export function Sidebar({ isAdmin, isSignedIn }: SidebarProps) {
   const pathname = usePathname();
+  const items = isSignedIn ? navItems : navItems.filter((item) => item.isPublic);
 
   return (
     <>
@@ -78,7 +82,7 @@ export function Sidebar({ isAdmin }: SidebarProps) {
         <div className="flex h-full flex-col border-r border-border bg-bg-secondary">
           {/* Logo */}
           <Link
-            href="/dashboard"
+            href={isSignedIn ? "/dashboard" : "/"}
             className="flex h-16 items-center gap-2.5 border-b border-border px-5 transition-opacity hover:opacity-80"
           >
             <Image
@@ -93,7 +97,7 @@ export function Sidebar({ isAdmin }: SidebarProps) {
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1 px-3 py-4">
-            {navItems.map((item) => {
+            {items.map((item) => {
               const isActive =
                 pathname === item.href ||
                 pathname.startsWith(item.href + "/");
@@ -158,7 +162,7 @@ export function Sidebar({ isAdmin }: SidebarProps) {
 
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-border bg-bg-secondary px-2 py-2 md:hidden">
-        {navItems.slice(0, 4).map((item) => {
+        {items.slice(0, 4).map((item) => {
           const isActive =
             pathname === item.href ||
             pathname.startsWith(item.href + "/");

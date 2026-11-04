@@ -63,8 +63,9 @@ function agentEntityId(authInfo: McpAuthInfo | undefined): string | null {
 }
 
 const handler = createMcpHandler((server) => {
-  const publicCaller = createCaller(
-    createContext({ userId: null, entity: null }),
+  // Every tool runs behind withMcpAuth below, so the key is already checked.
+  const keyCaller = createCaller(
+    createContext({ userId: null, entity: null, apiKeyVerified: true }),
   );
 
   // ---- READ tools -------------------------------------------------------
@@ -76,7 +77,7 @@ const handler = createMcpHandler((server) => {
     async (_args, extra) => {
       const denied = missingScope(extra.authInfo, "consensus:read");
       if (denied) return denied;
-      const regime = await publicCaller.regime.current();
+      const regime = await keyCaller.regime.current();
       return regime
         ? text(regime)
         : errorText("No market regime has been computed yet.");
@@ -92,7 +93,7 @@ const handler = createMcpHandler((server) => {
       if (denied) return denied;
       const id = await instrumentIdForTicker(ticker);
       if (!id) return notMag7(ticker);
-      return text(await publicCaller.consensus.byInstrument({ instrumentId: id }));
+      return text(await keyCaller.consensus.byInstrument({ instrumentId: id }));
     },
   );
 
@@ -108,7 +109,7 @@ const handler = createMcpHandler((server) => {
       const denied = missingScope(extra.authInfo, "leaderboard:read");
       if (denied) return denied;
       return text(
-        await publicCaller.leaderboard.top({
+        await keyCaller.leaderboard.top({
           metric,
           entityType,
           limit: limit ?? 25,
@@ -128,10 +129,10 @@ const handler = createMcpHandler((server) => {
     async ({ slug, limit, cursor }, extra) => {
       const denied = missingScope(extra.authInfo, "scores:read");
       if (denied) return denied;
-      const entity = await publicCaller.entity.bySlug({ slug });
+      const entity = await keyCaller.entity.bySlug({ slug });
       const [scores, claims] = await Promise.all([
-        publicCaller.scores.byEntity({ entityId: entity.id }),
-        publicCaller.claims.list({ entityId: entity.id, limit: limit ?? 20, cursor }),
+        keyCaller.scores.byEntity({ entityId: entity.id }),
+        keyCaller.claims.list({ entityId: entity.id, limit: limit ?? 20, cursor }),
       ]);
       return text({ entity, scores, claims: claims.items, nextCursor: claims.nextCursor });
     },
@@ -142,7 +143,7 @@ const handler = createMcpHandler((server) => {
     "Search tracked instruments by ticker or name. Any valid key may call this.",
     { query: z.string().min(1).max(20) },
     async ({ query }) =>
-      text(await publicCaller.instruments.search({ q: query })),
+      text(await keyCaller.instruments.search({ q: query })),
   );
 
   // ---- WRITE tools (require claims:write + an owning entity) -------------

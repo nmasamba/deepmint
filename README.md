@@ -106,10 +106,10 @@ A claim's end date is its entry date plus the horizon in calendar days. (For old
 
 | Piece | Where | Who can use it |
 |---|---|---|
-| Web app | [www.deepmint.ai](https://www.deepmint.ai), hosted on Vercel. `deepmint.ai` redirects to `www`. | Only the landing, sign-in, sign-up and offline pages (and the app manifest) are public. Every other page needs an account. |
+| Web app | [www.deepmint.ai](https://www.deepmint.ai), hosted on Vercel. `deepmint.ai` redirects to `www`. | The landing, sign-in, sign-up and offline pages, ticker pages, Learn and claim pages (and the app manifest) are public. Every other page, including the leaderboard and profiles, needs an account. |
 | REST API | `https://www.deepmint.ai/api/v1`: `GET /entities/{slug}/scores`, `GET /instruments/{ticker}/consensus`, `GET /leaderboard?metric=…`, plus the spec at `/openapi.json` | The three data endpoints need an API key (`Authorization: Bearer dm_live_…`), and only admins can create keys. The spec needs no key; signed-in users can also browse it at `/docs/api`. |
 | AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Each tool checks its own scope: `consensus:read` for regime and consensus, `leaderboard:read` for the leaderboard, `scores:read` for a track record (profile, scores, and claims with outcomes). Instrument search needs only a valid key. The write tools (`submit_claim`, `add_note`) need `claims:write` and currently act as the admin who created the key ([known issue](docs/KNOWN_ISSUES.md#mcp-acts-as-admin)). |
-| App API (tRPC) | `/api/trpc` | Used by the web app itself. Its read-only public calls answer without sign-in. |
+| App API (tRPC) | `/api/trpc` | Used by the web app itself. Ticker, claim and market reads answer without sign-in; leaderboard and profile reads need a signed-in user. |
 | Background jobs | 17 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
 | Database | PostgreSQL on Supabase | Operators only |
 | Outside services | Clerk (sign-in), Polygon (end-of-day stock prices), Hugging Face router (the extraction model) | — |
@@ -134,6 +134,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - the daily markout, scoring and consensus;
 - the leaderboard by Hit Rate, Sharpe, EIV and Avg Return, for anyone with at least 10 scored outcomes;
 - Guide and Player profiles;
+- claim cards with each claim's result, and a page for each claim with its source, result and notes;
 - following, watchlists and in-app notifications;
 - paper portfolios;
 - the Learn modules;
@@ -141,10 +142,9 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 
 **Main limitations:**
 
-- **Results.** Claim cards never show a claim's own result. A single claim's result appears only in the in-app "claim resolved" notification sent to its author; everyone else sees only the author's overall scores.
 - **Leaderboard.**
   - The market-conditions badge is a once-a-day snapshot. The current Polygon plan has no index data, so VIX is recorded as unavailable and the badge says "partial data"; the S&P 500 trend comes from the SPY fund instead of the index.
-  - The "Most Influential" tab and the regime filters (Bull, Bear and so on) always come back empty.
+  - The regime filters (Bull, Bear and so on) always come back empty.
 - **Daily ingestion.** The daily Guide collection does nothing until an operator switches on a Guide's feed by editing the database (there is no admin control for it) or enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
 - **Not working yet:**
   - Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
@@ -196,7 +196,7 @@ apps/
   worker/      The 17 Inngest functions (served by apps/web) and the backfill CLI
 packages/
   api/         tRPC routers
-  db/          Drizzle schema, migrations (drizzle/0000–0009), seed script
+  db/          Drizzle schema, migrations (drizzle/0000–0011), seed scripts
   ingestion/   Feed adapters, LLM extractor, content hashing
   scoring/     Pure scoring functions: hit rate, Brier, Sharpe, EIV, consensus, regime
   shared/      Polygon price client, Merkle tree, constants (Mag-7 list, horizons)

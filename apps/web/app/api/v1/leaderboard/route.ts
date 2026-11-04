@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(Math.max(1, isNaN(limitRaw) ? 25 : limitRaw), 100);
 
   const rows = await createCaller(
-    createContext({ userId: null, entity: null }),
+    createContext({ userId: null, entity: null, apiKeyVerified: true }),
   ).leaderboard.top({
     metric,
     entityType: (entityType as "player" | "guide" | null) ?? undefined,

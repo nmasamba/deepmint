@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **47 open issues: no high, 12 medium and 35 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **46 open issues: no high, 11 medium and 35 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 2 | 3 | 5 |
-| [Product (web app)](#area-product) | 0 | 5 | 9 | 14 |
+| [Product (web app)](#area-product) | 0 | 4 | 9 | 13 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 5 | 5 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **12** | **35** | **47** |
+| **All** | **0** | **11** | **35** | **46** |
 
 <a id="area-scoring"></a>
 
@@ -113,16 +113,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Both landing-page buttons, "Sign Up as a Guide" and "Sign Up as a Player", go to plain `/sign-up`, and every new user is created as type `player`. No code changes `entities.type`, and the profile-claiming flow mentioned in a resolver comment does not exist.
 - **User impact:** An analyst who signs up as a Guide becomes a Player: scored with Player metrics (no Brier, z-score or target precision), listed with Players, without the ×1.2 Guide consensus weight or an Influence tab. An analyst already ingested as a Guide ends up with two unlinked entities.
 - **Evidence:** [`apps/web/components/landing/ChoosePath.tsx:69-75`](../apps/web/components/landing/ChoosePath.tsx#L69-L75) · [`apps/web/components/landing/ChoosePath.tsx:123-129`](../apps/web/components/landing/ChoosePath.tsx#L123-L129) · [`packages/db/queries/ensureEntityForClerkUser.ts:58`](../packages/db/queries/ensureEntityForClerkUser.ts#L58) · [`packages/ingestion/src/sources/resolver.ts:34-35`](../packages/ingestion/src/sources/resolver.ts#L34-L35)
-
-<a id="signin-wall-vs-anonymous-trpc"></a>
-
-### Pages are behind sign-in, but their data is readable anonymously
-
-**Medium** · feature-gap · `signin-wall-vs-anonymous-trpc`
-
-- **What's wrong:** Only `/`, `/sign-in` and `/sign-up` are public pages. The leaderboard, profiles, tickers and Learn call `auth.protect()`, so the hero's "See Who's Leading" and the footer's Leaderboard and Learn links land on sign-in. `/api/trpc` is public, and the procedures those pages read (`leaderboard.top`, `claims.list`, `scores.byEntity`, `ticker.overview` and more) are `publicProcedure`, as are `entity.bySlug` and `consensus.*`.
-- **User impact:** Visitors cannot see the leaderboard, and a Guide or Player cannot share a track-record profile with anyone without an account. The wall costs conversions and sharing without keeping any data private.
-- **Evidence:** [`apps/web/middleware.ts:4-21`](../apps/web/middleware.ts#L4-L21) · [`apps/web/middleware.ts:31-33`](../apps/web/middleware.ts#L31-L33) · [`apps/web/components/landing/HeroSection.tsx:26-39`](../apps/web/components/landing/HeroSection.tsx#L26-L39) · [`apps/web/components/landing/Footer.tsx:22-30`](../apps/web/components/landing/Footer.tsx#L22-L30) · [`packages/api/trpc.ts:32`](../packages/api/trpc.ts#L32)
 
 <a id="profile-edit-and-clerk-sync"></a>
 
@@ -285,8 +275,8 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 **Low** · dead-code · `unused-trpc-procedures`
 
 - **What's wrong:** 14 are called nowhere: `entity.update`, `entity.search`, `instruments.detail`, `.list`, `.mag7`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
-- **User impact:** Maintenance cost; 10 of the 14 answer signed-out callers.
-- **Evidence:** [`packages/api/routers/entities.ts:40`](../packages/api/routers/entities.ts#L40) · [`packages/api/routers/instruments.ts:401`](../packages/api/routers/instruments.ts#L401) · [`packages/api/routers/claims.ts:199`](../packages/api/routers/claims.ts#L199) · [`packages/api/routers/leaderboard.ts:104`](../packages/api/routers/leaderboard.ts#L104) · [`packages/api/routers/influence.ts:124`](../packages/api/routers/influence.ts#L124)
+- **User impact:** Maintenance cost; 5 of the 14 answer signed-out callers.
+- **Evidence:** [`packages/api/routers/entities.ts:40`](../packages/api/routers/entities.ts#L40) · [`packages/api/routers/instruments.ts:401`](../packages/api/routers/instruments.ts#L401) · [`packages/api/routers/leaderboard.ts:104`](../packages/api/routers/leaderboard.ts#L104) · [`packages/api/routers/influence.ts:124`](../packages/api/routers/influence.ts#L124)
 
 <a id="area-workers"></a>
 

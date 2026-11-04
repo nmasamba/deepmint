@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useUser } from "@clerk/nextjs";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
@@ -11,8 +13,13 @@ interface WatchButtonProps {
 
 export function WatchButton({ instrumentId, size = "sm" }: WatchButtonProps) {
   const utils = trpc.useUtils();
+  const { isLoaded, isSignedIn } = useUser();
 
-  const { data, isLoading } = trpc.social.isWatching.useQuery({ instrumentId });
+  // Ticker pages are public; the watchlist is not.
+  const { data, isLoading } = trpc.social.isWatching.useQuery(
+    { instrumentId },
+    { enabled: !!isSignedIn },
+  );
 
   const addMutation = trpc.social.addToWatchlist.useMutation({
     onSuccess: () => {
@@ -31,7 +38,18 @@ export function WatchButton({ instrumentId, size = "sm" }: WatchButtonProps) {
   const isMutating = addMutation.isPending || removeMutation.isPending;
   const isWatching = data?.isWatching ?? false;
 
-  if (isLoading) {
+  if (isLoaded && !isSignedIn) {
+    return (
+      <Button asChild variant="outline" size={size} className="border-accent text-accent hover:bg-accent/10">
+        <Link href="/sign-in">
+          <Eye className="mr-1.5 h-4 w-4" />
+          Sign in to watch
+        </Link>
+      </Button>
+    );
+  }
+
+  if (!isLoaded || isLoading) {
     return (
       <Button variant="outline" size={size} disabled className="border-border text-text-secondary">
         <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />

@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { db, ne } from "@deepmint/db";
+import { db, eq, ne } from "@deepmint/db";
 import { claims } from "@deepmint/db/schema";
 import { BASE_URL, API_KEY } from "../api-v1/helpers";
 
 /**
- * Live, signed-out checks of the public tRPC reads (no mocks).
+ * Live, signed-out checks of the tRPC reads and public pages (no mocks).
  *
  * Prerequisites (same as the api-v1 suite): a running server at
  * TEST_BASE_URL (default http://localhost:3000), and TEST_API_KEY set, which
  * marks that the server is up. DATABASE_URL must be the server's database.
  */
-const PRIVATE_KEYS = ["clerkUserId", "snaptradeUserId", "isAllowlisted", "deletedAt", "updatedAt"];
+const ANY_ID = "00000000-0000-4000-8000-000000000000";
 
 async function trpcGet(path: string, input: unknown) {
   const qs = encodeURIComponent(JSON.stringify({ json: input }));
@@ -19,30 +19,51 @@ async function trpcGet(path: string, input: unknown) {
   return { status: res.status, data: body?.result?.data?.json, error: body?.error?.json };
 }
 
-describe.skipIf(!API_KEY)("public tRPC reads, signed out", () => {
-  it("entity.search returns only public columns", async () => {
-    const { status, data } = await trpcGet("entity.search", { q: "a", limit: 50 });
-    expect(status).toBe(200);
-    expect(data.length).toBeGreaterThan(0);
-    for (const row of data) {
-      for (const key of PRIVATE_KEYS) expect(row).not.toHaveProperty(key);
-    }
+const activeClaimId = async () => {
+  const [row] = await db
+    .select({ id: claims.id })
+    .from(claims)
+    .where(eq(claims.status, "active"))
+    .limit(1);
+  return row!.id;
+};
+
+describe.skipIf(!API_KEY)("leaderboard and profile reads, signed out", () => {
+  it.each([
+    ["leaderboard.top", { metric: "hit_rate" }],
+    ["leaderboard.byTicker", { ticker: "AAPL" }],
+    ["leaderboard.bestInCurrentConditions", {}],
+    ["entity.bySlug", { slug: "x" }],
+    ["entity.search", { q: "a" }],
+    ["scores.byEntity", { entityId: ANY_ID }],
+    ["scores.history", { entityId: ANY_ID, metric: "hit_rate" }],
+    ["influence.topInfluencers", {}],
+    ["influence.byGuide", { entityId: ANY_ID }],
+    ["social.followers", { entityId: ANY_ID }],
+    ["social.following", { entityId: ANY_ID }],
+    ["social.followerCount", { entityId: ANY_ID }],
+  ])("%s answers 401", async (path, input) => {
+    const { status, error } = await trpcGet(path, input);
+    expect(status).toBe(401);
+    expect(error.data.code).toBe("UNAUTHORIZED");
   });
 
-  it("entity.bySlug returns only public columns", async () => {
-    const { data: found } = await trpcGet("entity.search", { q: "a", limit: 1 });
-    const { status, data } = await trpcGet("entity.bySlug", { slug: found[0].slug });
-    expect(status).toBe(200);
-    expect(data.slug).toBe(found[0].slug);
-    for (const key of PRIVATE_KEYS) expect(data).not.toHaveProperty(key);
+  it.each(["/leaderboard", "/player/x", "/guide/x"])("the page %s stays behind sign-in", async (path) => {
+    const res = await fetch(`${BASE_URL}${path}`, { redirect: "manual" });
+    expect(res.status).not.toBe(200);
   });
+});
 
-  it("entity.search treats % and _ as literal characters", async () => {
-    for (const q of ["%", "_"]) {
-      const { status, data } = await trpcGet("entity.search", { q, limit: 50 });
-      expect(status).toBe(200);
-      for (const row of data) expect(row.displayName).toContain(q);
-    }
+describe.skipIf(!API_KEY)("public reads, signed out", () => {
+  it.each([
+    ["entity.stats", undefined],
+    ["instruments.search", { q: "AAPL" }],
+    ["ticker.overview", { ticker: "AAPL" }],
+    ["claims.list", { limit: 1 }],
+    ["consensus.mag7", undefined],
+    ["regime.current", undefined],
+  ])("%s answers", async (path, input) => {
+    expect((await trpcGet(path, input)).status).toBe(200);
   });
 
   it("claims.detail answers 404 for a claim that is not active", async () => {
@@ -63,5 +84,13 @@ describe.skipIf(!API_KEY)("public tRPC reads, signed out", () => {
     const { status, data } = await trpcGet("claims.detail", { id });
     expect(status).toBe(200);
     expect(data.claim.id).toBe(id);
+  });
+
+  it("ticker, Learn and claim pages render", async () => {
+    const paths = ["/ticker/AAPL", "/learn", "/learn/what-makes-a-good-trade", `/claims/${await activeClaimId()}`];
+    for (const path of paths) {
+      const res = await fetch(`${BASE_URL}${path}`, { redirect: "manual" });
+      expect(res.status, path).toBe(200);
+    }
   });
 });

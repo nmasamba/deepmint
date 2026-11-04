@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure, protectedProcedure, router } from "../trpc";
+import { memberProcedure, protectedProcedure, router } from "../trpc";
 import { db, desc, eq, and, gt, sql, isNull } from "@deepmint/db";
 import { influenceScores, entities, follows, instruments } from "@deepmint/db/schema";
 
@@ -8,8 +8,8 @@ import { influenceScores, entities, follows, instruments } from "@deepmint/db/sc
  * Raw influence_events are NEVER exposed through the API.
  */
 export const influenceRouter = router({
-  /** Top influencers by 30-day influence events. Public endpoint. */
-  topInfluencers: publicProcedure
+  /** Top influencers by 30-day influence events. */
+  topInfluencers: memberProcedure
     .input(
       z.object({
         // Influence is recorded for Guides only; "player" yields an empty list.
@@ -88,8 +88,8 @@ export const influenceRouter = router({
       }));
     }),
 
-  /** Aggregated influence data for a specific Guide. Public endpoint. */
-  byGuide: publicProcedure
+  /** Aggregated influence data for a specific Guide. */
+  byGuide: memberProcedure
     .input(z.object({ entityId: z.string().uuid() }))
     .query(async ({ input }) => {
       // Get latest score for this guide

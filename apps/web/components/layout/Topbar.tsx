@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import { Menu } from "lucide-react";
 import { InstrumentSearch } from "@/components/InstrumentSearch";
 import { SubmitClaimForm } from "@/components/claims/SubmitClaimForm";
@@ -13,11 +13,11 @@ import { useRouter } from "next/navigation";
 
 interface TopbarProps {
   isAdmin: boolean;
+  isSignedIn: boolean;
 }
 
-export function Topbar({ isAdmin }: TopbarProps) {
+export function Topbar({ isAdmin, isSignedIn }: TopbarProps) {
   const router = useRouter();
-  const { isSignedIn } = useUser();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
@@ -34,7 +34,7 @@ export function Topbar({ isAdmin }: TopbarProps) {
         </button>
 
         {/* Logo (mobile only — desktop has sidebar logo) */}
-        <Link href="/dashboard" className="md:hidden mr-3 shrink-0">
+        <Link href={isSignedIn ? "/dashboard" : "/"} className="md:hidden mr-3 shrink-0">
           <Image
             src="/logo-sidebar.png"
             alt="Deepmint"
@@ -56,20 +56,40 @@ export function Topbar({ isAdmin }: TopbarProps) {
 
         {/* Right side */}
         <div className="flex items-center gap-4">
-          {isSignedIn && <SubmitClaimForm />}
-          {isSignedIn && <NotificationBell />}
-          <UserButton
-            appearance={{
-              elements: {
-                avatarBox: "h-8 w-8",
-              },
-            }}
-          />
+          {isSignedIn ? (
+            <>
+              <SubmitClaimForm />
+              <NotificationBell />
+              <UserButton
+                appearance={{
+                  elements: {
+                    avatarBox: "h-8 w-8",
+                  },
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <Link
+                href="/sign-in"
+                className="hidden whitespace-nowrap text-sm text-text-secondary hover:text-accent sm:inline"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/sign-up"
+                className="whitespace-nowrap rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-bg-primary transition-colors hover:bg-accent/90"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
         </div>
       </header>
 
       <MobileNav
         isAdmin={isAdmin}
+        isSignedIn={isSignedIn}
         open={mobileNavOpen}
         onOpenChange={setMobileNavOpen}
       />
