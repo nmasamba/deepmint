@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { isValidAnalystFirm, parseRatingDate, parseTargetPrice } from "../extractor";
+import {
+  isFirmInGuidePost,
+  isValidAnalystFirm,
+  parseRatingDate,
+  parseTargetPrice,
+} from "../extractor";
 
 /**
  * Deterministic tests for rating attribution validation.
@@ -116,5 +121,31 @@ describe("parseTargetPrice", () => {
     expect(parseTargetPrice(21_474_836.47)).toBe(21_474_836.47);
     expect(parseTargetPrice(21_474_836.48)).toBeNull();
     expect(parseTargetPrice(1e12)).toBeNull();
+  });
+});
+
+describe("isFirmInGuidePost", () => {
+  const AUTHOR = "author-entity";
+  const FIRM = "firm-entity";
+
+  it("is a firm named in a Guide's own post", () => {
+    expect(isFirmInGuidePost("analyst_feed", "Morgan Stanley", FIRM, AUTHOR)).toBe(true);
+  });
+
+  it("holds the claim even if the firm could not be resolved", () => {
+    expect(isFirmInGuidePost("analyst_feed", "Morgan Stanley", null, AUTHOR)).toBe(true);
+  });
+
+  it("is not the Guide's own firm", () => {
+    expect(isFirmInGuidePost("analyst_feed", "Wedbush", AUTHOR, AUTHOR)).toBe(false);
+  });
+
+  it("is not a post that names no firm", () => {
+    expect(isFirmInGuidePost("analyst_feed", null, null, AUTHOR)).toBe(false);
+  });
+
+  it("is not the Wall Street lane, whose own rule covers a missing firm", () => {
+    expect(isFirmInGuidePost("wall_street_rating", "Morgan Stanley", FIRM, AUTHOR)).toBe(false);
+    expect(isFirmInGuidePost("wall_street_rating", "Morgan Stanley", null, AUTHOR)).toBe(false);
   });
 });

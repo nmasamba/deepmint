@@ -43,6 +43,9 @@ function laneLabel(
   source: ClaimSource | null,
 ): string {
   // Older rows have no source_kind; the event tells the lanes apart.
+  if (sourceKind === "wall_street_rating" && source && !source.publisher) {
+    return "A firm's rating, named in a Guide's post";
+  }
   if (sourceKind === "wall_street_rating" || (!sourceKind && source?.publisher)) {
     return "Wall Street rating, reported in the press";
   }

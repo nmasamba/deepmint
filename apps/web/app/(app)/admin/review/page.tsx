@@ -1,16 +1,32 @@
 "use client";
 
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency } from "@deepmint/shared";
+import { HOLD_REASON_TEXT, formatCurrency } from "@deepmint/shared";
 import { Check, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { toast } from "sonner";
+
+interface PendingDecision {
+  claimId: string;
+  action: "approve" | "reject";
+  summary: string;
+}
 
 export default function AdminReviewPage() {
   const utils = trpc.useUtils();
   const { data, isLoading, error } = trpc.claims.pendingReview.useQuery({ limit: 50 });
+  const [decision, setDecision] = useState<PendingDecision | null>(null);
 
   const reviewMutation = trpc.claims.reviewClaim.useMutation({
     onSuccess: (result) => {
@@ -19,6 +35,7 @@ export default function AdminReviewPage() {
       );
       utils.claims.pendingReview.invalidate();
     },
+    onSettled: () => setDecision(null),
     onError: (error) => {
       toast.error("Review failed", { description: error.message });
     },
@@ -68,6 +85,8 @@ export default function AdminReviewPage() {
               : item.claim.direction === "short"
                 ? "text-red-500"
                 : "text-gray-400";
+          const summary = `${item.claim.direction.toUpperCase()} ${item.instrument.ticker}, ${item.claim.horizonDays}d, on ${item.entity.displayName}`;
+          const canApprove = !item.holdReasons.includes("unattributed_rating");
 
           return (
             <div
@@ -109,6 +128,20 @@ export default function AdminReviewPage() {
                   </Badge>
                 )}
               </div>
+
+              {/* Why it was held */}
+              {item.holdReasons.length > 0 && (
+                <div className="rounded border border-warning/30 bg-bg-primary p-3">
+                  <p className="text-xs font-medium text-text-secondary mb-1">
+                    Held Because:
+                  </p>
+                  <ul className="space-y-1 text-sm text-warning">
+                    {item.holdReasons.map((reason) => (
+                      <li key={reason}>{HOLD_REASON_TEXT[reason]}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Rationale */}
               {item.claim.rationale && (
@@ -168,12 +201,13 @@ export default function AdminReviewPage() {
                   size="sm"
                   className="bg-green-600 hover:bg-green-700 text-white"
                   onClick={() =>
-                    reviewMutation.mutate({
+                    setDecision({
                       claimId: item.claim.id,
                       action: "approve",
+                      summary,
                     })
                   }
-                  disabled={reviewMutation.isPending}
+                  disabled={reviewMutation.isPending || !canApprove}
                 >
                   <Check className="mr-1 h-4 w-4" />
                   Approve
@@ -183,9 +217,10 @@ export default function AdminReviewPage() {
                   variant="outline"
                   className="border-red-500/30 text-red-500 hover:bg-red-500/10"
                   onClick={() =>
-                    reviewMutation.mutate({
+                    setDecision({
                       claimId: item.claim.id,
                       action: "reject",
+                      summary,
                     })
                   }
                   disabled={reviewMutation.isPending}
@@ -198,6 +233,51 @@ export default function AdminReviewPage() {
           );
         })
       )}
+
+      <Dialog
+        open={decision !== null}
+        onOpenChange={(open) => {
+          if (!open) setDecision(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {decision?.action === "approve" ? "Approve claim?" : "Reject claim?"}
+            </DialogTitle>
+            <DialogDescription>
+              {decision?.summary}.{" "}
+              {decision?.action === "approve"
+                ? "It goes live and will be scored."
+                : "It will never be scored."}{" "}
+              This is final: a reviewed claim cannot be changed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDecision(null)}>
+              Cancel
+            </Button>
+            <Button
+              className={
+                decision?.action === "approve"
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "bg-red-600 hover:bg-red-700 text-white"
+              }
+              onClick={() => {
+                if (decision) {
+                  reviewMutation.mutate({
+                    claimId: decision.claimId,
+                    action: decision.action,
+                  });
+                }
+              }}
+              disabled={reviewMutation.isPending}
+            >
+              {decision?.action === "approve" ? "Approve" : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

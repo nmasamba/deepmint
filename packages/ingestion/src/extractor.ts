@@ -11,11 +11,14 @@ import {
   MAG7_TICKERS,
   RATIONALE_TAGS,
   VALID_HORIZONS,
-  type ValidHorizon,
   getEODPrice,
+  isExplicitHorizon,
   tradingDayOnOrBefore,
+  verifyVerbatim,
 } from "@deepmint/shared";
 import { resolveOrCreateGuide } from "./sources/resolver";
+
+export { isExplicitHorizon, verifyVerbatim };
 
 /**
  * LLM extraction using HuggingFace Inference (OpenAI API-compatible).
@@ -185,99 +188,6 @@ export function parseConfidenceScore(value: unknown): number | null {
 export function parseTargetPrice(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
   return Math.round(value * 100) <= 2_147_483_647 ? value : null;
-}
-
-/**
- * Grid durations an author can name outright, keyed by "<count> <unit>".
- * Approximations (4 weeks, 52 weeks, "a quarter") are deliberately absent.
- */
-const EXPLICIT_HORIZONS: Record<string, ValidHorizon> = {
-  "1 day": 1,
-  "7 day": 7, "1 week": 7,
-  "30 day": 30, "1 month": 30,
-  "90 day": 90, "3 month": 90,
-  "180 day": 180, "6 month": 180,
-  "365 day": 365, "12 month": 365, "1 year": 365,
-};
-const COUNT_WORDS: Record<string, number> = {
-  a: 1, an: 1, one: 1, three: 3, six: 6, seven: 7, twelve: 12, thirty: 30, ninety: 90,
-};
-// The whole phrase must be a single duration, optionally framed as "within",
-// "in", "over the next" etc. Ranges, calendar dates, deadlines and vague terms
-// cannot match.
-const EXPLICIT_HORIZON_PATTERN =
-  /^((?:within|in|over|for|during) the (?:next|coming) |(?:within|in) |(?:the )?(?:next|coming) )?(\d{1,3}|an?|one|three|six|seven|twelve|thirty|ninety)[ -]?(day|week|month|year)s?( (?:from now|time|horizon|timeframe|time frame|period|target|price target|target price|price objective))?$/;
-
-/**
- * True only if the author's horizon words explicitly name the same grid
- * duration as `horizonDays` ("within 90 days" for 90, "12-month" for 365).
- * Conservative: vague ("near term"), multi-year, ranged ("next 3-5 years") or
- * calendar-dated ("by 2028") wording is never explicit, so the claim is
- * reviewed rather than scored against a horizon the author never gave.
- */
-export function isExplicitHorizon(stated: string | null, horizonDays: number): boolean {
-  // The longest accepted phrase is ~45 chars; the cap also bounds regex work.
-  if (stated == null || stated.length > 80) return false;
-  const phrase = stated
-    .toLowerCase()
-    .replace(/[\u2010-\u2015]/g, "-")
-    .replace(/['\u2019"\u201C\u201D]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/[.,;:!?]+$/, "");
-  const match = EXPLICIT_HORIZON_PATTERN.exec(phrase);
-  if (!match) return false;
-  const [, framing, countWord, unit, suffix] = match;
-  // A bare "one day" or "a year" is as often an idiom or a rate ("someday",
-  // "20% a year") as a horizon, so a spelled-out single unit needs framing.
-  if (/^(?:an?|one)$/.test(countWord!) && !framing && !suffix) return false;
-  const count = COUNT_WORDS[countWord!] ?? Number(countWord);
-  return EXPLICIT_HORIZONS[`${count} ${unit}`] === horizonDays;
-}
-
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00A0",
-  lsquo: "\u2018", rsquo: "\u2019", ldquo: "\u201C", rdquo: "\u201D",
-  ndash: "\u2013", mdash: "\u2014", hellip: "\u2026",
-};
-
-/** Decode HTML entities, then collapse whitespace (including &nbsp;). */
-function normaliseForComparison(text: string): string {
-  return text
-    .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (entity, body: string) => {
-      if (body[0] !== "#") return NAMED_ENTITIES[body.toLowerCase()] ?? entity;
-      const code = /^#x/i.test(body) ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
-      // Leave NUL (which Postgres text rejects), surrogates and out-of-range codes encoded.
-      const valid = code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff);
-      return valid ? String.fromCodePoint(code) : entity;
-    })
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/**
- * Accept a quote only if it appears verbatim in the source text, compared
- * after decoding HTML entities (feed text carries e.g. &#8220;) and collapsing
- * whitespace on both sides. Returns the normalised quote, or null — a
- * paraphrased or invented quote is never stored as evidence.
- *
- * A quote that starts or ends on a word character must start or end on a
- * token boundary in the source, so "$30" does not verify inside "$300", nor
- * "3 months" inside "13 months" or "6-12 months".
- */
-export function verifyVerbatim(value: unknown, sourceText: string): string | null {
-  if (typeof value !== "string") return null;
-  const quote = normaliseForComparison(value);
-  if (!quote) return null;
-  const word = "[\\p{L}\\p{N}\\-\\u2010-\\u2015]";
-  const escaped = quote.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp(
-    (new RegExp(`^${word}`, "u").test(quote) ? `(?<!${word})` : "") +
-      escaped +
-      (new RegExp(`${word}$`, "u").test(quote) ? `(?!${word})` : ""),
-    "u",
-  );
-  return pattern.test(normaliseForComparison(sourceText)) ? quote : null;
 }
 
 /**
@@ -600,9 +510,26 @@ export interface ProcessExtractionOptions {
   entryPriceResolver?: (ticker: string) => Promise<number | null>;
   /**
    * Lane that produced these claims. Wall Street ratings additionally require a
-   * resolved issuing firm before a claim may go active.
+   * resolved issuing firm before a claim may go active. A claim from any other
+   * lane that names a firm is stored as a Wall Street rating, held for review.
    */
   sourceKind?: SourceKind;
+}
+
+/**
+ * True when a post in a Guide's own lane names a firm other than that Guide.
+ * Attribution moves such a claim to the firm, but the author may only work
+ * there, or the model may have put a firm on the author's own view, so the move
+ * waits for a person. `firmEntityId` is null when the firm could not be resolved.
+ */
+export function isFirmInGuidePost(
+  sourceKind: SourceKind | undefined,
+  analystFirm: string | null,
+  firmEntityId: string | null,
+  authorEntityId: string,
+): boolean {
+  if (sourceKind === "wall_street_rating" || analystFirm === null) return false;
+  return firmEntityId !== authorEntityId;
 }
 
 type ClaimStatus = "pending_review" | "active" | "rejected";
@@ -724,6 +651,12 @@ export async function processExtraction(
         attributedEntityId = entityId; // fall back to the carrier
       }
     }
+    const firmInGuidePost = isFirmInGuidePost(
+      options.sourceKind,
+      claim.analystFirm,
+      attributed ? attributedEntityId : null,
+      entityId,
+    );
 
     // --- Claim timestamp ---------------------------------------------------
     // A rating is dated when it was ISSUED, which may predate the article
@@ -761,11 +694,13 @@ export async function processExtraction(
 
     // Route by extraction confidence. A third-party rating whose issuing firm
     // could not be identified must never score, so it goes to human review
-    // instead of being credited to the publication that carried it. Likewise a
-    // claim scores only with a verified quote whose own horizon words
-    // explicitly name horizon_days — not words borrowed from elsewhere in the post.
+    // instead of being credited to the publication that carried it, and a firm
+    // named in a Guide's own post goes there too. Likewise a claim scores only
+    // with a verified quote whose own horizon words explicitly name
+    // horizon_days — not words borrowed from elsewhere in the post.
     const needsAttribution =
-      options.sourceKind === "wall_street_rating" && !attributed;
+      firmInGuidePost ||
+      (options.sourceKind === "wall_street_rating" && !attributed);
     const evidenced = isExplicitHorizon(
       verifyVerbatim(claim.horizonStated, claim.sourceExcerpt ?? ""),
       claim.horizonDays,
@@ -829,7 +764,9 @@ export async function processExtraction(
       rationaleTags: claim.rationaleTags,
       entryPriceCents,
       status,
-      sourceKind: options.sourceKind ?? null,
+      sourceKind: firmInGuidePost
+        ? "wall_street_rating"
+        : (options.sourceKind ?? null),
       ratingGrade: claim.ratingGrade,
       ratingAction: claim.ratingAction,
       analystName: claim.analystName,

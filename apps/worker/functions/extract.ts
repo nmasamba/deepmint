@@ -58,8 +58,9 @@ export const extractFunction = inngest.createFunction(
 
             // A publisher means the text was carried by a third party (Wall
             // Street ratings lane), so the issuing firm must be recovered before
-            // the claim can score. No publisher means a Guide's own feed, where
-            // the source entity IS the author and attribution is inherent.
+            // the claim can score. No publisher means a Guide's own feed: the
+            // claim stays with the Guide, unless the post names a firm, when it
+            // moves to the firm and waits for review.
             const sourceKind = eventRecord.publisher
               ? "wall_street_rating"
               : "analyst_feed";

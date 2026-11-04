@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **46 open issues: no high, 11 medium and 35 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **44 open issues: no high, 11 medium and 33 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -30,11 +30,11 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Product (web app)](#area-product) | 0 | 4 | 9 | 13 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 5 | 5 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **11** | **35** | **46** |
+| **All** | **0** | **11** | **33** | **44** |
 
 <a id="area-scoring"></a>
 
@@ -345,26 +345,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 <a id="area-ingestion"></a>
 
 ## Ingestion and extraction
-
-<a id="firm-reattribution-all-lanes"></a>
-
-### A Guide's own post that names a bank is credited to the bank
-
-**Low** · data-integrity · `firm-reattribution-all-lanes`
-
-- **What's wrong:** Any claim with a valid `analyst_firm` is credited to that firm's Guide in every lane. That is the intended issuer-not-carrier rule, but in a Guide's lane the claim keeps `source_kind='analyst_feed'`. Nothing guards against a Guide who works at the firm, or a model that names a firm on the Guide's own view; those calls move to the firm and can go active without review. The workers' "attribution is inherent" comments are wrong.
-- **User impact:** Latent until a historical backfill runs or a Guide feed is enabled (a database edit). Nothing reads `source_kind` yet.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:619-637`](../packages/ingestion/src/extractor.ts#L619-L637) · [`packages/ingestion/src/extractor.ts:676-677`](../packages/ingestion/src/extractor.ts#L676-L677) · [`apps/worker/functions/extract.ts:43-49`](../apps/worker/functions/extract.ts#L43-L49)
-
-<a id="carrier-entity-claims-approvable"></a>
-
-### Approving an unattributed rating makes the news publisher score
-
-**Low** · data-integrity · `carrier-entity-claims-approvable`
-
-- **What's wrong:** A Wall Street rating with no resolved firm is stored as `pending_review` under the publication's entity, which is an ordinary Guide. Approval only flips the status, so the publisher is then scored and ranked as a Guide. The review page does not say why the claim was held, and approval cannot be undone in the app.
-- **User impact:** Latent: only the Polygon news lane, off unless `INGEST_POLYGON_NEWS=1`, produces these claims.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:671-685`](../packages/ingestion/src/extractor.ts#L671-L685) · [`packages/api/routers/claims.ts:370-407`](../packages/api/routers/claims.ts#L370-L407) · [`apps/web/app/(app)/admin/review/page.tsx:70-77`](../apps/web/app/%28app%29/admin/review/page.tsx#L70-L77)
 
 <a id="rss-lane-cannot-be-enabled"></a>
 
