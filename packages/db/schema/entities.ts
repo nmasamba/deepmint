@@ -16,6 +16,7 @@ export const entities = pgTable('entities', {
   snaptradeUserId: varchar('snaptrade_user_id', { length: 255 }),      // SnapTrade registered user ID
   isVerified: boolean('is_verified').default(false),
   isAllowlisted: boolean('is_allowlisted').default(false),            // for Guides
+  isAgent: boolean('is_agent').default(false).notNull(),              // a Player run by an AI agent through an API key
   sourceUrl: varchar('source_url', { length: 500 }),                  // Guide's public profile/blog
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

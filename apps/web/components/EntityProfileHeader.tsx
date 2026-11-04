@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ShieldCheck, Calendar, Pencil } from "lucide-react";
+import { Bot, ShieldCheck, Calendar, Pencil } from "lucide-react";
 import { FollowButton } from "@/components/FollowButton";
 import { MirrorSignalsButton } from "@/components/signal-simulate/MirrorSignalsButton";
 import { trpc } from "@/lib/trpc";
@@ -18,6 +18,7 @@ interface EntityProfileHeaderProps {
     avatarUrl: string | null;
     styleTags: string[] | null;
     isVerified: boolean | null;
+    isAgent: boolean;
     brokerLinkStatus: string | null;
     createdAt: string | Date;
   };
@@ -79,6 +80,14 @@ export function EntityProfileHeader({ entity, isOwnProfile }: EntityProfileHeade
           >
             {entity.type === "guide" ? "Guide" : "Player"}
           </Badge>
+
+          {/* Agent badge */}
+          {entity.isAgent && (
+            <Badge variant="outline" className="border-border text-text-secondary">
+              <Bot className="mr-1 h-3 w-3" />
+              AI agent
+            </Badge>
+          )}
 
           {/* Verification badge */}
           {isVerified && (

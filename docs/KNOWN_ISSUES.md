@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **41 open issues: no high, 10 medium and 31 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **40 open issues: no high, 9 medium and 31 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -28,13 +28,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 2 | 2 | 4 |
 | [Product (web app)](#area-product) | 0 | 3 | 8 | 11 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 3 | 4 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **10** | **31** | **41** |
+| **All** | **0** | **9** | **31** | **40** |
 
 <a id="area-scoring"></a>
 
@@ -207,16 +207,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `consensus.mag7` selects every active instrument, with no ticker filter or ordering, and runs one sequential query per instrument. Each tile links to `/ticker/{ticker}`. A correctly filtered `instruments.mag7` exists, but nothing calls it and its response shape differs.
 - **User impact:** Latent while only the Mag 7 exist. After an admin presses "Seed S&P 500 Top 50", every dashboard shows 57 tiles in no set order under the Mag 7 heading, 50 of them leading to "Coming soon", and each load runs 57 sequential queries.
 - **Evidence:** [`packages/api/routers/consensus.ts:26-49`](../packages/api/routers/consensus.ts#L26-L49) · [`apps/web/components/dashboard/Mag7Grid.tsx:31-34`](../apps/web/components/dashboard/Mag7Grid.tsx#L31-L34) · [`apps/web/app/(app)/dashboard/page.tsx:38-41`](../apps/web/app/%28app%29/dashboard/page.tsx#L38-L41) · [`packages/api/routers/instruments.ts:193-233`](../packages/api/routers/instruments.ts#L193-L233)
-
-<a id="mcp-acts-as-admin"></a>
-
-### MCP write tools act as the minting admin's own Player
-
-**Medium** · feature-gap · `mcp-acts-as-admin`
-
-- **What's wrong:** `apiKeys.create` always stores `created_by` as the minting admin's entity, and the MCP `submit_claim` and `add_note` tools act as that entity. Keys cannot name another owner, and there is no agent entity type.
-- **User impact:** Nothing is affected until a `claims:write` key exists (production had 0 API keys on 2026-08-03). After that, every agent claim lands permanently on the admin's own Player record and scores, agents can add notes to the admin's own claims, and agents cannot be told apart. With Upstash they would also share the admin's 10 claims/hour.
-- **Evidence:** [`packages/api/routers/apiKeys.ts:17-43`](../packages/api/routers/apiKeys.ts#L17-L43) · [`apps/web/app/api/mcp/route.ts:139-145`](../apps/web/app/api/mcp/route.ts#L139-L145) · [`apps/web/app/api/mcp/route.ts:220`](../apps/web/app/api/mcp/route.ts#L220) · [`packages/api/routers/claims.ts:282`](../packages/api/routers/claims.ts#L282)
 
 <a id="broker-verified-means-any-account"></a>
 

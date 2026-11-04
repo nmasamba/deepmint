@@ -12,8 +12,9 @@ import { resolveAgentEntity } from "./agentEntity";
  *
  * READ tools expose the same aggregated data as the v1 REST API by calling the
  * tRPC routers via createCaller (single source of truth). WRITE tools let an
- * agent participate as a first-class entity — its claims are scored and audited
- * exactly like a human's. Auth reuses the dm_live_ API key + scope model: each
+ * agent participate as its own Player, the one its key is bound to
+ * (api_keys.entity_id) — its claims are scored and audited exactly like a
+ * human's. Auth reuses the dm_live_ API key + scope model: each
  * tool checks its own scope, the one the matching REST route needs, and write
  * tools need claims:write. Per invariant #9, only aggregated influence is ever
  * exposed (no raw influence events).
@@ -146,7 +147,7 @@ const handler = createMcpHandler((server) => {
       text(await keyCaller.instruments.search({ q: query })),
   );
 
-  // ---- WRITE tools (require claims:write + an owning entity) -------------
+  // ---- WRITE tools (require claims:write + a key bound to an agent) ------
 
   server.tool(
     "submit_claim",
@@ -170,7 +171,7 @@ const handler = createMcpHandler((server) => {
       const entityId = agentEntityId(auth);
       if (!entityId) {
         return errorText(
-          "API key is not bound to an entity; cannot submit claims.",
+          "API key is not bound to an agent; cannot submit claims.",
         );
       }
       const id = await instrumentIdForTicker(args.ticker);
@@ -219,7 +220,7 @@ const handler = createMcpHandler((server) => {
       if (denied) return denied;
       const entityId = agentEntityId(auth);
       if (!entityId) {
-        return errorText("API key is not bound to an entity.");
+        return errorText("API key is not bound to an agent.");
       }
       try {
         const entity = await resolveAgentEntity(entityId);
@@ -262,7 +263,7 @@ const verifyToken = async (
     token: auth.key.id,
     clientId: auth.key.id,
     scopes: auth.key.scopes,
-    extra: { entityId: auth.key.createdBy, keyId: auth.key.id },
+    extra: { entityId: auth.key.entityId, keyId: auth.key.id },
   };
 };
 
