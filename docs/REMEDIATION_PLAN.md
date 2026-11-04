@@ -729,7 +729,7 @@ Recommendation: 1, with N = 10 in a shared constant.
 
 Recommendation: 1. The data is already public through tRPC and REST, and package 18 lands first.
 
-**Decided (2026-10-06): the maintainer's own option.** Only ticker pages, Learn and claim pages are public; the leaderboard and profiles stay behind sign-in. Package 43 builds that. Settled on 2026-11-04: the leaderboard and profile tRPC procedures move behind sign-in too. In the maintainer's words: "move the leaderboard and profile tRPC procedures behind sign-in, keep the API-key REST and MCP routes working, and leave open anything the public ticker and claim pages need."
+**Decided (2026-10-06): the maintainer's own option.** Only ticker pages, Learn and claim pages are public; the leaderboard and profiles stay behind sign-in. Package 43 builds that. Settled on 2026-11-03: the leaderboard and profile tRPC procedures move behind sign-in too. In the maintainer's words: "move the leaderboard and profile tRPC procedures behind sign-in, keep the API-key REST and MCP routes working, and leave open anything the public ticker and claim pages need."
 
 **D3. How does product copy describe AI?** Needed by W4. Blocks 44.
 1. "AI" only for extraction.
