@@ -1,6 +1,8 @@
 import { inngest } from "../inngest";
 import { db, eq, and, gt, sql } from "@deepmint/db";
 import {
+  claims,
+  events,
   signalSimulatePortfolios,
   paperTrades,
   paperPortfolios,
@@ -10,6 +12,14 @@ import {
 import { getCurrentPrice } from "@deepmint/shared";
 import { availableCashCents } from "@deepmint/api/lib/paperAccounting";
 import { createNotification } from "@deepmint/db/queries/createNotification";
+
+/**
+ * A mirror copies only claims dated within this long (D13): a rating dated last
+ * month, or a claim approved days after it was made, is not a signal to trade
+ * on. Nor is an old post on a feed read for the first time, which the ledger
+ * dates the day it was stored, so the post's own date counts too.
+ */
+const MIRROR_MAX_CLAIM_AGE_MS = 48 * 3_600_000;
 
 /**
  * Tell the owner a mirror is out of cash, once: not again until one of its
@@ -67,6 +77,21 @@ export const signalSimulateFunction = inngest.createFunction(
     if (direction === "neutral") return { tradesCreated: 0 };
 
     const result = await step.run("auto-log-signal-trades", async () => {
+      const [claim] = await db
+        .select({ createdAt: claims.createdAt, postedAt: events.capturedAt })
+        .from(claims)
+        .leftJoin(events, eq(claims.eventId, events.id))
+        .where(eq(claims.id, claimId))
+        .limit(1);
+      if (!claim) return { tradesCreated: 0 };
+      const datedAt = Math.min(
+        claim.createdAt.getTime(),
+        claim.postedAt?.getTime() ?? Infinity,
+      );
+      if (Date.now() - datedAt > MIRROR_MAX_CLAIM_AGE_MS) {
+        return { tradesCreated: 0 };
+      }
+
       // Find all active signal-simulate portfolios mirroring this entity
       const sims = await db
         .select({

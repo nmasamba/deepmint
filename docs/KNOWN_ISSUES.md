@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **39 open issues: no high, 8 medium and 31 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **38 open issues: no high, 7 medium and 31 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -29,12 +29,12 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Scoring and ranking](#area-scoring) | 0 | 1 | 2 | 3 |
 | [Product (web app)](#area-product) | 0 | 3 | 8 | 11 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 3 | 4 |
-| [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
+| [Workers and schedules](#area-workers) | 0 | 1 | 4 | 5 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **8** | **31** | **39** |
+| **All** | **0** | **7** | **31** | **38** |
 
 <a id="area-scoring"></a>
 
@@ -231,16 +231,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 <a id="area-workers"></a>
 
 ## Workers and schedules
-
-<a id="claims-created-only-self-logged"></a>
-
-### Ingested, backfilled and approved claims never emit `claims/created`, so mirroring a Guide does nothing
-
-**Medium** · bug · `claims-created-only-self-logged`
-
-- **What's wrong:** Only `claims.submit` sends `claims/created`. `processExtraction` (live ingest and backfill) bulk-inserts claims with no event, and admin approval only flips the status. `signal-simulate` listens only for that event, and a Guide can never self-log.
-- **User impact:** "Mirror Signals" on any Guide's profile creates a $100,000 portfolio that never trades but takes one of the 5 active mirror slots. Mirroring a Player works when that Player self-logs. Guide influence is still recorded through the Player branch of `influence-track`.
-- **Evidence:** [`packages/api/routers/claims.ts:116-128`](../packages/api/routers/claims.ts#L116-L128) · [`packages/api/routers/claims.ts:401-404`](../packages/api/routers/claims.ts#L401-L404) · [`packages/ingestion/src/extractor.ts:744`](../packages/ingestion/src/extractor.ts#L744) · [`apps/worker/functions/signal-simulate.ts:21`](../apps/worker/functions/signal-simulate.ts#L21) · [`apps/web/components/EntityProfileHeader.tsx:124-127`](../apps/web/components/EntityProfileHeader.tsx#L124-L127)
 
 <a id="digest-placeholder-recipient"></a>
 

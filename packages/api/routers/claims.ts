@@ -464,6 +464,25 @@ export const claimRouter = router({
         .set({ status: newStatus })
         .where(eq(claims.id, input.claimId));
 
+      // An approved claim goes live now, so its listeners hear of it now.
+      // Each decides for itself whether it is too old to act on.
+      if (newStatus === "active") {
+        await inngest.send({
+          id: `claims-created-${claim.id}`,
+          name: "claims/created",
+          data: {
+            claimId: claim.id,
+            entityId: claim.entityId,
+            instrumentId: claim.instrumentId,
+            direction: claim.direction,
+            horizonDays: claim.horizonDays,
+            entryPriceCents: claim.entryPriceCents,
+          },
+        }).catch(() => {
+          // Non-blocking: the decision stands if Inngest is unavailable
+        });
+      }
+
       return { claimId: input.claimId, status: newStatus };
     }),
 });

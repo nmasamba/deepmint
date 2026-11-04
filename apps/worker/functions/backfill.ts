@@ -54,7 +54,8 @@ interface BackfillEventData {
  *
  * Invariants preserved: events/claims are inserted once (append-only, never
  * UPDATEd) with explicit historical timestamps; outcomes are deduped on
- * (claimId, horizon). No resolution notifications are sent for backfill.
+ * (claimId, horizon). No resolution notifications are sent for backfill, and
+ * no claims/created: history is not a signal, so a backfill never mirrors.
  * Only `active` claims are matured; claims held for review score only once
  * approved, via the daily markout.
  */
