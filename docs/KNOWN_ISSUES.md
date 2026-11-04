@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **59 open issues: no high, 14 medium and 45 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **58 open issues: no high, 14 medium and 44 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 3 | 3 | 6 |
-| [Product (web app)](#area-product) | 0 | 6 | 14 | 20 |
+| [Product (web app)](#area-product) | 0 | 6 | 13 | 19 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 5 | 7 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 9 | 9 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **14** | **45** | **59** |
+| **All** | **0** | **14** | **44** | **58** |
 
 <a id="area-scoring"></a>
 
@@ -233,16 +233,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** The chart plots only Start and Now; no equity history is stored. Learn describes it as a way to "track your performance".
 - **User impact:** A straight line that tells users nothing the Total Return card does not.
 - **Evidence:** [`apps/web/components/paper/EquityCurve.tsx:21-26`](../apps/web/components/paper/EquityCurve.tsx#L21-L26) · [`apps/web/components/paper/PortfolioDetail.tsx:105-111`](../apps/web/components/paper/PortfolioDetail.tsx#L105-L111) · [`apps/web/lib/learnModules.ts:277`](../apps/web/lib/learnModules.ts#L277)
-
-<a id="search-slash-hint"></a>
-
-### Search box shows a "/" shortcut that does nothing
-
-**Low** · bug · `search-slash-hint`
-
-- **What's wrong:** The top-bar instrument search shows a `/` key hint at desktop widths, but no code listens for the key.
-- **User impact:** Cosmetic: pressing `/` does nothing.
-- **Evidence:** [`apps/web/components/InstrumentSearch.tsx:111-120`](../apps/web/components/InstrumentSearch.tsx#L111-L120)
 
 <a id="notifications-dead-ends"></a>
 

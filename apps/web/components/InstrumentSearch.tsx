@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { trpc } from "@/lib/trpc";
@@ -39,6 +39,19 @@ export function InstrumentSearch({
     { q: debouncedQuery },
     { enabled: debouncedQuery.length >= 1 },
   );
+
+  // "/" opens search, as the key hint promises, unless the user is typing.
+  useEffect(() => {
+    if (trigger !== "button") return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((e.target as HTMLElement).closest?.("input, textarea, select, [contenteditable]")) return;
+      e.preventDefault();
+      setOpen(true);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [trigger]);
 
   const handleSelect = (instrument: Instrument) => {
     onSelect?.(instrument);
