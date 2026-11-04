@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **42 open issues: no high, 10 medium and 32 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **41 open issues: no high, 10 medium and 31 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 2 | 2 | 4 |
-| [Product (web app)](#area-product) | 0 | 3 | 9 | 12 |
+| [Product (web app)](#area-product) | 0 | 3 | 8 | 11 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **10** | **32** | **42** |
+| **All** | **0** | **10** | **31** | **41** |
 
 <a id="area-scoring"></a>
 
@@ -123,16 +123,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Ingestion and ticker pages accept only the 7 Mag-7 tickers. Claim submission, search and the consensus worker accept any active instrument. Paper trades accept any instrument, even an inactive one. (Since wave 3 the MCP ticker tools accept only the Mag 7, though `search_instruments` still lists any instrument.)
 - **User impact:** Latent while only the Mag 7 exist, as in production since 2026-08-11, and Mag-7 only is the deliberate scope for now. Once an admin adds instruments (for example with the S&P button), users can claim and trade tickers whose pages say "Coming soon", and ingestion never produces Guide claims for them. Make every surface agree before expanding.
 - **Evidence:** [`packages/ingestion/src/extractor.ts:461-472`](../packages/ingestion/src/extractor.ts#L461-L472) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:18-30`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L18-L30) · [`packages/api/routers/claims.ts:73-91`](../packages/api/routers/claims.ts#L73-L91) · [`packages/api/routers/paper.ts:138-150`](../packages/api/routers/paper.ts#L138-L150)
-
-<a id="current-price-is-previous-close"></a>
-
-### Paper trades fill at the previous session's close
-
-**Low** · bug · `current-price-is-previous-close`
-
-- **What's wrong:** Paper trades open, close and mark to the latest close, which during market hours is the previous session's. (Since wave 2 the ticker page labels its price "Last close" with the session date, and Learn says paper trades fill at the latest close; since the next-close entry change, claims no longer use it for entry prices.)
-- **User impact:** Paper P&L is off and can be gamed by trading after an intraday move, but only in the user's own sandbox.
-- **Evidence:** [`packages/api/routers/paper.ts:153`](../packages/api/routers/paper.ts#L153)
 
 <a id="explore-stub-in-nav"></a>
 
