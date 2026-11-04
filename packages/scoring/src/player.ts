@@ -6,16 +6,21 @@
 import { avg, stddev } from "./utils";
 import { computeMarkoutFromBars, type MarkoutBar, type MarkoutInput } from "./markout";
 
+/** Annual risk-free rate a Player's Sharpe ratio is measured against. */
+export const RISK_FREE_ANNUAL = 0.04;
+
+const TRADING_DAYS_PER_YEAR = 252;
+
 /**
- * Annualised Sharpe Ratio from daily returns.
+ * Annualised Sharpe Ratio from daily returns, net of `riskFreeAnnual`.
  * Uses sample std deviation, annualised by √252.
  */
-export function sharpeRatio(dailyReturns: number[]): number {
+export function sharpeRatio(dailyReturns: number[], riskFreeAnnual = 0): number {
   if (dailyReturns.length < 2) return 0;
-  const mean = avg(dailyReturns);
+  const excess = avg(dailyReturns) - riskFreeAnnual / TRADING_DAYS_PER_YEAR;
   const std = stddev(dailyReturns);
   if (std === 0) return 0;
-  return (mean / std) * Math.sqrt(252);
+  return (excess / std) * Math.sqrt(TRADING_DAYS_PER_YEAR);
 }
 
 /**
@@ -147,6 +152,33 @@ export function dailyBookReturns(
     }
     return { date, returnFrac: moves.length > 0 ? avg(moves) : 0 };
   });
+}
+
+/** Every Player risk metric, from a book's daily returns (dailyBookReturns). */
+export function playerRiskMetrics(dailyReturns: number[]): {
+  sharpe: number;
+  maxDrawdown: number;
+  calmar: number;
+  cvar5: number;
+  consistency: number;
+} {
+  const equityCurve = [1];
+  for (const r of dailyReturns) {
+    equityCurve.push(equityCurve[equityCurve.length - 1]! * (1 + r));
+  }
+  const drawdown = maxDrawdown(equityCurve);
+  const annualisedReturn =
+    equityCurve[equityCurve.length - 1]! **
+      (TRADING_DAYS_PER_YEAR / Math.max(dailyReturns.length, 1)) -
+    1;
+
+  return {
+    sharpe: sharpeRatio(dailyReturns, RISK_FREE_ANNUAL),
+    maxDrawdown: drawdown,
+    calmar: calmarRatio(annualisedReturn, drawdown),
+    cvar5: cvar5(dailyReturns),
+    consistency: consistencyScore(dailyReturns),
+  };
 }
 
 /**

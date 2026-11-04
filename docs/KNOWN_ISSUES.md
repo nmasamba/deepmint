@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **40 open issues: no high, 9 medium and 31 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **39 open issues: no high, 8 medium and 31 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,7 +26,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 2 | 2 | 4 |
+| [Scoring and ranking](#area-scoring) | 0 | 1 | 2 | 3 |
 | [Product (web app)](#area-product) | 0 | 3 | 8 | 11 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 3 | 4 |
 | [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
@@ -34,7 +34,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **9** | **31** | **40** |
+| **All** | **0** | **8** | **31** | **39** |
 
 <a id="area-scoring"></a>
 
@@ -49,16 +49,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `score.ts` passes an empty regime history to `computeRegimeAwareEIV`. Every entity therefore gets the fallback with a fixed 0.4 penalty, and `eiv` always equals `eiv_overall`. The current regime only sets the `regime_tag` string. `leaderboard.bestInCurrentConditions` returns the `eiv` rows from the latest scoring date with a matching tag, with no age limit, and does not return that date.
 - **User impact:** "Best in Current Conditions" is the plain overall-EIV top 5 from whichever scoring run last had that regime label, which may be weeks old. The 0.4 factor also shrinks every EIV, so the profile labels Strong Edge (≥60) and Moderate Edge (≥30) are harder to reach.
 - **Evidence:** [`apps/worker/functions/score.ts:188-199`](../apps/worker/functions/score.ts#L188-L199) · [`apps/worker/functions/score.ts:228-239`](../apps/worker/functions/score.ts#L228-L239) · [`packages/scoring/src/eiv.ts:34`](../packages/scoring/src/eiv.ts#L34) · [`packages/scoring/src/eiv.ts:52`](../packages/scoring/src/eiv.ts#L52) · [`packages/api/routers/leaderboard.ts:181-196`](../packages/api/routers/leaderboard.ts#L181-L196)
-
-<a id="player-metrics-annualise-claim-returns"></a>
-
-### Player Sharpe and Calmar treat per-claim returns as daily returns
-
-**Medium** · bug · `player-metrics-annualise-claim-returns`
-
-- **What's wrong:** Player metrics use each active claim's `return_bps` as one "daily" return, whatever its horizon (1 to 365 days). Sharpe is mean/std × √252 with no risk-free rate. Calmar compounds claim returns in sequence even when the positions overlapped, then annualises by 252 / number of claims. CVaR and consistency use the same series. (Since wave 5 `dailyBookReturns` in `packages/scoring` builds a true daily book, but the scorer does not use it yet.)
-- **User impact:** Player Sharpe and Calmar on profiles, the Sharpe board and the ticker page's Top Players have no financial meaning. Three 1-year claims of +10%, +12% and +8% give a Sharpe of about 79, and long-horizon claimants are inflated by up to √252 against 1-day claimants.
-- **Evidence:** [`apps/worker/functions/score.ts:201-221`](../apps/worker/functions/score.ts#L201-L221) · [`packages/scoring/src/player.ts:12-18`](../packages/scoring/src/player.ts#L12-L18)
 
 <a id="broker-trades-never-scored"></a>
 
@@ -76,7 +66,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · dead-code · `dead-scoring-code`
 
-- **What's wrong:** Five exported functions are called only by tests: `calmarRatio`, `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore` and `timeDecayedBrierScore`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
+- **What's wrong:** Four exported functions are called only by tests: `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore` and `timeDecayedBrierScore`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
 - **User impact:** Maintainers may assume continuous Brier and MAE/MFE feed live scores.
 - **Evidence:** [`packages/scoring/src/player.ts:23`](../packages/scoring/src/player.ts#L23) · [`packages/scoring/src/guide.ts:141-189`](../packages/scoring/src/guide.ts#L141-L189) · [`apps/worker/functions/markoutClaim.ts:110-129`](../apps/worker/functions/markoutClaim.ts#L110-L129)
 

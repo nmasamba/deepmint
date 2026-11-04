@@ -7,6 +7,8 @@ import {
   consistencyScore,
   dailyBookReturns,
   maeAndMfe,
+  playerRiskMetrics,
+  RISK_FREE_ANNUAL,
   type BookClaim,
   type BookDay,
 } from "../player";
@@ -306,5 +308,54 @@ describe("dailyBookReturns", () => {
     );
     expect(days.find((d) => d.date === "2026-10-07")?.returnFrac).toBe(0);
     expect(days.every((d) => Number.isFinite(d.returnFrac))).toBe(true);
+  });
+});
+
+describe("sharpeRatio, net of the risk-free rate", () => {
+  const returns = [0.002, 0.001, 0, 0.001, 0.001];
+
+  it("takes the daily risk-free rate off the mean", () => {
+    const gross = sharpeRatio(returns);
+    const net = sharpeRatio(returns, RISK_FREE_ANNUAL);
+    const std = Math.sqrt(0.0000005);
+    expect(gross - net).toBeCloseTo(((RISK_FREE_ANNUAL / 252) / std) * Math.sqrt(252), 6);
+  });
+
+  it("is negative for a book that earns less than the risk-free rate", () => {
+    expect(sharpeRatio([0.0001, -0.0001, 0.0001, -0.0001], RISK_FREE_ANNUAL)).toBeLessThan(0);
+  });
+});
+
+describe("playerRiskMetrics", () => {
+  it("compounds the drawdown", () => {
+    // +10% then -20% then -10%: 1.1, 0.88, 0.792, so 28% off the peak, not 30%.
+    const { maxDrawdown: md } = playerRiskMetrics([0.1, -0.2, -0.1]);
+    expect(md).toBeCloseTo(0.28, 10);
+  });
+
+  it("annualises a book by compounding over its sessions", () => {
+    // 252 sessions of a fixed daily return: the year's return is the total.
+    const days = Array.from({ length: 252 }, (_, i) => (i === 100 ? -0.05 : 0.001));
+    const total = days.reduce((value, r) => value * (1 + r), 1) - 1;
+    const metrics = playerRiskMetrics(days);
+    expect(metrics.calmar).toBeCloseTo(total / metrics.maxDrawdown, 8);
+  });
+
+  it("scores a long-horizon claim on its daily moves, not as one huge day", () => {
+    // Three one-year claims of about +10% in turn: 0.04% a day with noise.
+    const year = Array.from({ length: 756 }, (_, i) => (i % 2 === 0 ? 0.0104 : -0.0096));
+    const { sharpe } = playerRiskMetrics(year);
+    expect(sharpe).toBeGreaterThan(-1);
+    expect(sharpe).toBeLessThan(2);
+  });
+
+  it("keeps every value finite on a book that lost everything", () => {
+    for (const value of Object.values(playerRiskMetrics([-1, 0, 0]))) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+  });
+
+  it("gives a book with no drawdown a Calmar of 0, as calmarRatio does", () => {
+    expect(playerRiskMetrics([0.01, 0.02]).calmar).toBe(0);
   });
 });
