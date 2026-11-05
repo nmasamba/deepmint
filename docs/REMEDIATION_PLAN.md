@@ -11,8 +11,8 @@ The plan for fixing every open issue in [KNOWN_ISSUES.md](KNOWN_ISSUES.md), agre
 | 2 | 17–27 | 0009 | **Merged**: [#15](https://github.com/nmasamba/deepmint/pull/15) (2026-11-03) with 17–20, 23, 24, 26 and 27; 21, 22 and 25 wait for their keys |
 | 3 | 28–36 | 0010 | **Merged**: [#16](https://github.com/nmasamba/deepmint/pull/16) (2026-11-04), with wave 4 |
 | 4 | 37–44 | 0011 | **Merged**: [#16](https://github.com/nmasamba/deepmint/pull/16) (2026-11-04), with wave 3 |
-| 5 | 45–53 | 0012 | Not started |
-| 6 | 54–57 | 0013 | Not started |
+| 5 | 45–53 | 0012 | **PR open**: [#17](https://github.com/nmasamba/deepmint/pull/17) (2026-11-05), with wave 6 |
+| 6 | 54–57 | 0013 | **PR open**: [#17](https://github.com/nmasamba/deepmint/pull/17) (2026-11-05), with wave 5 |
 | 7 | 58–63 | 0014 | Not started |
 | 8 | 64–67 | 0015 | Not started |
 | 9 | 68–72: dead code and tooling | – | Not started |
