@@ -66,7 +66,7 @@ flowchart TD
    - the return, in basis points (a neutral call takes no position, so its return is 0 and it counts only toward hit rate);
    - whether the direction was right (a neutral call is right if the price moved 2% or less either way);
    - whether the target price was reached.
-6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures. Players also get risk measures such as the Sharpe ratio and maximum drawdown, worked out from a daily book: each claim is held from its entry close to its exit close and marked at every close in between, which is the only Polygon data this step fetches, at most one request per stock.
+6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures. Players also get risk measures such as the Sharpe ratio and maximum drawdown, worked out from a daily book: each claim is held from its entry close to its exit close and marked at every close in between, which takes at most one Polygon request per stock.
 7. **Leaderboard and consensus.** The leaderboard ranks authors by the new scores. For each stock, Deepmint recalculates the consensus: a weighted vote (bullish, bearish or neutral) of the active claims whose horizon has not yet passed, plus the average of their price targets and how widely those targets spread. Claims count for more when their author has a higher EIV, is a Guide or is a broker-verified Player, when they are newer and when their confidence is higher.
 8. **Nightly fingerprint.** Every night a job hashes the claims recorded the previous day, whatever date they carry, into a single Merkle root and stores it in the database. The roots are not yet published, anchored outside the database or checkable by users.
 
@@ -132,7 +132,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - signing up, and logging your own claims;
 - extracting claims from Guide posts, with the evidence check and admin review;
 - the daily markout, scoring and consensus;
-- the leaderboard by Hit Rate, Sharpe, EIV and Avg Return, for anyone with at least 10 scored outcomes;
+- the leaderboard by Hit Rate, Sharpe, EIV and Avg Return, for anyone with at least 10 scored outcomes (on Sharpe and Avg Return, 10 that took a position);
 - Guide and Player profiles;
 - claim cards with each claim's result, and a page for each claim with its source, result and notes;
 - following, watchlists and in-app notifications;
@@ -148,7 +148,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - **Not working yet:** Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
 - **Error tracking and snapshots.** Error tracking (Sentry) and source snapshots (Cloudflare R2) are not wired into the app. Setting their keys alone does not turn them on.
-- **Audit.** The nightly audit roots are not published, and they do not cover claims stored with an earlier date, such as backfilled history.
+- **Audit.** The nightly audit roots are not published. Claims stored before migration 0012 with an earlier date, such as backfilled history, are in no root.
 - **Missing features.** There is no way to become a Guide or request a new stock.
 
 The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
@@ -176,7 +176,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 |---|---|
 | Monorepo | pnpm 10.32.1 workspaces, Turborepo 2 |
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui components, Serwist (PWA) |
-| API | tRPC v11 (15 routers, 72 procedures), REST `/api/v1`, MCP via `mcp-handler` |
+| API | tRPC v11 (15 routers, 75 procedures), REST `/api/v1`, MCP via `mcp-handler` |
 | Database | PostgreSQL (16 in Docker locally, Supabase in production) with Drizzle ORM 0.41 |
 | Background jobs | Inngest 4 (17 functions) |
 | Auth | Clerk (`@clerk/nextjs` 7) |
@@ -335,11 +335,11 @@ These results were measured on 2026-11-02 with no `.env.local`.
 
 | Command | Result without keys | What enables more |
 |---|---|---|
-| `pnpm --filter @deepmint/scoring test` | 105 passed (6 files) | Nothing needed |
-| `pnpm --filter @deepmint/shared test` | 32 passed, 2 skipped (5 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
-| `pnpm --filter @deepmint/api test` | 25 passed, 18 skipped (5 files) | `DATABASE_URL` in the root `.env.local` runs the 18 caller tests against that database (read-only). |
-| `pnpm --filter @deepmint/ingestion test` | 78 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
-| `pnpm --filter @deepmint/web test` | 58 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
+| `pnpm --filter @deepmint/scoring test` | 127 passed (6 files) | Nothing needed |
+| `pnpm --filter @deepmint/shared test` | 69 passed, 2 skipped (6 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
+| `pnpm --filter @deepmint/api test` | 32 passed, 39 skipped (9 files) | `DATABASE_URL` in the root `.env.local` runs the 39 database tests. They read, or write inside a transaction they roll back. |
+| `pnpm --filter @deepmint/ingestion test` | 83 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
+| `pnpm --filter @deepmint/web test` | 67 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
 
 The worker has no tests.
 

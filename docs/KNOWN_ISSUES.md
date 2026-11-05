@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **33 open issues: no high, 7 medium and 26 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **34 open issues: no high, 7 medium and 27 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -30,11 +30,11 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Product (web app)](#area-product) | 0 | 3 | 6 | 9 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 2 | 3 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 4 | 5 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 2 | 2 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **7** | **26** | **33** |
+| **All** | **0** | **7** | **27** | **34** |
 
 <a id="area-scoring"></a>
 
@@ -180,7 +180,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="unused-trpc-procedures"></a>
 
-### 16 of 72 tRPC procedures have no UI caller
+### 16 of 75 tRPC procedures have no UI caller
 
 **Low** · dead-code · `unused-trpc-procedures`
 
@@ -245,6 +245,16 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 <a id="area-ingestion"></a>
 
 ## Ingestion and extraction
+
+<a id="feed-first-read-dates-old-posts"></a>
+
+### A feed's first read dates old posts the day they are stored
+
+**Low** · data-integrity · `feed-first-read-dates-old-posts`
+
+- **What's wrong:** The RSS lane stores every Mag-7 item a feed still lists, with no age limit, and `extract-claims` dates each claim by when its post was stored, unless the post states a rating date. A three-month-old post first read today becomes a claim dated today, and markout scores it from the next close. (Mirrors and follower notices read the post's own date, so they skip it.)
+- **User impact:** Latent until an admin switches a feed on at `/admin/guides`, which warns about it. The claims cannot be removed afterwards, and an old call is scored against a market its author never saw. What the first read should do is a product choice: skip old posts, or date them as published, as a backfill does.
+- **Evidence:** [`packages/ingestion/src/sources/rss.ts`](../packages/ingestion/src/sources/rss.ts) · [`apps/worker/functions/extract.ts`](../apps/worker/functions/extract.ts)
 
 <a id="r2-snapshot-capture-dead"></a>
 
