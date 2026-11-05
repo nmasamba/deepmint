@@ -130,8 +130,9 @@ export function markoutWindow(input: MarkoutInput): { from: string; to: string }
  *   first session on or after the entry date + horizon_days, and the target
  *   window starts the day after entry.
  *
- * returnBps is position P&L (negated for shorts). directionCorrect follows the
- * raw price move; a neutral claim is right within ±2%.
+ * returnBps is position P&L (negated for shorts, 0 for a neutral claim, which
+ * takes no position). directionCorrect follows the raw price move; a neutral
+ * claim is right within ±2%.
  */
 export function computeMarkoutFromBars(
   input: MarkoutInput,
@@ -176,7 +177,12 @@ export function computeMarkoutFromBars(
       : input.direction === "short"
         ? priceReturnBps < 0
         : Math.abs(priceReturnBps) <= 200;
-  const returnBps = input.direction === "short" ? -priceReturnBps : priceReturnBps;
+  const returnBps =
+    input.direction === "neutral"
+      ? 0
+      : input.direction === "short"
+        ? -priceReturnBps
+        : priceReturnBps;
 
   let targetHit: boolean | null = null;
   if (input.targetPriceCents !== null && input.direction !== "neutral") {
@@ -198,4 +204,14 @@ export function computeMarkoutFromBars(
     entryDate,
     exitDate: exitBar.date,
   };
+}
+
+/**
+ * The outcomes that count toward return metrics: a neutral claim takes no
+ * position, so it counts only toward hit rate. Goes by the claim's direction,
+ * because outcomes are append-only and older neutral ones still store the raw
+ * price move as their return.
+ */
+export function outcomesWithPosition<T extends { direction: string }>(rows: T[]): T[] {
+  return rows.filter((row) => row.direction !== "neutral");
 }

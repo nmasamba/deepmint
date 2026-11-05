@@ -2,9 +2,10 @@
 
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Loader2, Mail, Bell, ShieldCheck } from "lucide-react";
+import { Loader2, Mail, Bell, ShieldCheck, UserRound } from "lucide-react";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
 import { BrokerVerification } from "@/components/settings/BrokerVerification";
+import { ProfileForm } from "@/components/settings/ProfileForm";
 
 export default function SettingsPage() {
   const utils = trpc.useUtils();
@@ -21,8 +22,17 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-text-primary">Settings</h1>
         <p className="mt-1 text-text-secondary">
-          Account preferences and notifications.
+          Your profile, account preferences and notifications.
         </p>
+      </div>
+
+      {/* Profile */}
+      <div id="profile" className="rounded-lg border border-border bg-bg-secondary p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <UserRound className="h-5 w-5 text-text-secondary" />
+          <h2 className="text-lg font-semibold text-text-primary">Profile</h2>
+        </div>
+        <ProfileForm />
       </div>
 
       {/* Email Preferences */}

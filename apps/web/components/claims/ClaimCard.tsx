@@ -267,11 +267,15 @@ export function ClaimCard({
                 <X className="h-3 w-3 text-red-500" />
               )}
               <span className="text-text-secondary">{outcome.horizon}:</span>
-              <span
-                className={`font-mono ${outcome.returnBps >= 0 ? "text-green-500" : "text-red-500"}`}
-              >
-                {formatBps(outcome.returnBps)}
-              </span>
+              {claim.direction === "neutral" ? (
+                <span className="text-text-secondary">No position</span>
+              ) : (
+                <span
+                  className={`font-mono ${outcome.returnBps >= 0 ? "text-green-500" : "text-red-500"}`}
+                >
+                  {formatBps(outcome.returnBps)}
+                </span>
+              )}
             </div>
           ))
         ) : (

@@ -179,7 +179,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - PWA manifest, Serwist service worker and an `/offline` page.
 - **Status today:**
   - Since 2026-10-06 the regime is a stored daily snapshot (`market_regimes`, migration 0008), written on weekdays at 17:30 US Eastern; pages read it instead of recomputing. The plan has no index data (`I:VIX` and `I:SPX` return 403), so the S&P 500 30-day return is measured on SPY and VIX is recorded as defaulted, never as a made-up value.
-  - The web suite has 58 tests in 6 files (18 before wave 1, 26 before wave 2, 33 before wave 3); an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
+  - The web suite has 67 tests in 6 files (18 before wave 1, 26 before wave 2, 33 before wave 3, 58 before wave 5); an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
   - `/docs/api` is shown to every signed-in user, but only admins can mint keys.
   - Until wave 1, `/manifest.json` and `/offline` sat behind sign-in: the manifest returned 404 and the offline page was never precached, so neither worked. Both are public now, and the service worker precaches `/offline`.
 
@@ -284,7 +284,7 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 - **Ingestion:** the weekday ingest does nothing unless one of the two lanes is configured:
   - RSS needs Guides with `is_allowlisted=true` and a `source_url`, set by hand in SQL;
   - the Polygon news lane needs `INGEST_POLYGON_NEWS=1`.
-- **Tests without keys** (since wave 4): scoring 105, shared 32 (2 live Polygon tests skip), api 25 (18 database tests skip), ingestion 78 (6 live LLM and 5 database tests skip), web 58 skipped.
+- **Tests without keys** (since wave 6): scoring 127, shared 69 (2 live Polygon tests skip), api 32 (39 database tests skip), ingestion 83 (6 live LLM and 5 database tests skip), web 67 skipped.
 - **Open issues to know first:**
   - `claims/created` fires only for self-logged claims.
   - Sentry and R2 are inert.

@@ -49,6 +49,11 @@ export const claims = pgTable('claims', {
   horizonStated: text('horizon_stated'),                              // author's own horizon words, when stated
   sourceExcerpt: text('source_excerpt'),                              // quote verified verbatim against the event text
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  // When the row reached the ledger. created_at is the date of the call, which
+  // can be long before that for ratings, backfill and retried extractions; the
+  // Merkle audit windows on this instead. Null on rows from before migration
+  // 0012: nobody recorded when they were stored, and rows are never rewritten.
+  recordedAt: timestamp('recorded_at', { withTimezone: true }).defaultNow(),
   // NO updatedAt — immutable. Migration 0010's triggers refuse every UPDATE but
   // pending_review → active | rejected, and every DELETE.
 });

@@ -20,8 +20,8 @@ Today Deepmint covers seven large US technology stocks, the "Magnificent 7": App
 |---|---|
 | **Guides**: analysts and research firms | Their calls are collected for them. Deepmint reads their published posts, or an archive of past posts, and an AI model extracts the calls. A Guide needs no account. Nobody can sign up as a Guide or claim a Guide profile yet: the landing page's "Sign Up as a Guide" button creates an ordinary Player account. |
 | **Players**: everyone who signs up | Log your own claims in the web app. They are checked against real prices by the same rules as Guides' claims. You appear on the leaderboard next to the Guides. You can also run practice ("paper") portfolios with virtual money. |
-| **Followers** | This is not a separate account type. Any Player can follow Guides and other Players, read their claims in a "Following" feed, keep a watchlist of stocks, and use "Mirror Signals" to copy someone's calls into a paper portfolio. Mirroring only logs trades when the person you mirror is a Player who logs a new claim. Mirroring a Guide logs nothing yet. |
-| **Admins** | Admin rights are granted by the maintainer in Clerk. Admins approve or reject claims held for review, manage the list of stocks and issue API keys. |
+| **Followers** | This is not a separate account type. Any Player can follow Guides and other Players, read their claims in a "Following" feed, keep a watchlist of stocks, and use "Mirror Signals" to copy someone's calls into a paper portfolio. A mirror copies a call when it goes live, if the call is dated within the last 48 hours: an old rating or a late approval is not copied, and neither is a backfill or a neutral call. |
+| **Admins** | Admin rights are granted by the maintainer in Clerk. Admins approve or reject claims held for review, switch Guides' feeds on, manage the list of stocks and issue API keys. |
 | **Developers and AI agents** | Read scores, consensus and leaderboards through a REST API, using a key issued by an admin. AI agents can use the same data through the MCP server at `/api/mcp`, with the same kind of key. |
 
 ## Why does it exist?
@@ -63,12 +63,12 @@ flowchart TD
    Otherwise the claim waits in an admin review queue, where an admin approves or rejects it. A repeat of an existing call (same author, stock, direction, horizon and day) is skipped.
 4. **The horizon runs out.** A claim "matures" once its horizon has passed.
 5. **Markout.** Every weekday evening a job takes each matured active claim and looks up the closing price on its end date. It records the **outcome**:
-   - the return, in basis points;
+   - the return, in basis points (a neutral call takes no position, so its return is 0 and it counts only toward hit rate);
    - whether the direction was right (a neutral call is right if the price moved 2% or less either way);
    - whether the target price was reached.
-6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures. Players also get risk measures such as the Sharpe ratio and maximum drawdown.
+6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures. Players also get risk measures such as the Sharpe ratio and maximum drawdown, worked out from a daily book: each claim is held from its entry close to its exit close and marked at every close in between, which takes at most one Polygon request per stock.
 7. **Leaderboard and consensus.** The leaderboard ranks authors by the new scores. For each stock, Deepmint recalculates the consensus: a weighted vote (bullish, bearish or neutral) of the active claims whose horizon has not yet passed, plus the average of their price targets and how widely those targets spread. Claims count for more when their author has a higher EIV, is a Guide or is a broker-verified Player, when they are newer and when their confidence is higher.
-8. **Nightly fingerprint.** Every night a job hashes the previous day's claims into a single Merkle root and stores it in the database. The roots are not yet published, anchored outside the database or checkable by users.
+8. **Nightly fingerprint.** Every night a job hashes the claims recorded the previous day, whatever date they carry, into a single Merkle root and stores it in the database. The roots are not yet published, anchored outside the database or checkable by users.
 
 ## When do things happen?
 
@@ -82,7 +82,7 @@ The jobs tied to the US market run on US Eastern time (`TZ=America/New_York` in 
 | Market regime | Records the day's market conditions (S&P 500 trend, VIX, sector spread) for the leaderboard | 17:30 | 21:30 / 22:30 | Mon–Fri |
 | Broker sync | Imports trades from linked brokerage accounts | 18:00 | 22:00 / 23:00 | Mon–Fri |
 | Consensus and influence | Recalculates each ticker's consensus and each Guide's influence, so a claim's decay and expiry count even when none matures | 18:30 | 22:30 / 23:30 | Every day |
-| Merkle audit | Fingerprints the previous UTC day's claims | 18:00 / 17:00 | 22:00 | Every day |
+| Merkle audit | Fingerprints the claims recorded on the previous UTC day | 18:00 / 17:00 | 22:00 | Every day |
 
 Other jobs run in a chain rather than on a clock:
 
@@ -108,7 +108,7 @@ A claim's end date is its entry date plus the horizon in calendar days. (For old
 |---|---|---|
 | Web app | [www.deepmint.ai](https://www.deepmint.ai), hosted on Vercel. `deepmint.ai` redirects to `www`. | The landing, sign-in, sign-up and offline pages, ticker pages, Learn and claim pages (and the app manifest) are public. Every other page, including the leaderboard and profiles, needs an account. |
 | REST API | `https://www.deepmint.ai/api/v1`: `GET /entities/{slug}/scores`, `GET /instruments/{ticker}/consensus`, `GET /leaderboard?metric=…`, plus the spec at `/openapi.json` | The three data endpoints need an API key (`Authorization: Bearer dm_live_…`), and only admins can create keys. The spec needs no key; signed-in users can also browse it at `/docs/api`. |
-| AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Each tool checks its own scope: `consensus:read` for regime and consensus, `leaderboard:read` for the leaderboard, `scores:read` for a track record (profile, scores, and claims with outcomes). Instrument search needs only a valid key. The write tools (`submit_claim`, `add_note`) need `claims:write` and currently act as the admin who created the key ([known issue](docs/KNOWN_ISSUES.md#mcp-acts-as-admin)). |
+| AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Each tool checks its own scope: `consensus:read` for regime and consensus, `leaderboard:read` for the leaderboard, `scores:read` for a track record (profile, scores, and claims with outcomes). Instrument search needs only a valid key. The write tools (`submit_claim`, `add_note`) need `claims:write` and a key bound to an agent. An agent is a Player of its own, marked "AI agent" on its profile, so its claims are scored like anyone's and never land on the admin who minted the key. |
 | App API (tRPC) | `/api/trpc` | Used by the web app itself. Ticker, claim and market reads answer without sign-in; leaderboard and profile reads need a signed-in user. |
 | Background jobs | 17 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
 | Database | PostgreSQL on Supabase | Operators only |
@@ -132,7 +132,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - signing up, and logging your own claims;
 - extracting claims from Guide posts, with the evidence check and admin review;
 - the daily markout, scoring and consensus;
-- the leaderboard by Hit Rate, Sharpe, EIV and Avg Return, for anyone with at least 10 scored outcomes;
+- the leaderboard by Hit Rate, Sharpe, EIV and Avg Return, for anyone with at least 10 scored outcomes (on Sharpe and Avg Return, 10 that took a position);
 - Guide and Player profiles;
 - claim cards with each claim's result, and a page for each claim with its source, result and notes;
 - following, watchlists and in-app notifications;
@@ -144,15 +144,12 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 
 - **Leaderboard.**
   - The market-conditions badge is a once-a-day snapshot. The current Polygon plan has no index data, so VIX is recorded as unavailable and the badge says "partial data"; the S&P 500 trend comes from the SPY fund instead of the index.
-  - The regime filters (Bull, Bear and so on) always come back empty.
-- **Daily ingestion.** The daily Guide collection does nothing until an operator switches on a Guide's feed by editing the database (there is no admin control for it) or enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
-- **Not working yet:**
-  - Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
-  - Mirroring a Guide, which never creates trades.
+- **Daily ingestion.** The daily Guide collection does nothing until an admin switches on a Guide's feed at `/admin/guides` or an operator enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
+- **Not working yet:** Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
 - **Error tracking and snapshots.** Error tracking (Sentry) and source snapshots (Cloudflare R2) are not wired into the app. Setting their keys alone does not turn them on.
-- **Audit.** The nightly audit roots are not published, and they do not cover claims stored with an earlier date, such as backfilled history.
-- **Missing features.** There is no way to become a Guide, edit your profile or request a new stock.
+- **Audit.** The nightly audit roots are not published. Claims stored before migration 0012 with an earlier date, such as backfilled history, are in no root.
+- **Missing features.** There is no way to become a Guide or request a new stock.
 
 The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 
@@ -179,7 +176,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 |---|---|
 | Monorepo | pnpm 10.32.1 workspaces, Turborepo 2 |
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui components, Serwist (PWA) |
-| API | tRPC v11 (15 routers, 72 procedures), REST `/api/v1`, MCP via `mcp-handler` |
+| API | tRPC v11 (15 routers, 75 procedures), REST `/api/v1`, MCP via `mcp-handler` |
 | Database | PostgreSQL (16 in Docker locally, Supabase in production) with Drizzle ORM 0.41 |
 | Background jobs | Inngest 4 (17 functions) |
 | Auth | Clerk (`@clerk/nextjs` 7) |
@@ -315,7 +312,7 @@ The archive format is documented at the top of [`apps/worker/scripts/backfill.ts
 
 **7. Make yourself an admin**
 
-In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`. The Admin section (Claim Review, Instruments, API Keys) then appears in the sidebar. There is no in-app way to grant admin.
+In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`. The Admin section (Claim Review, Guides, Instruments, API Keys) then appears in the sidebar. There is no in-app way to grant admin.
 
 ### Common commands
 
@@ -338,11 +335,11 @@ These results were measured on 2026-11-02 with no `.env.local`.
 
 | Command | Result without keys | What enables more |
 |---|---|---|
-| `pnpm --filter @deepmint/scoring test` | 105 passed (6 files) | Nothing needed |
-| `pnpm --filter @deepmint/shared test` | 32 passed, 2 skipped (5 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
-| `pnpm --filter @deepmint/api test` | 25 passed, 18 skipped (5 files) | `DATABASE_URL` in the root `.env.local` runs the 18 caller tests against that database (read-only). |
-| `pnpm --filter @deepmint/ingestion test` | 78 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
-| `pnpm --filter @deepmint/web test` | 58 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
+| `pnpm --filter @deepmint/scoring test` | 127 passed (6 files) | Nothing needed |
+| `pnpm --filter @deepmint/shared test` | 69 passed, 2 skipped (6 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
+| `pnpm --filter @deepmint/api test` | 32 passed, 39 skipped (9 files) | `DATABASE_URL` in the root `.env.local` runs the 39 database tests. They read, or write inside a transaction they roll back. |
+| `pnpm --filter @deepmint/ingestion test` | 83 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
+| `pnpm --filter @deepmint/web test` | 67 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
 
 The worker has no tests.
 

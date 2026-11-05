@@ -5,3 +5,4 @@ export * from "./polygon";
 export * from "./polygonCache";
 export * from "./merkle";
 export * from "./eiv";
+export * from "./claimEvidence";

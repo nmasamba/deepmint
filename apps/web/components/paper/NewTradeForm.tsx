@@ -13,7 +13,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { InstrumentSearch } from "@/components/InstrumentSearch";
+import { formatCurrency } from "@deepmint/shared";
 import { Plus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface NewTradeFormProps {
   portfolioId: string;
@@ -30,9 +32,18 @@ export function NewTradeForm({ portfolioId }: NewTradeFormProps) {
   const [quantity, setQuantity] = useState("");
   const utils = trpc.useUtils();
 
+  const lastClose = trpc.paper.lastClose.useQuery(
+    { instrumentId: selectedInstrument?.id ?? "" },
+    { enabled: selectedInstrument !== null },
+  );
+
   const addTradeMutation = trpc.paper.addTrade.useMutation({
-    onSuccess: () => {
+    onSuccess: (trade) => {
+      toast.success(
+        `Filled at ${formatCurrency(trade.entryPriceCents)}, last close ${trade.fillSessionDate}`,
+      );
       utils.paper.portfolioDetail.invalidate({ portfolioId });
+      utils.paper.portfolioPerformance.invalidate({ portfolioId });
       utils.paper.myPortfolios.invalidate();
       setOpen(false);
       resetForm();
@@ -141,6 +152,17 @@ export function NewTradeForm({ portfolioId }: NewTradeFormProps) {
               className="mt-1 bg-bg-primary"
             />
           </div>
+
+          {/* What it will fill at */}
+          {selectedInstrument && (
+            <p className="text-sm text-text-secondary">
+              {lastClose.data
+                ? `Fills at ${formatCurrency(lastClose.data.closeCents)}, last close ${lastClose.data.sessionDate}`
+                : lastClose.error
+                  ? "The last close is unavailable right now."
+                  : "Looking up the last close..."}
+            </p>
+          )}
 
           {/* Error */}
           {addTradeMutation.error && (

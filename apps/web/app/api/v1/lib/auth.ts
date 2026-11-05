@@ -9,8 +9,8 @@ export interface AuthenticatedKey {
   name: string;
   scopes: string[];
   rateLimit: number;
-  /** Owning entity (api_keys.created_by) — required for write tools. */
-  createdBy: string | null;
+  /** The agent this key acts as (api_keys.entity_id) — required for write tools. */
+  entityId: string | null;
 }
 
 export interface AuthResult {
@@ -124,7 +124,7 @@ export async function authenticateRequest(
       name: row.name,
       scopes,
       rateLimit: row.rateLimit,
-      createdBy: row.createdBy ?? null,
+      entityId: row.entityId ?? null,
     },
     rateLimit: meta,
   };

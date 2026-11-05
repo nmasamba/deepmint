@@ -54,7 +54,8 @@ interface BackfillEventData {
  *
  * Invariants preserved: events/claims are inserted once (append-only, never
  * UPDATEd) with explicit historical timestamps; outcomes are deduped on
- * (claimId, horizon). No resolution notifications are sent for backfill.
+ * (claimId, horizon). No resolution notifications are sent for backfill, and
+ * no claims/created: history is not a signal, so a backfill never mirrors.
  * Only `active` claims are matured; claims held for review score only once
  * approved, via the daily markout.
  */
@@ -149,8 +150,9 @@ export const backfillFunction = inngest.createFunction(
           `extract-${ingested.eventId}`,
           async () => {
             const processed = await processExtraction(ingested.eventId, item.rawText, entityId, {
-              // Historical archive of a Guide's own published views — the
-              // resolved entity IS the author, so attribution is inherent.
+              // Historical archive of a Guide's own published views: credited
+              // to the Guide, unless a post names a firm, when the claim moves
+              // to the firm and waits for review.
               sourceKind: "analyst_feed",
               createdAt: publishedAt,
               entryPriceResolver: async (ticker) => {

@@ -3,6 +3,8 @@ import { entities } from "@deepmint/db/schema";
 
 /** Max length of entities.slug / display_name (varchar(100)). */
 const MAX_LEN = 100;
+/** Max length of entities.avatar_url (varchar(500)). */
+const MAX_AVATAR_LEN = 500;
 /** Attempts to resolve a slug collision before giving up. */
 const MAX_SLUG_ATTEMPTS = 5;
 
@@ -38,7 +40,7 @@ export async function ensureEntityForClerkUser(
   const existing = await findByClerkUserId(input.clerkUserId);
   if (existing) return existing;
 
-  const displayName = (input.displayName || "").trim().slice(0, MAX_LEN) || "User";
+  const displayName = storedDisplayName(input.displayName);
   const baseSlug = (input.slug || "").trim().slice(0, MAX_LEN) || "user";
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
@@ -58,7 +60,7 @@ export async function ensureEntityForClerkUser(
           type: "player",
           displayName,
           slug,
-          avatarUrl: input.avatarUrl ?? null,
+          avatarUrl: fitsAvatarColumn(input.avatarUrl) ? input.avatarUrl : null,
         })
         .returning();
       if (created) return created;
@@ -74,6 +76,41 @@ export async function ensureEntityForClerkUser(
   throw new Error(
     `Could not create entity for Clerk user ${input.clerkUserId}: slug "${baseSlug}" unresolvable after ${MAX_SLUG_ATTEMPTS} attempts`,
   );
+}
+
+/**
+ * Bring an entity's name and avatar up to date with Clerk, which owns both
+ * (D8). The slug never changes, because it is the profile's public address.
+ * An entity that does not exist yet is created, in case `user.created` was
+ * never delivered. An avatar URL too long for its column leaves the old avatar
+ * in place: failing here would have Clerk redeliver the event for ever.
+ */
+export async function syncEntityFromClerk(
+  input: EnsureEntityInput,
+): Promise<typeof entities.$inferSelect> {
+  const entity = await ensureEntityForClerkUser(input);
+  const displayName = storedDisplayName(input.displayName);
+  const avatarUrl = fitsAvatarColumn(input.avatarUrl)
+    ? (input.avatarUrl ?? null)
+    : entity.avatarUrl;
+  if (displayName === entity.displayName && avatarUrl === entity.avatarUrl) {
+    return entity;
+  }
+
+  const [updated] = await db
+    .update(entities)
+    .set({ displayName, avatarUrl, updatedAt: new Date() })
+    .where(eq(entities.id, entity.id))
+    .returning();
+  return updated ?? entity;
+}
+
+function storedDisplayName(name: string): string {
+  return (name || "").trim().slice(0, MAX_LEN) || "User";
+}
+
+function fitsAvatarColumn(url: string | null | undefined): boolean {
+  return (url?.length ?? 0) <= MAX_AVATAR_LEN;
 }
 
 async function findByClerkUserId(

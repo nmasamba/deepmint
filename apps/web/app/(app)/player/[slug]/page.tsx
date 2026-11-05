@@ -37,7 +37,7 @@ export default async function PlayerProfilePage({ params }: PlayerProfilePagePro
 
   return (
     <div className="mx-auto max-w-4xl">
-      <EntityProfileHeader entity={entity} hideFollow={isOwnProfile} />
+      <EntityProfileHeader entity={entity} isOwnProfile={isOwnProfile} />
       <EntityProfileTabs entityType="player" entityId={entity.id} />
     </div>
   );

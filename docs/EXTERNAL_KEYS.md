@@ -69,10 +69,10 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Production:** set, on a Clerk **development** instance (`pk_test_` keys). Sign-in methods are set in the Clerk dashboard, not in code; Facebook and X were never configured. See priority 2 for the move to a production instance.
 
 **`CLERK_WEBHOOK_SECRET`**
-- **Powers:** `POST /api/webhooks/clerk` (`apps/web/app/api/webhooks/clerk/route.ts:25`), which creates the Player entity on `user.created`. That is the only event it handles.
+- **Powers:** `POST /api/webhooks/clerk` (`apps/web/app/api/webhooks/clerk/route.ts:25`), which creates the Player entity on `user.created` and syncs its name and avatar on `user.updated` (the slug never changes). Those are the only events it handles.
 - **Required:** no. If the webhook never fires, the tRPC self-heal creates the entity on the user's first tRPC request.
 - **If missing:** every delivery gets a 500, because the route throws before checking headers.
-- **Get it:** Clerk dashboard → Webhooks → add endpoint `https://www.deepmint.ai/api/webhooks/clerk`, subscribe to `user.created`, copy the signing secret. Use the `www` host: the bare `deepmint.ai` answers with a 307 redirect, which Svix does not follow.
+- **Get it:** Clerk dashboard → Webhooks → add endpoint `https://www.deepmint.ai/api/webhooks/clerk`, subscribe to `user.created` and `user.updated`, copy the signing secret. Use the `www` host: the bare `deepmint.ai` answers with a 307 redirect, which Svix does not follow.
 - **Verify:** `curl -X POST https://www.deepmint.ai/api/webhooks/clerk` returns `400 Missing svix headers` when the secret is set, and 500 when it is not. A real delivery logs `[clerk webhook] entity ensured` in the Vercel function logs. Locally, `apps/web/__tests__/webhooks/clerk.test.ts` signs payloads with this secret (from the root `.env.local`) and posts them to the dev server.
 - **Production:** secret set (probe 2026-10-05 returned the 400). Whether an endpoint is registered in Clerk is unverified; notes from 2026-08-11 say none was, and production entities came from the self-heal.
 
@@ -180,15 +180,14 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Powers:** read-only broker linking for Players (Settings → Broker verification, through `broker.initLink`, `completeLink`, `syncTrades` and `disconnect`) and the `broker-sync` cron (18:00 US Eastern, Mon–Fri). The cron imports trades into `player_trades`.
 - **Read by:** `packages/api/lib/snaptrade.ts:17-18`.
 - **If missing:** the client is null. `broker.initLink` throws `PRECONDITION_FAILED`, Settings shows "Broker verification is not configured on this deployment", and `broker-sync` returns `snaptrade-not-configured`.
-- **What a key actually turns on. Fix these before enabling it:**
-  - "Verified" only means SnapTrade listed at least one account (`packages/api/routers/broker.ts:171-198`). Trades are never compared with claims.
-  - "Verified" earns a badge and ×1.5 consensus weight on all of the Player's live claims.
-  - Synced trades are stored but nothing reads them: they affect no score, rank or page.
+- **What a key actually turns on.** Linking stores every account the user connected. "Verified" takes at least one imported trade in a tracked stock on any of them, and a sync failure or a disconnect withdraws it. It earns a badge and ×1.5 consensus weight on the Player's live claims, and nothing else: synced trades are never compared with claims and affect no score or rank. Settings and the landing page say so.
+- **Fix these before enabling it:**
   - The per-user SnapTrade `userSecret` is stored in plaintext in `broker_links.metadata`.
-  - The first sync error leaves the link stuck in `error` with no recovery in the UI, while the badge and weight stay.
+  - A sync error that outlasts a run's retries leaves the link in `error`: the cron skips it and the Player must reconnect by hand.
   - `initLink` passes no redirect URL, so the return to `/settings?snaptrade_success=true` depends on the SnapTrade dashboard's settings.
+  - None of this has run against SnapTrade: linking and sync were tested with a stand-in for the SDK, so run a sandbox account through it first.
 - **Get it:** SnapTrade dashboard → API keys (client ID and consumer key).
-- **Verify:** Settings shows the connect flow instead of "not configured", and the next `broker-sync` run returns sync counts instead of `snaptrade-not-configured`.
+- **Verify:** Settings shows the connect flow instead of "not configured", the next `broker-sync` run returns sync counts instead of `snaptrade-not-configured`, and a sandbox account with a trade in a tracked stock goes from "Not verified yet" to Verified.
 - **Production:** empty (last recorded).
 
 ## Resend
@@ -243,13 +242,13 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 | `VERCEL_URL` | `apps/web/components/providers/TRPCProvider.tsx:11` | Set by Vercel. The server-side tRPC base URL; `http://localhost:3000` without it. | Automatic |
 | `NODE_ENV` | `apps/web/next.config.ts:7` | Set by Next. `development` disables the service worker. | Automatic |
 
-The RSS lane has no variable. It reads Guides with `is_allowlisted = true` and a non-null `source_url`, and no UI or API sets those columns, so it is switched on by editing the database.
+The RSS lane has no variable. It reads Guides with `is_allowlisted = true` and a non-null `source_url`; an admin sets both per Guide at `/admin/guides`.
 
 ## Test-only variables
 
 These are read from the **root** `.env.local` by `apps/web/vitest.config.ts`.
 
-- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 58 tests in 6 files skip. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`.
+- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 67 tests in 6 files skip. The 6 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`. One MCP test also needs `TEST_MCP_WRITES=1`, because it writes a claim that cannot be deleted.
   - Mint it at `/admin/api-keys` as an admin, in the database used by the server under test. The default read scopes are enough.
   - Admins are the only people who can mint keys; the UI offers only the 3 read scopes.
 - **`TEST_BASE_URL`**: default `http://localhost:3000`. The server must be running.

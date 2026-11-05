@@ -105,7 +105,7 @@ The key insight: even with a genuine edge, betting too large will eventually lea
 - **2.0 - 3.0**: Excellent
 - **> 3.0**: Exceptional (and rare over long periods)
 
-**On Deepmint**, a Player's Sharpe ratio comes from their scored claims, not from a portfolio. Each matured claim's return counts as one period: Sharpe = average claim return / standard deviation of claim returns × √252. No risk-free rate is subtracted. Higher means more consistent returns per call.`,
+**On Deepmint**, a Player's Sharpe ratio comes from a daily book of their scored claims, not from a real portfolio. Each claim is held from its entry close to its exit close and marked at every daily close, and each day's return is the average move of the claims open that day. A day with none open counts as cash. Sharpe = (average daily return - daily risk-free rate) / standard deviation of daily returns × √252, with a 4% annual risk-free rate. Higher means more return per unit of day-to-day risk.`,
       },
       {
         title: "Max Drawdown & Calmar Ratio",
@@ -116,7 +116,7 @@ The **Calmar Ratio** = Annualized Return / Max Drawdown. It tells you how much r
 - A Calmar of 2.0 means you earned twice your worst drawdown.
 - A Calmar below 1.0 means your worst drawdown exceeded your annual return — concerning.
 
-**On Deepmint**, both come from a Player's scored claims: their returns are compounded in the order the claims matured, as if each were a full-size position, and max drawdown is the worst fall of that curve. Calmar is that curve's total return × 252 / number of claims, divided by the max drawdown.`,
+**On Deepmint**, both come from the same daily book: its daily returns are compounded into a curve, and max drawdown is the worst fall of that curve. Calmar is the curve's return, compounded to a yearly rate over 252 trading days, divided by the max drawdown.`,
       },
       {
         title: "Win Rate vs Expected Value",

@@ -15,7 +15,12 @@ import {
   protectedProcedure,
   adminProcedure,
 } from "../trpc";
-import { VALID_HORIZONS, RATIONALE_TAGS } from "@deepmint/shared";
+import {
+  VALID_HORIZONS,
+  RATIONALE_TAGS,
+  claimHoldReasons,
+  isUnattributedRating,
+} from "@deepmint/shared";
 import { enrichClaimRows } from "../lib/claimEnrichment";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
@@ -350,19 +355,48 @@ export const claimRouter = router({
       const hasMore = results.length > input.limit;
       const items = hasMore ? results.slice(0, -1) : results;
 
-      // Fetch linked event text for each claim (if it came from ingestion)
+      // Fetch linked event text for each claim (if it came from ingestion),
+      // and work out why it was held.
       const enriched = await Promise.all(
         items.map(async (item) => {
-          let eventText: string | null = null;
-          if (item.claim.eventId) {
-            const [event] = await ctx.db
-              .select({ rawText: events.rawText })
-              .from(events)
-              .where(eq(events.id, item.claim.eventId))
-              .limit(1);
-            eventText = event?.rawText ?? null;
-          }
-          return { ...item, eventText };
+          const { claim } = item;
+          const [event] = claim.eventId
+            ? await ctx.db
+                .select({
+                  rawText: events.rawText,
+                  entityId: events.entityId,
+                  publisher: events.publisher,
+                })
+                .from(events)
+                .where(eq(events.id, claim.eventId))
+                .limit(1)
+            : [];
+          // The extractor's copy key: same entity, instrument, direction,
+          // horizon and date. Compared as a bound date string, never a JS Date.
+          const day = claim.createdAt.toISOString().slice(0, 10);
+          const [rejectedCopy] = await ctx.db
+            .select({ id: claims.id })
+            .from(claims)
+            .where(
+              and(
+                eq(claims.status, "rejected"),
+                eq(claims.entityId, claim.entityId),
+                eq(claims.instrumentId, claim.instrumentId),
+                eq(claims.direction, claim.direction),
+                eq(claims.horizonDays, claim.horizonDays),
+                sql`${claims.createdAt}::date = ${day}::date`,
+              ),
+            )
+            .limit(1);
+          return {
+            ...item,
+            eventText: event?.rawText ?? null,
+            holdReasons: claimHoldReasons(claim, {
+              carrierEntityId: event?.entityId ?? null,
+              publisher: event?.publisher ?? null,
+              earlierCopyRejected: !!rejectedCopy,
+            }),
+          };
         }),
       );
 
@@ -406,6 +440,21 @@ export const claimRouter = router({
         });
       }
 
+      if (input.action === "approve" && claim.eventId) {
+        const [event] = await ctx.db
+          .select({ entityId: events.entityId })
+          .from(events)
+          .where(eq(events.id, claim.eventId))
+          .limit(1);
+        if (isUnattributedRating(claim, event?.entityId ?? null)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "This rating has no issuing firm, so approving it would score whoever carried the text. Reject it instead.",
+          });
+        }
+      }
+
       const newStatus = input.action === "approve" ? "active" : "rejected";
 
       // Status transition is the ONLY allowed update on claims.
@@ -414,6 +463,25 @@ export const claimRouter = router({
         .update(claims)
         .set({ status: newStatus })
         .where(eq(claims.id, input.claimId));
+
+      // An approved claim goes live now, so its listeners hear of it now.
+      // Each decides for itself whether it is too old to act on.
+      if (newStatus === "active") {
+        await inngest.send({
+          id: `claims-created-${claim.id}`,
+          name: "claims/created",
+          data: {
+            claimId: claim.id,
+            entityId: claim.entityId,
+            instrumentId: claim.instrumentId,
+            direction: claim.direction,
+            horizonDays: claim.horizonDays,
+            entryPriceCents: claim.entryPriceCents,
+          },
+        }).catch(() => {
+          // Non-blocking: the decision stands if Inngest is unavailable
+        });
+      }
 
       return { claimId: input.claimId, status: newStatus };
     }),

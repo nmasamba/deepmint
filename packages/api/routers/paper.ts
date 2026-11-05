@@ -147,8 +147,11 @@ export const paperRouter = router({
         });
       }
 
-      // Trades fill at the latest close
-      const { closeCents: priceCents } = await getLatestClose(instrument.ticker);
+      // Trades fill at the latest close (D9). During market hours that is the
+      // previous session's, so the session date goes back with the fill.
+      const { closeCents: priceCents, sessionDate } = await getLatestClose(
+        instrument.ticker,
+      );
 
       // Calculate cost
       const qty = Number(input.quantity);
@@ -178,10 +181,30 @@ export const paperRouter = router({
         })
         .returning();
 
-      return trade;
+      return { ...trade!, fillSessionDate: sessionDate };
     }),
 
-  /** Close an open trade at current market price. */
+  /** The close a trade in this instrument would fill at now, with its session. */
+  lastClose: protectedProcedure
+    .input(z.object({ instrumentId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const [instrument] = await ctx.db
+        .select({ ticker: instruments.ticker })
+        .from(instruments)
+        .where(eq(instruments.id, input.instrumentId))
+        .limit(1);
+
+      if (!instrument) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Instrument not found",
+        });
+      }
+
+      return getLatestClose(instrument.ticker);
+    }),
+
+  /** Close an open trade at the latest close. */
   closeTrade: protectedProcedure
     .input(z.object({ tradeId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
@@ -222,7 +245,9 @@ export const paperRouter = router({
         });
       }
 
-      const { closeCents: exitPriceCents } = await getLatestClose(trade.ticker);
+      const { closeCents: exitPriceCents, sessionDate } = await getLatestClose(
+        trade.ticker,
+      );
 
       const [updated] = await ctx.db
         .update(paperTrades)
@@ -233,7 +258,7 @@ export const paperRouter = router({
         .where(eq(paperTrades.id, input.tradeId))
         .returning();
 
-      return updated;
+      return { ...updated!, fillSessionDate: sessionDate };
     }),
 
   /** Get portfolio detail: all trades with instrument info. */
@@ -330,6 +355,8 @@ export const paperRouter = router({
       return {
         startingBalanceCents: portfolio.startingBalanceCents,
         ...valuation,
+        /** The closes open positions are marked at, by ticker. */
+        lastCloses: Object.fromEntries(closes),
       };
     }),
 });

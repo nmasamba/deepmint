@@ -1,6 +1,6 @@
 import { inngest } from "../inngest";
-import { db, eq } from "@deepmint/db";
-import { events } from "@deepmint/db/schema";
+import { db, eq, and } from "@deepmint/db";
+import { claims, events } from "@deepmint/db/schema";
 import { processExtraction } from "@deepmint/ingestion";
 
 /**
@@ -9,10 +9,21 @@ import { processExtraction } from "@deepmint/ingestion";
  */
 const RETRY_ROUND_DELAYS = ["1h", "4h", "16h"];
 
+interface ClaimCreated {
+  claimId: string;
+  entityId: string;
+  instrumentId: string;
+  direction: "long" | "short" | "neutral";
+  horizonDays: number;
+  entryPriceCents: number | null;
+}
+
 /**
  * Extraction worker: triggered after ingestion completes.
  * Processes each new event through the LLM extraction pipeline, then retries
- * the events that failed, in up to three rounds with backoff.
+ * the events that failed, in up to three rounds with backoff. Each round
+ * announces its active claims with claims/created, for mirrors, followers and
+ * influence. A claim held for review is announced when it is approved.
  */
 export const extractFunction = inngest.createFunction(
   {
@@ -37,6 +48,7 @@ export const extractFunction = inngest.createFunction(
         await step.sleep(`retry-wait-${round}`, RETRY_ROUND_DELAYS[round - 1]);
       }
       failedEventIds = [];
+      const announced: ClaimCreated[] = [];
 
       for (const eventId of roundEventIds) {
         // Extraction throws on a truncated or unparseable model reply. Once the
@@ -53,13 +65,21 @@ export const extractFunction = inngest.createFunction(
 
             if (!eventRecord) {
               console.warn(`Event not found: ${eventId}`);
-              return { inserted: 0, pending: 0, invalid: 0, duplicates: 0, superseded: 0 };
+              return {
+                inserted: 0,
+                pending: 0,
+                invalid: 0,
+                duplicates: 0,
+                superseded: 0,
+                activeClaims: [] as ClaimCreated[],
+              };
             }
 
             // A publisher means the text was carried by a third party (Wall
             // Street ratings lane), so the issuing firm must be recovered before
-            // the claim can score. No publisher means a Guide's own feed, where
-            // the source entity IS the author and attribution is inherent.
+            // the claim can score. No publisher means a Guide's own feed: the
+            // claim stays with the Guide, unless the post names a firm, when it
+            // moves to the firm and waits for review.
             const sourceKind = eventRecord.publisher
               ? "wall_street_rating"
               : "analyst_feed";
@@ -84,7 +104,21 @@ export const extractFunction = inngest.createFunction(
               (extractionResult.model ? ` via ${extractionResult.model}` : ""),
             );
 
-            return extractionResult;
+            // Read back rather than taken from the result, so a retry after the
+            // claims were written still announces them.
+            const activeClaims = await db
+              .select({
+                claimId: claims.id,
+                entityId: claims.entityId,
+                instrumentId: claims.instrumentId,
+                direction: claims.direction,
+                horizonDays: claims.horizonDays,
+                entryPriceCents: claims.entryPriceCents,
+              })
+              .from(claims)
+              .where(and(eq(claims.eventId, eventId), eq(claims.status, "active")));
+
+            return { ...extractionResult, activeClaims };
           },
         ).catch((err: unknown) => {
           console.error(
@@ -103,6 +137,21 @@ export const extractFunction = inngest.createFunction(
         totalInvalid += result.invalid;
         totalDuplicates += result.duplicates;
         totalSuperseded += result.superseded;
+        // `?? []`: a run in flight at deploy replays results from before the field.
+        announced.push(...(result.activeClaims ?? []));
+      }
+
+      // One step per round, not per post, to stay under the per-run step limit.
+      // The id makes Inngest drop a repeat of the same claim for 24 hours.
+      if (announced.length > 0) {
+        await step.sendEvent(
+          `claims-created-${round}`,
+          announced.map((data) => ({
+            id: `claims-created-${data.claimId}`,
+            name: "claims/created",
+            data,
+          })),
+        );
       }
     }
 
