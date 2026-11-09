@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **32 open issues: no high, 6 medium and 26 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **31 open issues: no high, 6 medium and 25 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 0 | 1 | 1 |
-| [Product (web app)](#area-product) | 0 | 3 | 5 | 8 |
+| [Product (web app)](#area-product) | 0 | 3 | 4 | 7 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 2 | 3 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 4 | 5 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **6** | **26** | **32** |
+| **All** | **0** | **6** | **25** | **31** |
 
 <a id="area-scoring"></a>
 
@@ -103,16 +103,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** The chart plots only Start and Now; no equity history is stored. Learn describes it as a way to "track your performance".
 - **User impact:** A straight line that tells users nothing the Total Return card does not.
 - **Evidence:** [`apps/web/components/paper/EquityCurve.tsx:21-26`](../apps/web/components/paper/EquityCurve.tsx#L21-L26) · [`apps/web/components/paper/PortfolioDetail.tsx:105-111`](../apps/web/components/paper/PortfolioDetail.tsx#L105-L111) · [`apps/web/lib/learnModules.ts:277`](../apps/web/lib/learnModules.ts#L277)
-
-<a id="api-key-ui-scopes"></a>
-
-### Admin API-key page cannot mint write keys or set an expiry
-
-**Low** · feature-gap · `api-key-ui-scopes`
-
-- **What's wrong:** The page offers only `scores:read`, `consensus:read` and `leaderboard:read`, and sends no `expiresAt`, although `apiKeys.create` accepts `claims:write` and an expiry.
-- **User impact:** A key for the MCP write tools needs a hand-made tRPC call or a database edit, and every UI-made key never expires.
-- **Evidence:** [`apps/web/app/(app)/admin/api-keys/page.tsx:34-38`](../apps/web/app/%28app%29/admin/api-keys/page.tsx#L34-L38) · [`apps/web/app/(app)/admin/api-keys/page.tsx:90-94`](../apps/web/app/%28app%29/admin/api-keys/page.tsx#L90-L94) · [`packages/api/routers/apiKeys.ts:8-26`](../packages/api/routers/apiKeys.ts#L8-L26)
 
 <a id="api-docs-nav-for-all"></a>
 

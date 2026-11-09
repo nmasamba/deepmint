@@ -126,7 +126,10 @@ export const apiKeysRouter = router({
       };
     }),
 
-  /** Admin: list API keys (never includes plaintext). */
+  /**
+   * Admin: list API keys (never includes plaintext), with the agent each one
+   * acts as.
+   */
   list: adminProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({
@@ -134,6 +137,8 @@ export const apiKeysRouter = router({
         name: apiKeys.name,
         keyPrefix: apiKeys.keyPrefix,
         entityId: apiKeys.entityId,
+        agentName: entities.displayName,
+        agentSlug: entities.slug,
         scopes: apiKeys.scopes,
         rateLimit: apiKeys.rateLimit,
         isActive: apiKeys.isActive,
@@ -143,6 +148,7 @@ export const apiKeysRouter = router({
         createdAt: apiKeys.createdAt,
       })
       .from(apiKeys)
+      .leftJoin(entities, eq(apiKeys.entityId, entities.id))
       .orderBy(desc(apiKeys.createdAt));
 
     return rows;
