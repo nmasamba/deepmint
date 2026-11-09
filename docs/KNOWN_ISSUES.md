@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **28 open issues: no high, 5 medium and 23 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **27 open issues: no high, 5 medium and 22 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -31,10 +31,10 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 2 | 2 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 4 | 5 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
-| [Data model and shared code](#area-data) | 0 | 0 | 3 | 3 |
+| [Data model and shared code](#area-data) | 0 | 0 | 2 | 2 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **5** | **23** | **28** |
+| **All** | **0** | **5** | **22** | **27** |
 
 <a id="area-scoring"></a>
 
@@ -239,16 +239,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `entities.deleted_at` is checked by five procedures but written by nothing. Most reads (profiles, search, REST v1, consensus, scoring, influence, MCP) ignore it, and a comment wrongly says consensus excludes deleted entities.
 - **User impact:** No effect today. A user cannot be removed, and a manual SQL soft-delete would hide an entity from only some surfaces.
 - **Evidence:** [`packages/db/schema/entities.ts:22`](../packages/db/schema/entities.ts#L22) · [`packages/api/routers/entities.ts:109-114`](../packages/api/routers/entities.ts#L109-L114) · [`apps/worker/functions/consensus-signal.ts:57-66`](../apps/worker/functions/consensus-signal.ts#L57-L66)
-
-<a id="two-verified-flags"></a>
-
-### Two "verified" flags are read inconsistently
-
-**Low** · bug · `two-verified-flags`
-
-- **What's wrong:** Profile headers and the ticker Top Entities panel show Verified if `entities.is_verified` or `broker_link_status='verified'`. The leaderboard page, Settings, REST v1 and consensus read only `broker_link_status`. Only the seed sets `is_verified`. No UI reads `broker_links.is_verified`.
-- **User impact:** None in production, where neither flag is set. In a seeded local database the badge differs between surfaces.
-- **Evidence:** [`apps/web/components/EntityProfileHeader.tsx:45-46`](../apps/web/components/EntityProfileHeader.tsx#L45-L46) · [`apps/web/components/ticker/TopEntitiesPanel.tsx:54-56`](../apps/web/components/ticker/TopEntitiesPanel.tsx#L54-L56) · [`apps/web/app/(app)/leaderboard/page.tsx:191-192`](../apps/web/app/%28app%29/leaderboard/page.tsx#L191-L192) · [`apps/web/app/api/v1/leaderboard/route.ts:107`](../apps/web/app/api/v1/leaderboard/route.ts#L107)
 
 <a id="dead-and-duplicated-shared-code"></a>
 

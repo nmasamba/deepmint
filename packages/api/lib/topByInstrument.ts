@@ -28,7 +28,6 @@ export async function topByInstrument(
         slug: entities.slug,
         type: entities.type,
         avatarUrl: entities.avatarUrl,
-        isVerified: entities.isVerified,
         brokerLinkStatus: entities.brokerLinkStatus,
       },
       outcomes: n,

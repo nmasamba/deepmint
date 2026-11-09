@@ -15,7 +15,6 @@ export const publicEntityColumns = {
   avatarUrl: entities.avatarUrl,
   styleTags: entities.styleTags,
   brokerLinkStatus: entities.brokerLinkStatus,
-  isVerified: entities.isVerified,
   isAgent: entities.isAgent,
   sourceUrl: entities.sourceUrl,
   createdAt: entities.createdAt,

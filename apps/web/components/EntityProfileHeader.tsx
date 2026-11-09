@@ -17,7 +17,6 @@ interface EntityProfileHeaderProps {
     bio: string | null;
     avatarUrl: string | null;
     styleTags: string[] | null;
-    isVerified: boolean | null;
     isAgent: boolean;
     brokerLinkStatus: string | null;
     createdAt: string | Date;
@@ -44,8 +43,8 @@ function formatDate(date: string | Date): string {
 }
 
 export function EntityProfileHeader({ entity, isOwnProfile }: EntityProfileHeaderProps) {
-  const isVerified =
-    entity.isVerified || entity.brokerLinkStatus === "verified";
+  // Verified means broker-verified, and nothing else (D7).
+  const isVerified = entity.brokerLinkStatus === "verified";
   const styleTags = entity.styleTags ?? [];
 
   const { data: followerData } = trpc.social.followerCount.useQuery(
