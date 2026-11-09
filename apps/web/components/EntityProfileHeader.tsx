@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ShieldCheck, Calendar, Copy } from "lucide-react";
+import { Bot, ShieldCheck, Calendar, Pencil } from "lucide-react";
 import { FollowButton } from "@/components/FollowButton";
 import { MirrorSignalsButton } from "@/components/signal-simulate/MirrorSignalsButton";
 import { trpc } from "@/lib/trpc";
@@ -17,11 +18,12 @@ interface EntityProfileHeaderProps {
     avatarUrl: string | null;
     styleTags: string[] | null;
     isVerified: boolean | null;
+    isAgent: boolean;
     brokerLinkStatus: string | null;
     createdAt: string | Date;
   };
-  /** Hide the follow button (e.g. on own profile) */
-  hideFollow?: boolean;
+  /** The viewer's own profile: "Edit profile" instead of Follow and Mirror. */
+  isOwnProfile?: boolean;
 }
 
 function getInitials(name: string): string {
@@ -41,7 +43,7 @@ function formatDate(date: string | Date): string {
   });
 }
 
-export function EntityProfileHeader({ entity, hideFollow }: EntityProfileHeaderProps) {
+export function EntityProfileHeader({ entity, isOwnProfile }: EntityProfileHeaderProps) {
   const isVerified =
     entity.isVerified || entity.brokerLinkStatus === "verified";
   const styleTags = entity.styleTags ?? [];
@@ -78,6 +80,14 @@ export function EntityProfileHeader({ entity, hideFollow }: EntityProfileHeaderP
           >
             {entity.type === "guide" ? "Guide" : "Player"}
           </Badge>
+
+          {/* Agent badge */}
+          {entity.isAgent && (
+            <Badge variant="outline" className="border-border text-text-secondary">
+              <Bot className="mr-1 h-3 w-3" />
+              AI agent
+            </Badge>
+          )}
 
           {/* Verification badge */}
           {isVerified && (
@@ -120,8 +130,16 @@ export function EntityProfileHeader({ entity, hideFollow }: EntityProfileHeaderP
           </span>
         </div>
 
-        {/* Follow + Mirror buttons */}
-        {!hideFollow && (
+        {/* Follow + Mirror buttons, or the way to edit your own profile */}
+        {isOwnProfile ? (
+          <Link
+            href="/settings#profile"
+            className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit profile
+          </Link>
+        ) : (
           <div className="flex items-center gap-2">
             <FollowButton targetEntityId={entity.id} />
             <MirrorSignalsButton targetEntityId={entity.id} />

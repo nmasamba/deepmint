@@ -11,6 +11,7 @@ interface ClaimSource {
 interface ClaimProvenanceProps {
   claim: {
     status: "pending_review" | "active" | "rejected" | null;
+    direction: "long" | "short" | "neutral";
     sourceKind: "wall_street_rating" | "analyst_feed" | "self_logged" | null;
     ratingGrade: string | null;
     ratingAction: string | null;
@@ -43,6 +44,9 @@ function laneLabel(
   source: ClaimSource | null,
 ): string {
   // Older rows have no source_kind; the event tells the lanes apart.
+  if (sourceKind === "wall_street_rating" && source && !source.publisher) {
+    return "A firm's rating, named in a Guide's post";
+  }
   if (sourceKind === "wall_street_rating" || (!sourceKind && source?.publisher)) {
     return "Wall Street rating, reported in the press";
   }
@@ -143,11 +147,15 @@ export function ClaimProvenance({ claim, source, outcomes }: ClaimProvenanceProp
                   <span className="font-mono">{formatCurrency(outcome.exitPriceCents)}</span>
                 </Row>
                 <Row label="Return">
-                  <span
-                    className={`font-mono ${outcome.returnBps >= 0 ? "text-green-500" : "text-red-500"}`}
-                  >
-                    {formatBps(outcome.returnBps)}
-                  </span>
+                  {claim.direction === "neutral" ? (
+                    "No position"
+                  ) : (
+                    <span
+                      className={`font-mono ${outcome.returnBps >= 0 ? "text-green-500" : "text-red-500"}`}
+                    >
+                      {formatBps(outcome.returnBps)}
+                    </span>
+                  )}
                 </Row>
                 <Row label="Direction">{outcome.directionCorrect ? "Correct" : "Incorrect"}</Row>
                 {outcome.targetHit !== null && (

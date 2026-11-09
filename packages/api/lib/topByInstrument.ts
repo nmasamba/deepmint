@@ -9,7 +9,8 @@ export const MIN_TICKER_SAMPLE = 3;
  * Entities ranked by hit rate on one instrument, from the outcomes of their
  * active claims on it (`scores` has no instrument column). Only entities with
  * at least MIN_TICKER_SAMPLE outcomes there are listed; ties go to the higher
- * average return, then the larger sample.
+ * average return, then the larger sample. Neutral claims count toward hit rate
+ * only: they take no position, and older ones still store the raw price move.
  */
 export async function topByInstrument(
   db: typeof Db,
@@ -18,7 +19,7 @@ export async function topByInstrument(
 ) {
   const n = sql<number>`count(*)::int`;
   const hitRate = sql<number>`avg(case when ${outcomes.directionCorrect} then 1 else 0 end)::float8`;
-  const avgReturnBps = sql<number>`round(avg(${outcomes.returnBps}))::int`;
+  const avgReturnBps = sql<number>`coalesce(round(avg(${outcomes.returnBps}) filter (where ${claims.direction} <> 'neutral')), 0)::int`;
   return db
     .select({
       entity: {

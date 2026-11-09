@@ -9,16 +9,16 @@ The plan for fixing every open issue in [KNOWN_ISSUES.md](KNOWN_ISSUES.md), agre
 | 0 | The three high-severity fixes | 0008 | **Done**: #11, #12, #13 (2026-10-06 and 07) |
 | 1 | 1–16: correctness, data integrity, tooling | – | **Done**: [#14](https://github.com/nmasamba/deepmint/pull/14) (2026-10-27) |
 | 2 | 17–27 | 0009 | **Merged**: [#15](https://github.com/nmasamba/deepmint/pull/15) (2026-11-03) with 17–20, 23, 24, 26 and 27; 21, 22 and 25 wait for their keys |
-| 3 | 28–36 | 0010 | **PR open**: [#16](https://github.com/nmasamba/deepmint/pull/16) (2026-11-04), with wave 4 |
-| 4 | 37–44 | 0011 | **PR open**: [#16](https://github.com/nmasamba/deepmint/pull/16) (2026-11-04), with wave 3 |
-| 5 | 45–53 | 0012 | Not started |
-| 6 | 54–57 | 0013 | Not started |
+| 3 | 28–36 | 0010 | **Merged**: [#16](https://github.com/nmasamba/deepmint/pull/16) (2026-11-04), with wave 4 |
+| 4 | 37–44 | 0011 | **Merged**: [#16](https://github.com/nmasamba/deepmint/pull/16) (2026-11-04), with wave 3 |
+| 5 | 45–53 | 0012 | **PR open**: [#17](https://github.com/nmasamba/deepmint/pull/17) (2026-11-05), with wave 6 |
+| 6 | 54–57 | 0013 | **PR open**: [#17](https://github.com/nmasamba/deepmint/pull/17) (2026-11-05), with wave 5 |
 | 7 | 58–63 | 0014 | Not started |
 | 8 | 64–67 | 0015 | Not started |
 | 9 | 68–72: dead code and tooling | – | Not started |
 | 10 | 73–77: last cleanup | – | Not started |
 
-From wave 3 the waves ship in pairs, one PR each: 3+4, 5+6, 7+8 and 9+10 (see [How it is delivered](#how-it-is-delivered)). Wave 2's packages 21, 22 and 25 go into the first of those PRs after their keys are in `.env.local`; their keys were still missing when the 3+4 PR opened.
+From wave 3 the waves ship in pairs, one PR each: 3+4, 5+6, 7+8 and 9+10 (see [How it is delivered](#how-it-is-delivered)). Wave 2's packages 21, 22 and 25 go into the first of those PRs after their keys are in `.env.local`; their keys were still missing when the 5+6 PR opened.
 
 After wave 0 (`main` at `c86b730`), KNOWN_ISSUES lists 98 open issues: 0 high, 26 medium and 72 low. The [Coverage](#coverage) section places every one of them.
 
@@ -198,7 +198,7 @@ Maintainer decisions, 2026-10-06:
 | 74 | prune-unused-trpc-procedures | unused-trpc-procedures | api/routers/{entities,instruments,consensus,scores,social,influence}.ts | – | S | D24 |
 | 75 | shared-code-dedupe | dead-and-duplicated-shared-code (closes) | sh/errors.ts (deleted), sh/index.ts, sh/utils.ts, sh/constants.ts, sh/polygonCache.ts, packages/shared/package.json, cmp/ui/{dropdown-menu,scroll-area,separator,tooltip}.tsx (deleted), cmp/signal-simulate/ComparisonChart.tsx, cmp/ticker/ConsensusBreakdown.tsx | – | S | – |
 | 76 | spec-citation-comments | gitignored-doc-references | ing/hasher.ts, sc/{player,consensus,influence,guide,eiv,regime}.ts, api/lib/snaptrade.ts, app/globals.css | – | S | – |
-| 77 | polygon-account-limit | polygon-throttle-not-serialized (closes) | option 1: W/{markout,backfill,backfill-prices,ingest}.ts + #12's regime-snapshot function; option 2: sh/polygon.ts only | – | S | D23 |
+| 77 | polygon-account-limit | polygon-throttle-not-serialized (closes) | option 1: W/{markout,backfill,backfill-prices,ingest,score}.ts + #12's regime-snapshot function; option 2: sh/polygon.ts only | – | S | D23 |
 
 **Hot files.** These were checked across all waves:
 - `W/score.ts`: W1, 2, 4, 5, 6, 7, 9
@@ -561,7 +561,7 @@ score.ts writes `outcome_count` and `z_significant`; rank notifications use the 
 **50 nav-cleanup [D10 option 1, D11 option 2].**
 - Remove the watcher type.
 - Remove Explore and delete its stub.
-- Add a "Getting an API key" section (with the maintainer's contact address) and an MCP section to the API docs page.
+- Add a "Getting an API key" section (with the maintainer's contact address) and an MCP section to the API docs page. On 2026-11-05 the maintainer chose to publish no address, so the page says to ask an admin, and `api-docs-nav-for-all` stays open.
 - If the decisions lag, the watcher removal can ship alone.
 
 **51 profile-edit-and-clerk-sync [D8 option 1].**

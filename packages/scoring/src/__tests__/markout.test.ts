@@ -5,6 +5,7 @@ import {
   isSessionFinal,
   markoutDueDate,
   markoutWindow,
+  outcomesWithPosition,
   type MarkoutBar,
   type MarkoutInput,
 } from "../markout";
@@ -123,6 +124,17 @@ describe("computeMarkoutFromBars: claims without a stored entry", () => {
     expect(r.directionCorrect).toBe(true);
   });
 
+  it("gives a neutral call no return, whichever way the price moved", () => {
+    for (const exit of [9000, 11000, 11150, 13000]) {
+      const r = computeMarkoutFromBars(
+        claim({ direction: "neutral" }),
+        [bar("2026-10-06", 11000), bar("2026-10-07", exit)],
+        LATER,
+      )!;
+      expect(r.returnBps).toBe(0);
+    }
+  });
+
   it("counts a neutral call as right within ±2%", () => {
     const run = (exit: number) =>
       computeMarkoutFromBars(
@@ -188,5 +200,20 @@ describe("markoutDueDate and isSessionFinal", () => {
     expect(isSessionFinal("2026-10-07", new Date("2026-10-07T20:30:00Z"))).toBe(true); // 16:30 EDT
     expect(isSessionFinal("2026-10-06", new Date("2026-10-07T12:00:00Z"))).toBe(true);
     expect(isSessionFinal("2026-11-02", new Date("2026-11-02T21:00:00Z"))).toBe(false); // 16:00 EST
+  });
+});
+
+describe("outcomesWithPosition", () => {
+  it("goes by the claim's direction, not the stored return", () => {
+    const rows = [
+      { direction: "long", returnBps: 500 },
+      { direction: "neutral", returnBps: 1000 }, // stored before neutral meant 0
+      { direction: "neutral", returnBps: 0 },
+      { direction: "short", returnBps: 0 },
+    ];
+    expect(outcomesWithPosition(rows)).toEqual([
+      { direction: "long", returnBps: 500 },
+      { direction: "short", returnBps: 0 },
+    ]);
   });
 });

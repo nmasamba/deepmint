@@ -85,6 +85,20 @@
       "when": 1793751300429,
       "tag": "0011_paper_trades_claim_id",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793822504032,
+      "tag": "0012_claims_recorded_at_audit_leaf_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793823819843,
+      "tag": "0013_agent_identity",
+      "breakpoints": true
     }
   ]
 }

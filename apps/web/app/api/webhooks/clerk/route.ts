@@ -1,6 +1,9 @@
 import { headers } from "next/headers";
 import { Webhook } from "svix";
-import { ensureEntityForClerkUser } from "@deepmint/db/queries/ensureEntityForClerkUser";
+import {
+  ensureEntityForClerkUser,
+  syncEntityFromClerk,
+} from "@deepmint/db/queries/ensureEntityForClerkUser";
 import { clerkDisplayName, slugify } from "@deepmint/shared";
 
 interface ClerkWebhookEvent {
@@ -59,7 +62,7 @@ export async function POST(req: Request) {
     return new Response("Invalid signature", { status: 400 });
   }
 
-  if (event.type === "user.created") {
+  if (event.type === "user.created" || event.type === "user.updated") {
     const { id, first_name, last_name, username } = event.data;
 
     const displayName = clerkDisplayName({
@@ -68,16 +71,21 @@ export async function POST(req: Request) {
       username,
     });
 
-    // Idempotent: clerk_user_id is UNIQUE, so the previous bare insert threw a
-    // duplicate-key error on any Clerk retry or manual Replay. That surfaced as
-    // a 500, which Clerk retried, looping. Returning the existing row makes a
-    // redelivery a no-op 200.
-    const entity = await ensureEntityForClerkUser({
+    const input = {
       clerkUserId: id,
       displayName,
       slug: slugify(displayName, "user"),
       avatarUrl: event.data.image_url,
-    });
+    };
+
+    // Idempotent: clerk_user_id is UNIQUE, so the previous bare insert threw a
+    // duplicate-key error on any Clerk retry or manual Replay. That surfaced as
+    // a 500, which Clerk retried, looping. Returning the existing row makes a
+    // redelivery a no-op 200, and a late user.created undoes no newer update.
+    const entity =
+      event.type === "user.created"
+        ? await ensureEntityForClerkUser(input)
+        : await syncEntityFromClerk(input);
 
     // eslint-disable-next-line no-console
     console.log("[clerk webhook] entity ensured", {

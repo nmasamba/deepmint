@@ -1,11 +1,6 @@
 import { z } from "zod";
 import { eq, and, desc } from "@deepmint/db";
-import {
-  entities,
-  brokerLinks,
-  playerTrades,
-  instruments,
-} from "@deepmint/db/schema";
+import { entities, brokerLinks } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
@@ -15,10 +10,9 @@ import {
   registerUser,
   getLoginLink,
   listAccounts,
-  getAccountActivities,
   deleteUser,
-  type SnapTradeUserCredentials,
 } from "../lib/snaptrade";
+import { linkCredentials, syncBrokerLink } from "../lib/brokerSync";
 
 // Rate limiter: 1 sync per hour per entity
 function getSyncRateLimiter(): Ratelimit | null {
@@ -34,13 +28,6 @@ function getSyncRateLimiter(): Ratelimit | null {
 }
 
 const syncRateLimiter = getSyncRateLimiter();
-
-function extractCreds(meta: unknown): SnapTradeUserCredentials | null {
-  if (!meta || typeof meta !== "object") return null;
-  const m = meta as { userId?: string; userSecret?: string };
-  if (!m.userId || !m.userSecret) return null;
-  return { userId: m.userId, userSecret: m.userSecret };
-}
 
 export const brokerRouter = router({
   /**
@@ -88,7 +75,7 @@ export const brokerRouter = router({
         .limit(1);
 
       const existingCreds = existingLink
-        ? extractCreds(existingLink.metadata)
+        ? linkCredentials(existingLink.metadata)
         : null;
 
       if (existingCreds) {
@@ -137,7 +124,8 @@ export const brokerRouter = router({
 
   /**
    * Complete the broker link after the user returns from SnapTrade OAuth.
-   * Looks up the linked accounts and marks the entity as verified.
+   * Stores every linked account. Linking proves nothing yet, so the entity stays
+   * pending: Verified takes an imported trade in a tracked instrument (D7).
    */
   completeLink: protectedProcedure.mutation(async ({ ctx }) => {
     const [link] = await ctx.db
@@ -159,7 +147,7 @@ export const brokerRouter = router({
       });
     }
 
-    const creds = extractCreds(link.metadata);
+    const creds = linkCredentials(link.metadata);
     if (!creds) {
       throw new TRPCError({
         code: "PRECONDITION_FAILED",
@@ -167,7 +155,7 @@ export const brokerRouter = router({
       });
     }
 
-    const accounts = await listAccounts(creds);
+    const accounts = (await listAccounts(creds)).filter((a) => a.id);
 
     if (accounts.length === 0) {
       // User hasn't completed OAuth yet
@@ -185,17 +173,30 @@ export const brokerRouter = router({
         providerAccountId: primary.id,
         brokerName: primary.brokerageName,
         syncStatus: "active",
-        isVerified: true,
-        lastSyncAt: new Date(),
+        syncErrorMessage: null,
+        isVerified: false,
+        // Unset, so the first sync reads back past the moment of linking.
+        lastSyncAt: null,
+        metadata: {
+          ...creds,
+          accounts: accounts.map((a) => ({
+            id: a.id,
+            brokerName: a.brokerageName,
+          })),
+        },
       })
       .where(eq(brokerLinks.id, link.id));
 
     await ctx.db
       .update(entities)
-      .set({ brokerLinkStatus: "verified" })
+      .set({ brokerLinkStatus: "pending" })
       .where(eq(entities.id, ctx.entity.id));
 
-    return { verified: true, brokerName: primary.brokerageName };
+    return {
+      linked: true,
+      accounts: accounts.length,
+      brokerName: primary.brokerageName,
+    };
   }),
 
   /** Get the current broker link status for the logged-in entity. */
@@ -261,6 +262,7 @@ export const brokerRouter = router({
       .set({
         syncStatus: "disconnected",
         disconnectedAt: new Date(),
+        isVerified: false,
         metadata: {},
       })
       .where(eq(brokerLinks.id, link.id));
@@ -274,8 +276,8 @@ export const brokerRouter = router({
   }),
 
   /**
-   * Sync trade history from the linked broker account. Upserts to
-   * player_trades with is_verified = true.
+   * Sync trade history from every linked account into player_trades, and
+   * settle the Verified status.
    */
   syncTrades: protectedProcedure.mutation(async ({ ctx }) => {
     if (syncRateLimiter) {
@@ -310,91 +312,24 @@ export const brokerRouter = router({
       });
     }
 
-    const creds = extractCreds(link.metadata);
-    if (!creds || !link.providerAccountId) {
+    let result;
+    try {
+      result = await syncBrokerLink(ctx.db, link);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: `Sync failed: ${message}`,
+      });
+    }
+
+    if (!result) {
       throw new TRPCError({
         code: "PRECONDITION_FAILED",
         message: "Broker link is missing credentials",
       });
     }
 
-    try {
-      const activities = await getAccountActivities(
-        creds,
-        link.providerAccountId,
-        // Narrow the window to activity since the last sync (falls back to the
-        // default 30-day window on first sync) to reduce redundant re-fetching.
-        link.lastSyncAt ? new Date(link.lastSyncAt) : undefined,
-      );
-
-      let inserted = 0;
-      for (const act of activities) {
-        // Look up the instrument by ticker
-        const [instrument] = await ctx.db
-          .select({ id: instruments.id })
-          .from(instruments)
-          .where(eq(instruments.ticker, act.symbol.toUpperCase()))
-          .limit(1);
-
-        if (!instrument) continue; // Skip trades on untracked instruments
-
-        const side = act.action === "BUY" ? "buy" : "sell";
-        const entryPriceCents = Math.round(act.priceDollars * 100);
-        const quantity = act.quantity.toString();
-
-        // Idempotency: skip activities already imported (matched on the stable
-        // natural key) so repeated syncs don't duplicate verified trades.
-        const [dup] = await ctx.db
-          .select({ id: playerTrades.id })
-          .from(playerTrades)
-          .where(
-            and(
-              eq(playerTrades.entityId, ctx.entity.id),
-              eq(playerTrades.instrumentId, instrument.id),
-              eq(playerTrades.side, side),
-              eq(playerTrades.openedAt, act.executedAt),
-              eq(playerTrades.entryPriceCents, entryPriceCents),
-              eq(playerTrades.quantity, quantity),
-            ),
-          )
-          .limit(1);
-        if (dup) continue;
-
-        await ctx.db.insert(playerTrades).values({
-          entityId: ctx.entity.id,
-          instrumentId: instrument.id,
-          side,
-          entryPriceCents,
-          quantity,
-          openedAt: act.executedAt,
-          isVerified: true,
-        });
-        inserted += 1;
-      }
-
-      await ctx.db
-        .update(brokerLinks)
-        .set({
-          lastSyncAt: new Date(),
-          syncErrorMessage: null,
-        })
-        .where(eq(brokerLinks.id, link.id));
-
-      return { synced: inserted };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      await ctx.db
-        .update(brokerLinks)
-        .set({
-          syncStatus: "error",
-          syncErrorMessage: message.slice(0, 500),
-        })
-        .where(eq(brokerLinks.id, link.id));
-
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: `Sync failed: ${message}`,
-      });
-    }
+    return result;
   }),
 });

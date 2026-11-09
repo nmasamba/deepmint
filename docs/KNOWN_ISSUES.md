@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **46 open issues: no high, 11 medium and 35 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **34 open issues: no high, 7 medium and 27 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,15 +26,15 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 2 | 3 | 5 |
-| [Product (web app)](#area-product) | 0 | 4 | 9 | 13 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 2 | 3 | 5 |
-| [Workers and schedules](#area-workers) | 0 | 2 | 4 | 6 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 5 | 5 |
+| [Scoring and ranking](#area-scoring) | 0 | 1 | 1 | 2 |
+| [Product (web app)](#area-product) | 0 | 3 | 6 | 9 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 2 | 3 |
+| [Workers and schedules](#area-workers) | 0 | 1 | 4 | 5 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **11** | **35** | **46** |
+| **All** | **0** | **7** | **27** | **34** |
 
 <a id="area-scoring"></a>
 
@@ -50,59 +50,19 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** "Best in Current Conditions" is the plain overall-EIV top 5 from whichever scoring run last had that regime label, which may be weeks old. The 0.4 factor also shrinks every EIV, so the profile labels Strong Edge (≥60) and Moderate Edge (≥30) are harder to reach.
 - **Evidence:** [`apps/worker/functions/score.ts:188-199`](../apps/worker/functions/score.ts#L188-L199) · [`apps/worker/functions/score.ts:228-239`](../apps/worker/functions/score.ts#L228-L239) · [`packages/scoring/src/eiv.ts:34`](../packages/scoring/src/eiv.ts#L34) · [`packages/scoring/src/eiv.ts:52`](../packages/scoring/src/eiv.ts#L52) · [`packages/api/routers/leaderboard.ts:181-196`](../packages/api/routers/leaderboard.ts#L181-L196)
 
-<a id="player-metrics-annualise-claim-returns"></a>
-
-### Player Sharpe and Calmar treat per-claim returns as daily returns
-
-**Medium** · bug · `player-metrics-annualise-claim-returns`
-
-- **What's wrong:** Player metrics use each active claim's `return_bps` as one "daily" return, whatever its horizon (1 to 365 days). Sharpe is mean/std × √252 with no risk-free rate. Calmar compounds claim returns in sequence even when the positions overlapped, then annualises by 252 / number of claims. CVaR and consistency use the same series.
-- **User impact:** Player Sharpe and Calmar on profiles, the Sharpe board and the ticker page's Top Players have no financial meaning. Three 1-year claims of +10%, +12% and +8% give a Sharpe of about 79, and long-horizon claimants are inflated by up to √252 against 1-day claimants.
-- **Evidence:** [`apps/worker/functions/score.ts:201-221`](../apps/worker/functions/score.ts#L201-L221) · [`packages/scoring/src/player.ts:12-18`](../packages/scoring/src/player.ts#L12-L18)
-
-<a id="broker-trades-never-scored"></a>
-
-### Broker-synced trades never affect scores or ranks
-
-**Low** · feature-gap · `broker-trades-never-scored`
-
-- **What's wrong:** Synced `player_trades` rows are read only by the two sync paths' duplicate checks. Linking a broker only sets `broker_link_status='verified'`, which gives a badge and a ×1.5 consensus weight on claims. The landing page says linking lets you "verify trades and climb the ranks", and Settings says "verified trades" get the multiplier.
-- **User impact:** Dormant while SnapTrade is unconfigured (last recorded). Once enabled, linking changes no score or rank.
-- **Evidence:** [`apps/worker/functions/score.ts:66-78`](../apps/worker/functions/score.ts#L66-L78) · [`packages/api/routers/broker.ts:171-196`](../packages/api/routers/broker.ts#L171-L196) · [`apps/web/components/landing/ChoosePath.tsx:118`](../apps/web/components/landing/ChoosePath.tsx#L118) · [`apps/web/components/settings/BrokerVerification.tsx:114-115`](../apps/web/components/settings/BrokerVerification.tsx#L114-L115)
-
-<a id="neutral-claim-scoring"></a>
-
-### Neutral claims feed raw price drift into returns
-
-**Low** · bug · `neutral-claim-scoring`
-
-- **What's wrong:** Markout negates the return only for shorts, so a neutral claim stores the raw price move as `return_bps`. That value feeds `avg_return_bps`, EIV and every Player risk metric. (The ±2% threshold differs from `computeSliceOutcome`, but that function is test-only.)
-- **User impact:** Market drift is credited or charged to neutral calls: a wrong neutral call before a +10% move adds +1000 bps to the author's average return.
-- **Evidence:** [`apps/worker/functions/markoutClaim.ts:102-108`](../apps/worker/functions/markoutClaim.ts#L102-L108) · [`apps/worker/functions/score.ts:139`](../apps/worker/functions/score.ts#L139) · [`apps/worker/functions/score.ts:202`](../apps/worker/functions/score.ts#L202)
-
 <a id="dead-scoring-code"></a>
 
 ### Unused scoring functions and outcome columns
 
 **Low** · dead-code · `dead-scoring-code`
 
-- **What's wrong:** Five exported functions are called only by tests: `calmarRatio`, `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore` and `timeDecayedBrierScore`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
+- **What's wrong:** Four exported functions are called only by tests: `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore` and `timeDecayedBrierScore`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
 - **User impact:** Maintainers may assume continuous Brier and MAE/MFE feed live scores.
 - **Evidence:** [`packages/scoring/src/player.ts:23`](../packages/scoring/src/player.ts#L23) · [`packages/scoring/src/guide.ts:141-189`](../packages/scoring/src/guide.ts#L141-L189) · [`apps/worker/functions/markoutClaim.ts:110-129`](../apps/worker/functions/markoutClaim.ts#L110-L129)
 
 <a id="area-product"></a>
 
 ## Product (web app)
-
-<a id="leaderboard-regime-filter-empty"></a>
-
-### Leaderboard regime filter always returns an empty board
-
-**Medium** · bug · `leaderboard-regime-filter-empty`
-
-- **What's wrong:** The regime chips filter on `scores.regime_tag`, but only metric `eiv` is written with a tag. Every metric the page offers is written with a null tag.
-- **User impact:** Choosing Bull, Bear, High Vol, Low Vol or Rotation empties the table, which then says "No scores yet. Rankings appear once claims are resolved against real market prices.", although scores exist. "All Regimes" and "Best in Current Conditions" work.
-- **Evidence:** [`apps/web/app/(app)/leaderboard/page.tsx:22-29`](../apps/web/app/%28app%29/leaderboard/page.tsx#L22-L29) · [`apps/web/app/(app)/leaderboard/page.tsx:157-160`](../apps/web/app/%28app%29/leaderboard/page.tsx#L157-L160) · [`packages/api/routers/leaderboard.ts:35-37`](../packages/api/routers/leaderboard.ts#L35-L37) · [`apps/worker/functions/score.ts:107-112`](../apps/worker/functions/score.ts#L107-L112) · [`apps/worker/functions/score.ts:198`](../apps/worker/functions/score.ts#L198)
 
 <a id="guide-signup-path-missing"></a>
 
@@ -116,13 +76,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="profile-edit-and-clerk-sync"></a>
 
-### Users cannot edit their profile, and Clerk changes never sync
+### Deleting a Clerk account leaves the public profile in place
 
 **Medium** · feature-gap · `profile-edit-and-clerk-sync`
 
-- **What's wrong:** `entity.update` (display name, bio, style tags) exists but no UI calls it. The Clerk webhook handles only `user.created`, an existing entity is never refreshed from Clerk, and nothing ever sets `entities.deleted_at`.
-- **User impact:** A user's public name and avatar are fixed at creation, even after they change them in Clerk's account panel, and bio and style tags cannot be set. Deleting a Clerk account leaves the public profile, claims and leaderboard rows in place.
-- **Evidence:** [`packages/api/routers/entities.ts:40-70`](../packages/api/routers/entities.ts#L40-L70) · [`apps/web/app/api/webhooks/clerk/route.ts:60`](../apps/web/app/api/webhooks/clerk/route.ts#L60) · [`packages/db/queries/ensureEntityForClerkUser.ts:38-39`](../packages/db/queries/ensureEntityForClerkUser.ts#L38-L39) · [`apps/web/components/layout/Topbar.tsx:61`](../apps/web/components/layout/Topbar.tsx#L61)
+- **What's wrong:** The Clerk webhook handles `user.created` and `user.updated`, not `user.deleted`, and nothing ever sets `entities.deleted_at`. (Since wave 5 Clerk's name and avatar sync on `user.updated`, once the endpoint subscribes to it, the slug never changes, and users edit their bio and style tags in Settings.)
+- **User impact:** Deleting a Clerk account leaves the public profile, claims and leaderboard rows in place.
+- **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts`](../apps/web/app/api/webhooks/clerk/route.ts)
 
 <a id="claim-provenance-not-visible"></a>
 
@@ -143,36 +103,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Ingestion and ticker pages accept only the 7 Mag-7 tickers. Claim submission, search and the consensus worker accept any active instrument. Paper trades accept any instrument, even an inactive one. (Since wave 3 the MCP ticker tools accept only the Mag 7, though `search_instruments` still lists any instrument.)
 - **User impact:** Latent while only the Mag 7 exist, as in production since 2026-08-11, and Mag-7 only is the deliberate scope for now. Once an admin adds instruments (for example with the S&P button), users can claim and trade tickers whose pages say "Coming soon", and ingestion never produces Guide claims for them. Make every surface agree before expanding.
 - **Evidence:** [`packages/ingestion/src/extractor.ts:461-472`](../packages/ingestion/src/extractor.ts#L461-L472) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:18-30`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L18-L30) · [`packages/api/routers/claims.ts:73-91`](../packages/api/routers/claims.ts#L73-L91) · [`packages/api/routers/paper.ts:138-150`](../packages/api/routers/paper.ts#L138-L150)
-
-<a id="current-price-is-previous-close"></a>
-
-### Paper trades fill at the previous session's close
-
-**Low** · bug · `current-price-is-previous-close`
-
-- **What's wrong:** Paper trades open, close and mark to the latest close, which during market hours is the previous session's. (Since wave 2 the ticker page labels its price "Last close" with the session date, and Learn says paper trades fill at the latest close; since the next-close entry change, claims no longer use it for entry prices.)
-- **User impact:** Paper P&L is off and can be gamed by trading after an intraday move, but only in the user's own sandbox.
-- **Evidence:** [`packages/api/routers/paper.ts:153`](../packages/api/routers/paper.ts#L153)
-
-<a id="explore-stub-in-nav"></a>
-
-### Explore is a stub but a main navigation item
-
-**Low** · feature-gap · `explore-stub-in-nav`
-
-- **What's wrong:** `/explore` renders a heading and one line promising "AI-surfaced tickers, sectors, and weighted market signals", and nothing else. It is the third sidebar item and one of the four mobile bottom-bar tabs.
-- **User impact:** A quarter of the mobile tab bar leads to an empty page.
-- **Evidence:** [`apps/web/app/(app)/explore/page.tsx:1-10`](../apps/web/app/%28app%29/explore/page.tsx#L1-L10) · [`apps/web/components/layout/Sidebar.tsx:33`](../apps/web/components/layout/Sidebar.tsx#L33) · [`apps/web/components/layout/Sidebar.tsx:161`](../apps/web/components/layout/Sidebar.tsx#L161)
-
-<a id="watcher-nav-type-dead"></a>
-
-### Sidebar "watcher" entity type and per-type nav filtering are dead
-
-**Low** · dead-code · `watcher-nav-type-dead`
-
-- **What's wrong:** The sidebar's `NavItem.entityType` allows `"watcher"`, the only occurrence of that word in the code; entity types are `player` and `guide`. Nothing reads `entityType`, so "My Claims" shows for everyone, which is correct because every signed-in user is a Player.
-- **User impact:** None for users. It suggests a role model that does not exist.
-- **Evidence:** [`apps/web/components/layout/Sidebar.tsx:27`](../apps/web/components/layout/Sidebar.tsx#L27) · [`apps/web/components/layout/Sidebar.tsx:96`](../apps/web/components/layout/Sidebar.tsx#L96) · [`packages/db/schema/entities.ts:3`](../packages/db/schema/entities.ts#L3)
 
 <a id="equity-curve-placeholder"></a>
 
@@ -206,13 +136,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="api-docs-nav-for-all"></a>
 
-### "API Docs" is shown to everyone, but only admins can get keys
+### API Docs names no one to ask for a key
 
 **Low** · feature-gap · `api-docs-nav-for-all`
 
-- **What's wrong:** Every signed-in user sees API Docs (`/docs/api`). Keys can only be minted by admins, there is no request flow, and the page does not say how to get one or mention MCP.
-- **User impact:** Non-admins reach a full API reference they cannot use, with no way to ask for access.
-- **Evidence:** [`apps/web/components/layout/Sidebar.tsx:51`](../apps/web/components/layout/Sidebar.tsx#L51) · [`packages/api/routers/apiKeys.ts:17`](../packages/api/routers/apiKeys.ts#L17) · [`apps/web/app/(app)/docs/api/page.tsx:8-24`](../apps/web/app/%28app%29/docs/api/page.tsx#L8-L24)
+- **What's wrong:** Every signed-in user sees API Docs (`/docs/api`). Keys can only be minted by admins, and there is no request flow. (Since wave 5 the page says keys come from an admin and how to use the MCP server, but it publishes no address: the maintainer chose to leave one out on 2026-11-05.)
+- **User impact:** Non-admins can read how keys work, but have no way to reach an admin to ask for one.
+- **Evidence:** [`apps/web/app/(app)/docs/api/page.tsx`](../apps/web/app/%28app%29/docs/api/page.tsx) · [`packages/api/routers/apiKeys.ts`](../packages/api/routers/apiKeys.ts)
 
 <a id="ticker-requests-no-ui"></a>
 
@@ -238,26 +168,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Latent while only the Mag 7 exist. After an admin presses "Seed S&P 500 Top 50", every dashboard shows 57 tiles in no set order under the Mag 7 heading, 50 of them leading to "Coming soon", and each load runs 57 sequential queries.
 - **Evidence:** [`packages/api/routers/consensus.ts:26-49`](../packages/api/routers/consensus.ts#L26-L49) · [`apps/web/components/dashboard/Mag7Grid.tsx:31-34`](../apps/web/components/dashboard/Mag7Grid.tsx#L31-L34) · [`apps/web/app/(app)/dashboard/page.tsx:38-41`](../apps/web/app/%28app%29/dashboard/page.tsx#L38-L41) · [`packages/api/routers/instruments.ts:193-233`](../packages/api/routers/instruments.ts#L193-L233)
 
-<a id="mcp-acts-as-admin"></a>
-
-### MCP write tools act as the minting admin's own Player
-
-**Medium** · feature-gap · `mcp-acts-as-admin`
-
-- **What's wrong:** `apiKeys.create` always stores `created_by` as the minting admin's entity, and the MCP `submit_claim` and `add_note` tools act as that entity. Keys cannot name another owner, and there is no agent entity type.
-- **User impact:** Nothing is affected until a `claims:write` key exists (production had 0 API keys on 2026-08-03). After that, every agent claim lands permanently on the admin's own Player record and scores, agents can add notes to the admin's own claims, and agents cannot be told apart. With Upstash they would also share the admin's 10 claims/hour.
-- **Evidence:** [`packages/api/routers/apiKeys.ts:17-43`](../packages/api/routers/apiKeys.ts#L17-L43) · [`apps/web/app/api/mcp/route.ts:139-145`](../apps/web/app/api/mcp/route.ts#L139-L145) · [`apps/web/app/api/mcp/route.ts:220`](../apps/web/app/api/mcp/route.ts#L220) · [`packages/api/routers/claims.ts:282`](../packages/api/routers/claims.ts#L282)
-
-<a id="broker-verified-means-any-account"></a>
-
-### Broker "verified" only proves that some brokerage account is linked
-
-**Low** · data-integrity · `broker-verified-means-any-account`
-
-- **What's wrong:** `completeLink` sets `broker_link_status='verified'` once SnapTrade lists any account, keeps only `accounts[0]`, and checks no trades. A later sync failure sets only `broker_links.sync_status='error'`, so the flag is never withdrawn.
-- **User impact:** Dormant while SnapTrade is unconfigured (last recorded). Once enabled, linking any account, even an empty one, earns a public Verified badge and ×1.5 consensus weight on all of the Player's live claims, and both survive a broken link. Fix before adding SnapTrade keys.
-- **Evidence:** [`packages/api/routers/broker.ts:170-198`](../packages/api/routers/broker.ts#L170-L198) · [`packages/api/routers/broker.ts:384-392`](../packages/api/routers/broker.ts#L384-L392) · [`packages/scoring/src/consensus.ts:97`](../packages/scoring/src/consensus.ts#L97) · [`apps/worker/functions/consensus-signal.ts:99`](../apps/worker/functions/consensus-signal.ts#L99)
-
 <a id="snaptrade-secret-plaintext"></a>
 
 ### SnapTrade user secrets are stored in plaintext
@@ -270,27 +180,17 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="unused-trpc-procedures"></a>
 
-### 17 of 72 tRPC procedures have no UI caller
+### 16 of 75 tRPC procedures have no UI caller
 
 **Low** · dead-code · `unused-trpc-procedures`
 
-- **What's wrong:** 14 are called nowhere: `entity.update`, `entity.search`, `instruments.detail`, `.list`, `.mag7`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
-- **User impact:** Maintenance cost; 5 of the 14 answer signed-out callers.
-- **Evidence:** [`packages/api/routers/entities.ts:40`](../packages/api/routers/entities.ts#L40) · [`packages/api/routers/instruments.ts:401`](../packages/api/routers/instruments.ts#L401) · [`packages/api/routers/leaderboard.ts:104`](../packages/api/routers/leaderboard.ts#L104) · [`packages/api/routers/influence.ts:124`](../packages/api/routers/influence.ts#L124)
+- **What's wrong:** 13 are called nowhere: `entity.search`, `instruments.detail`, `.list`, `.mag7`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
+- **User impact:** Maintenance cost; 5 of the 13 answer signed-out callers.
+- **Evidence:** [`packages/api/routers/instruments.ts:401`](../packages/api/routers/instruments.ts#L401) · [`packages/api/routers/leaderboard.ts:104`](../packages/api/routers/leaderboard.ts#L104) · [`packages/api/routers/influence.ts:124`](../packages/api/routers/influence.ts#L124)
 
 <a id="area-workers"></a>
 
 ## Workers and schedules
-
-<a id="claims-created-only-self-logged"></a>
-
-### Ingested, backfilled and approved claims never emit `claims/created`, so mirroring a Guide does nothing
-
-**Medium** · bug · `claims-created-only-self-logged`
-
-- **What's wrong:** Only `claims.submit` sends `claims/created`. `processExtraction` (live ingest and backfill) bulk-inserts claims with no event, and admin approval only flips the status. `signal-simulate` listens only for that event, and a Guide can never self-log.
-- **User impact:** "Mirror Signals" on any Guide's profile creates a $100,000 portfolio that never trades but takes one of the 5 active mirror slots. Mirroring a Player works when that Player self-logs. Guide influence is still recorded through the Player branch of `influence-track`.
-- **Evidence:** [`packages/api/routers/claims.ts:116-128`](../packages/api/routers/claims.ts#L116-L128) · [`packages/api/routers/claims.ts:401-404`](../packages/api/routers/claims.ts#L401-L404) · [`packages/ingestion/src/extractor.ts:744`](../packages/ingestion/src/extractor.ts#L744) · [`apps/worker/functions/signal-simulate.ts:21`](../apps/worker/functions/signal-simulate.ts#L21) · [`apps/web/components/EntityProfileHeader.tsx:124-127`](../apps/web/components/EntityProfileHeader.tsx#L124-L127)
 
 <a id="digest-placeholder-recipient"></a>
 
@@ -304,23 +204,23 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="broker-sync-error-sticky"></a>
 
-### One broker-sync failure stops syncing for good
+### One lasting broker-sync failure stops syncing
 
 **Low** · bug · `broker-sync-error-sticky`
 
-- **What's wrong:** Both sync paths pick only links with `sync_status='active'` and set `'error'` on any failure. Only `completeLink` sets `'active'` again; the cron's success path does not, so even an error that an Inngest retry recovers from sticks. The error state's Retry button only refetches. `completeLink` also sets `last_sync_at` to now, so trades from before the link are never fetched.
-- **User impact:** Dormant while SnapTrade is unconfigured. Once enabled, one error ends syncing for that Player while the Verified badge and ×1.5 weight stay.
-- **Evidence:** [`apps/worker/functions/broker-sync.ts:36-46`](../apps/worker/functions/broker-sync.ts#L36-L46) · [`apps/worker/functions/broker-sync.ts:118-137`](../apps/worker/functions/broker-sync.ts#L118-L137) · [`packages/api/routers/broker.ts:182-196`](../packages/api/routers/broker.ts#L182-L196) · [`apps/web/components/settings/BrokerVerification.tsx:149-169`](../apps/web/components/settings/BrokerVerification.tsx#L149-L169)
+- **What's wrong:** Both sync paths pick only links with `sync_status='active'`, so a link stays in `error` once a run's retries are spent, and the error state's Retry button only refetches. (Since wave 5 a retry that succeeds restores the link, the first sync reads back past the moment of linking, and the error state offers Reconnect.)
+- **User impact:** Dormant while SnapTrade is unconfigured. Once enabled, one lasting error ends syncing for that Player, and the Verified badge and ×1.5 weight stay off until they reconnect by hand, even if SnapTrade recovers.
+- **Evidence:** [`apps/worker/functions/broker-sync.ts`](../apps/worker/functions/broker-sync.ts) · [`packages/api/routers/broker.ts`](../packages/api/routers/broker.ts) · [`apps/web/components/settings/BrokerVerification.tsx`](../apps/web/components/settings/BrokerVerification.tsx)
 
 <a id="merkle-audit-gaps"></a>
 
-### The Merkle audit misses backdated claims and leaves out prices
+### Merkle roots are stored but never published, and older claims have gaps
 
 **Low** · data-integrity · `merkle-audit-gaps`
 
-- **What's wrong:** `merkle-audit` (22:00 UTC daily) hashes claims whose `created_at` is in the previous UTC day. Claims inserted later with an earlier `created_at` (ratings dated two or more days back, nearly all backfill, and extraction retries that finish after the audit) are in no root. The leaf omits target, entry price, confidence and rationale. `bitcoin_tx_id` is never written, nothing reads `audit_roots`, and a re-run for a stored date fails on its UNIQUE `date`.
-- **User impact:** No visible effect today, because roots are neither published nor anchored. Once published, most backfilled history would be uncovered, and entry price, target and confidence could change without breaking a root.
-- **Evidence:** [`apps/worker/functions/audit.ts:22-62`](../apps/worker/functions/audit.ts#L22-L62) · [`packages/shared/src/merkle.ts:7-16`](../packages/shared/src/merkle.ts#L7-L16) · [`packages/ingestion/src/extractor.ts:642-644`](../packages/ingestion/src/extractor.ts#L642-L644) · [`apps/worker/functions/backfill.ts:144`](../apps/worker/functions/backfill.ts#L144)
+- **What's wrong:** `bitcoin_tx_id` is never written and nothing reads `audit_roots`, so a root proves nothing to anyone outside the database. Claims stored before migration 0012 have no `recorded_at`: those dated earlier than they were stored (ratings, backfill, retried extractions) are in no root, and those that are in a root were hashed by leaf version 1, which leaves out target, entry price, confidence and rationale. (Since wave 5 each day's root covers every claim recorded that day, whatever its date, hashes every column but the review status, and a re-run for a stored date changes nothing.)
+- **User impact:** No visible effect today, because roots are neither published nor anchored. Once published, older history would be only partly covered.
+- **Evidence:** [`apps/worker/functions/audit.ts`](../apps/worker/functions/audit.ts) · [`packages/db/schema/audit.ts`](../packages/db/schema/audit.ts)
 
 <a id="leaderboard-refresh-noop"></a>
 
@@ -346,35 +246,15 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 ## Ingestion and extraction
 
-<a id="firm-reattribution-all-lanes"></a>
+<a id="feed-first-read-dates-old-posts"></a>
 
-### A Guide's own post that names a bank is credited to the bank
+### A feed's first read dates old posts the day they are stored
 
-**Low** · data-integrity · `firm-reattribution-all-lanes`
+**Low** · data-integrity · `feed-first-read-dates-old-posts`
 
-- **What's wrong:** Any claim with a valid `analyst_firm` is credited to that firm's Guide in every lane. That is the intended issuer-not-carrier rule, but in a Guide's lane the claim keeps `source_kind='analyst_feed'`. Nothing guards against a Guide who works at the firm, or a model that names a firm on the Guide's own view; those calls move to the firm and can go active without review. The workers' "attribution is inherent" comments are wrong.
-- **User impact:** Latent until a historical backfill runs or a Guide feed is enabled (a database edit). Nothing reads `source_kind` yet.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:619-637`](../packages/ingestion/src/extractor.ts#L619-L637) · [`packages/ingestion/src/extractor.ts:676-677`](../packages/ingestion/src/extractor.ts#L676-L677) · [`apps/worker/functions/extract.ts:43-49`](../apps/worker/functions/extract.ts#L43-L49)
-
-<a id="carrier-entity-claims-approvable"></a>
-
-### Approving an unattributed rating makes the news publisher score
-
-**Low** · data-integrity · `carrier-entity-claims-approvable`
-
-- **What's wrong:** A Wall Street rating with no resolved firm is stored as `pending_review` under the publication's entity, which is an ordinary Guide. Approval only flips the status, so the publisher is then scored and ranked as a Guide. The review page does not say why the claim was held, and approval cannot be undone in the app.
-- **User impact:** Latent: only the Polygon news lane, off unless `INGEST_POLYGON_NEWS=1`, produces these claims.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:671-685`](../packages/ingestion/src/extractor.ts#L671-L685) · [`packages/api/routers/claims.ts:370-407`](../packages/api/routers/claims.ts#L370-L407) · [`apps/web/app/(app)/admin/review/page.tsx:70-77`](../apps/web/app/%28app%29/admin/review/page.tsx#L70-L77)
-
-<a id="rss-lane-cannot-be-enabled"></a>
-
-### The RSS lane can only be switched on in SQL
-
-**Low** · feature-gap · `rss-lane-cannot-be-enabled`
-
-- **What's wrong:** The RSS lane reads only Guides with `is_allowlisted=true` and a `source_url`. Only the fake seed sets `is_allowlisted=true` (with no `source_url`); every other creator hard-codes false, and no API or admin page changes it.
-- **User impact:** Unless rows were edited by hand (not recorded) or `INGEST_POLYGON_NEWS=1` is set, the weekday ingest cron captures nothing. Turning on a backfilled Guide's feed takes a SQL `UPDATE` setting `is_allowlisted = true` on that one Guide's row.
-- **Evidence:** [`apps/worker/functions/ingest.ts:17-26`](../apps/worker/functions/ingest.ts#L17-L26) · [`apps/worker/functions/ingest.ts:42-49`](../apps/worker/functions/ingest.ts#L42-L49) · [`packages/db/seed.ts:105-117`](../packages/db/seed.ts#L105-L117) · [`packages/ingestion/src/sources/resolver.ts:70`](../packages/ingestion/src/sources/resolver.ts#L70)
+- **What's wrong:** The RSS lane stores every Mag-7 item a feed still lists, with no age limit, and `extract-claims` dates each claim by when its post was stored, unless the post states a rating date. A three-month-old post first read today becomes a claim dated today, and markout scores it from the next close. (Mirrors and follower notices read the post's own date, so they skip it.)
+- **User impact:** Latent until an admin switches a feed on at `/admin/guides`, which warns about it. The claims cannot be removed afterwards, and an old call is scored against a market its author never saw. What the first read should do is a product choice: skip old posts, or date them as published, as a backfill does.
+- **Evidence:** [`packages/ingestion/src/sources/rss.ts`](../packages/ingestion/src/sources/rss.ts) · [`apps/worker/functions/extract.ts`](../apps/worker/functions/extract.ts)
 
 <a id="r2-snapshot-capture-dead"></a>
 
@@ -416,7 +296,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · bug · `two-verified-flags`
 
-- **What's wrong:** Profile headers and the ticker Top Entities panel show Verified if `entities.is_verified` or `broker_link_status='verified'`. The leaderboard page, Settings, REST v1 and consensus read only `broker_link_status`. Only the seed sets `is_verified`. `broker_links.is_verified` is never reset and no UI reads it.
+- **What's wrong:** Profile headers and the ticker Top Entities panel show Verified if `entities.is_verified` or `broker_link_status='verified'`. The leaderboard page, Settings, REST v1 and consensus read only `broker_link_status`. Only the seed sets `is_verified`. No UI reads `broker_links.is_verified`.
 - **User impact:** None in production, where neither flag is set. In a seeded local database the badge differs between surfaces.
 - **Evidence:** [`apps/web/components/EntityProfileHeader.tsx:45-46`](../apps/web/components/EntityProfileHeader.tsx#L45-L46) · [`apps/web/components/ticker/TopEntitiesPanel.tsx:54-56`](../apps/web/components/ticker/TopEntitiesPanel.tsx#L54-L56) · [`apps/web/app/(app)/leaderboard/page.tsx:191-192`](../apps/web/app/%28app%29/leaderboard/page.tsx#L191-L192) · [`apps/web/app/api/v1/leaderboard/route.ts:107`](../apps/web/app/api/v1/leaderboard/route.ts#L107)
 

@@ -2,10 +2,11 @@ import { db, eq } from "@deepmint/db";
 import { entities } from "@deepmint/db/schema";
 
 /**
- * Resolve the entity that owns an agent API key (api_keys.created_by).
- * Write MCP tools (submit_claim, add_note) require a real owning entity so the
- * claim/note is attributed and scored like any other participant. Throws when
- * the key is not bound to an entity — agent keys must be minted with an owner.
+ * Resolve the agent an API key acts as (api_keys.entity_id). Write MCP tools
+ * (submit_claim, add_note) need one, so the claim or note is attributed and
+ * scored like any other participant's. The admin who minted the key
+ * (api_keys.created_by) never acts through it. Throws for anything but an
+ * agent's entity.
  */
 export async function resolveAgentEntity(
   entityId: string,
@@ -15,10 +16,8 @@ export async function resolveAgentEntity(
     .from(entities)
     .where(eq(entities.id, entityId))
     .limit(1);
-  if (!row) {
-    throw new Error(
-      "This API key is not bound to an entity; agent write access requires an owning entity.",
-    );
+  if (!row?.isAgent) {
+    throw new Error("This API key is not bound to an agent.");
   }
   return row;
 }

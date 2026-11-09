@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { NewTradeForm } from "./NewTradeForm";
 import { EquityCurve } from "./EquityCurve";
 
@@ -32,7 +33,10 @@ export function PortfolioDetail({ portfolioId }: PortfolioDetailProps) {
   });
 
   const closeMutation = trpc.paper.closeTrade.useMutation({
-    onSuccess: () => {
+    onSuccess: (trade) => {
+      toast.success(
+        `Closed at ${formatCents(trade.exitPriceCents ?? 0)}, last close ${trade.fillSessionDate}`,
+      );
       utils.paper.portfolioDetail.invalidate({ portfolioId });
       utils.paper.portfolioPerformance.invalidate({ portfolioId });
       utils.paper.myPortfolios.invalidate();
@@ -130,6 +134,7 @@ export function PortfolioDetail({ portfolioId }: PortfolioDetailProps) {
                   <th className="pb-2 pr-4">Side</th>
                   <th className="pb-2 pr-4 text-right">Qty</th>
                   <th className="pb-2 pr-4 text-right">Entry</th>
+                  <th className="pb-2 pr-4 text-right">Last close</th>
                   <th className="pb-2 pr-4 text-right">Opened</th>
                   <th className="pb-2 text-right">Action</th>
                 </tr>
@@ -156,6 +161,9 @@ export function PortfolioDetail({ portfolioId }: PortfolioDetailProps) {
                     </td>
                     <td className="py-2 pr-4 text-right font-mono text-text-primary">
                       {formatCents(t.trade.entryPriceCents)}
+                    </td>
+                    <td className="py-2 pr-4 text-right font-mono text-text-primary">
+                      <LastClose close={perf?.lastCloses[t.instrument.ticker]} />
                     </td>
                     <td className="py-2 pr-4 text-right text-text-secondary">
                       {new Date(t.trade.openedAt).toLocaleDateString()}
@@ -266,6 +274,22 @@ export function PortfolioDetail({ portfolioId }: PortfolioDetailProps) {
         </div>
       )}
     </div>
+  );
+}
+
+function LastClose({
+  close,
+}: {
+  close: { closeCents: number; sessionDate: string } | undefined;
+}) {
+  if (!close) return <span className="text-text-secondary">&mdash;</span>;
+  return (
+    <>
+      {formatCents(close.closeCents)}
+      <span className="block font-sans text-xs text-text-secondary">
+        last close {close.sessionDate}
+      </span>
+    </>
   );
 }
 

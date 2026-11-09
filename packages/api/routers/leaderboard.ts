@@ -3,7 +3,11 @@ import { memberProcedure, router } from "../trpc";
 import { alias } from "drizzle-orm/pg-core";
 import { db, desc, asc, eq, gte, and, isNull } from "@deepmint/db";
 import { scores, entities, instruments } from "@deepmint/db/schema";
-import { LOWER_IS_BETTER_METRICS, MIN_RANKED_OUTCOMES } from "@deepmint/shared";
+import {
+  LOWER_IS_BETTER_METRICS,
+  MIN_RANKED_OUTCOMES,
+  RETURN_METRICS,
+} from "@deepmint/shared";
 import { getLatestMarketRegime } from "../lib/marketRegime";
 import { topByInstrument } from "../lib/topByInstrument";
 
@@ -12,11 +16,16 @@ import { topByInstrument } from "../lib/topByInstrument";
 const sample = alias(scores, "sample");
 const significance = alias(scores, "significance");
 
-const sampleRow = (horizon: string) =>
+// The sample behind a metric: a return board leaves out neutral claims, or
+// nine of them would carry one lucky position over the floor.
+const sampleRow = (metric: string, horizon: string) =>
   and(
     eq(sample.entityId, scores.entityId),
     eq(sample.asOfDate, scores.asOfDate),
-    eq(sample.metric, "outcome_count"),
+    eq(
+      sample.metric,
+      RETURN_METRICS.includes(metric) ? "position_count" : "outcome_count",
+    ),
     eq(sample.horizon, horizon),
   );
 
@@ -101,7 +110,7 @@ export const leaderboardRouter = router({
         })
         .from(scores)
         .innerJoin(entities, eq(scores.entityId, entities.id))
-        .innerJoin(sample, sampleRow(input.horizon))
+        .innerJoin(sample, sampleRow(input.metric, input.horizon))
         .leftJoin(significance, significanceRow)
         .where(and(...conditions))
         // Best first: ascending for metrics where lower is better (Brier,
@@ -227,7 +236,7 @@ export const leaderboardRouter = router({
         })
         .from(scores)
         .innerJoin(entities, eq(scores.entityId, entities.id))
-        .innerJoin(sample, sampleRow("all"))
+        .innerJoin(sample, sampleRow("eiv", "all"))
         .where(and(...conditions))
         .orderBy(desc(scores.value))
         .limit(input.limit);

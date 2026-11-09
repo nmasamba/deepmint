@@ -20,15 +20,6 @@ const METRICS = [
   { value: "influence_events_30d", label: "Most Influential", icon: Users },
 ] as const;
 
-const REGIME_FILTERS = [
-  { value: "", label: "All Regimes" },
-  { value: "bull", label: "Bull" },
-  { value: "bear", label: "Bear" },
-  { value: "high_vol", label: "High Vol" },
-  { value: "low_vol", label: "Low Vol" },
-  { value: "rotation", label: "Rotation" },
-] as const;
-
 function formatScore(metric: string, value: number): string {
   if (metric === "hit_rate") return `${(value * 100).toFixed(1)}%`;
   if (metric === "avg_return_bps") return `${value.toFixed(0)} bps`;
@@ -42,19 +33,17 @@ export default function LeaderboardPage() {
     undefined
   );
   const [metric, setMetric] = useState("hit_rate");
-  const [regimeFilter, setRegimeFilter] = useState("");
 
   const { data: currentRegime } = trpc.regime.current.useQuery();
 
   // Influence is aggregated per Guide in influence_scores, not in scores, so
   // that chip reads its own procedure (the same one as the dashboard's
-  // Trending Influencers). It has no regime dimension.
+  // Trending Influencers).
   const isInfluence = metric === "influence_events_30d";
   const scoresQuery = trpc.leaderboard.top.useQuery(
     {
       metric,
       entityType,
-      regimeTag: regimeFilter || undefined,
       limit: 50,
     },
     { enabled: !isInfluence },
@@ -151,23 +140,6 @@ export default function LeaderboardPage() {
               </button>
             );
           })}
-        </div>
-
-        {/* Regime filter — horizontal scroll on mobile */}
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap">
-          {REGIME_FILTERS.map((r) => (
-            <button
-              key={r.value}
-              onClick={() => setRegimeFilter(r.value)}
-              className={`rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors ${
-                regimeFilter === r.value
-                  ? "bg-accent/10 text-accent border border-accent/30"
-                  : "bg-bg-secondary text-text-secondary border border-border hover:bg-bg-tertiary"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
         </div>
       </div>
 

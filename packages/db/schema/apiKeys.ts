@@ -10,7 +10,8 @@ export const apiKeys = pgTable('api_keys', {
   name: varchar('name', { length: 100 }).notNull(),           // human-readable label
   keyHash: varchar('key_hash', { length: 64 }).notNull().unique(), // SHA-256 hex
   keyPrefix: varchar('key_prefix', { length: 16 }).notNull(), // display-only prefix e.g. "dm_live_a1b2c3d4"
-  createdBy: uuid('created_by').references(() => entities.id),
+  createdBy: uuid('created_by').references(() => entities.id),        // the admin who minted it
+  entityId: uuid('entity_id').references(() => entities.id),          // the agent it acts as; null for a read-only key
   scopes: jsonb('scopes').$type<string[]>().default(['scores:read', 'consensus:read', 'leaderboard:read']).notNull(),
   rateLimit: integer('rate_limit').notNull().default(60),     // requests per minute
   isActive: boolean('is_active').notNull().default(true),

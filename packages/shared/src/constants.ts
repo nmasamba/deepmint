@@ -28,6 +28,11 @@ export const RATIONALE_TAGS = [
 
 export const CLAIM_RATE_LIMIT = 10; // per hour per user
 
+/** Limits on the profile fields a user edits in Settings. */
+export const PROFILE_BIO_MAX = 500;
+export const PROFILE_STYLE_TAGS_MAX = 10;
+export const PROFILE_STYLE_TAG_MAX = 30;
+
 /** Score horizons: "all" pools every horizon; the rest match outcomes.horizon. */
 export const SCORE_HORIZONS = ["all", "1d", "1w", "1m", "3m", "6m", "1y"] as const;
 
@@ -39,6 +44,19 @@ export const REGIME_TAGS = ["bull", "bear", "high_vol", "low_vol", "rotation"] a
  * Below it a profile shows as provisional.
  */
 export const MIN_RANKED_OUTCOMES = 10;
+
+/**
+ * Score metrics worked out from positions alone. A neutral claim takes none, so
+ * these boards apply the floor to `position_count`, not `outcome_count`.
+ */
+export const RETURN_METRICS: readonly string[] = [
+  "avg_return_bps",
+  "sharpe",
+  "max_drawdown",
+  "calmar",
+  "cvar5",
+  "consistency",
+];
 
 /** Score metrics where lower is better; leaderboards rank them ascending. */
 export const LOWER_IS_BETTER_METRICS: readonly string[] = [

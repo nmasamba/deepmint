@@ -39,16 +39,20 @@ export function BrokerVerification() {
 
   const completeMutation = trpc.broker.completeLink.useMutation({
     onSuccess: (res) => {
-      toast.success(`Verified with ${res.brokerName ?? "your broker"}`);
+      toast.success(`Linked ${res.brokerName ?? "your broker"}`);
       utils.broker.status.invalidate();
     },
     onError: (err) =>
-      toast.error("Verification failed", { description: err.message }),
+      toast.error("Linking failed", { description: err.message }),
   });
 
   const syncMutation = trpc.broker.syncTrades.useMutation({
     onSuccess: (res) => {
-      toast.success(`Synced ${res.synced} trade(s)`);
+      toast.success(
+        res.verified
+          ? `Synced ${res.synced} trade(s). You are Verified.`
+          : `Synced ${res.synced} trade(s). No trade in a tracked stock yet.`,
+      );
       utils.broker.status.invalidate();
     },
     onError: (err) =>
@@ -95,6 +99,35 @@ export function BrokerVerification() {
   const link = data?.link;
   const verified = data?.entityVerified;
 
+  const linkActions = (
+    <div className="flex gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => syncMutation.mutate()}
+        disabled={syncMutation.isPending}
+        className="border-border text-text-secondary hover:text-text-primary"
+      >
+        <RefreshCw
+          className={`mr-1 h-3 w-3 ${
+            syncMutation.isPending ? "animate-spin" : ""
+          }`}
+        />
+        Sync Now
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => disconnectMutation.mutate()}
+        disabled={disconnectMutation.isPending}
+        className="border-red-500/30 text-red-500 hover:bg-red-500/10"
+      >
+        <Link2Off className="mr-1 h-3 w-3" />
+        Disconnect
+      </Button>
+    </div>
+  );
+
   // Verified state
   if (verified && link && link.syncStatus === "active") {
     return (
@@ -112,35 +145,33 @@ export function BrokerVerification() {
           </span>
         </div>
         <p className="text-xs text-text-secondary">
-          Last sync: {formatDate(link.lastSyncAt)}. Your verified trades
-          receive a 1.5&times; multiplier in consensus scoring.
+          Last sync: {formatDate(link.lastSyncAt)}. You have the Verified badge,
+          and your claims carry 1.5&times; weight in consensus. Your trades do
+          not change your scores or rank.
         </p>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            className="border-border text-text-secondary hover:text-text-primary"
-          >
-            <RefreshCw
-              className={`mr-1 h-3 w-3 ${
-                syncMutation.isPending ? "animate-spin" : ""
-              }`}
-            />
-            Sync Now
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => disconnectMutation.mutate()}
-            disabled={disconnectMutation.isPending}
-            className="border-red-500/30 text-red-500 hover:bg-red-500/10"
-          >
-            <Link2Off className="mr-1 h-3 w-3" />
-            Disconnect
-          </Button>
+        {linkActions}
+      </div>
+    );
+  }
+
+  // Linked, with no imported trade in a tracked stock yet
+  if (link && link.syncStatus === "active") {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="h-5 w-5 text-text-secondary" />
+          <Badge variant="outline" className="border-border text-text-secondary">
+            Not verified yet
+          </Badge>
+          <span className="text-sm text-text-primary">
+            {link.brokerName ?? "Broker connected"}
+          </span>
         </div>
+        <p className="text-xs text-text-secondary">
+          Last sync: {formatDate(link.lastSyncAt)}. The Verified badge needs at
+          least one trade in a tracked stock on a linked account.
+        </p>
+        {linkActions}
       </div>
     );
   }
@@ -156,14 +187,30 @@ export function BrokerVerification() {
           </Badge>
         </div>
         <p className="text-xs text-red-500">{link.syncErrorMessage}</p>
-        <Button
-          size="sm"
-          onClick={() => refetch()}
-          className="bg-accent text-bg-primary hover:bg-accent-hover"
-        >
-          <RefreshCw className="mr-1 h-3 w-3" />
-          Retry
-        </Button>
+        <p className="text-xs text-text-secondary">
+          The Verified badge and the 1.5&times; weight are off while this link
+          is failing.
+        </p>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            onClick={() => initMutation.mutate({ provider: "snaptrade" })}
+            disabled={initMutation.isPending}
+            className="bg-accent text-bg-primary hover:bg-accent-hover"
+          >
+            <Link2 className="mr-1 h-3 w-3" />
+            {initMutation.isPending ? "Connecting..." : "Reconnect"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refetch()}
+            className="border-border text-text-secondary hover:text-text-primary"
+          >
+            <RefreshCw className="mr-1 h-3 w-3" />
+            Retry
+          </Button>
+        </div>
       </div>
     );
   }
@@ -174,7 +221,7 @@ export function BrokerVerification() {
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-text-secondary">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Completing verification...
+          Completing your link...
         </div>
         <Button
           size="sm"
@@ -182,7 +229,7 @@ export function BrokerVerification() {
           disabled={completeMutation.isPending}
           className="bg-accent text-bg-primary hover:bg-accent-hover"
         >
-          Complete Verification
+          Complete Link
         </Button>
       </div>
     );
@@ -192,9 +239,10 @@ export function BrokerVerification() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-text-secondary">
-        Connect your brokerage for read-only trade verification. Verified
-        Player claims receive a <strong>1.5&times;</strong> multiplier in
-        consensus scoring.
+        Connect your brokerage, read-only. Once a trade in a tracked stock is
+        imported you get a Verified badge, and your claims carry{" "}
+        <strong>1.5&times;</strong> weight in consensus. Linking does not change
+        your scores or rank.
       </p>
       <ul className="space-y-1 text-xs text-text-muted">
         <li>&middot; Deepmint never places trades on your behalf</li>

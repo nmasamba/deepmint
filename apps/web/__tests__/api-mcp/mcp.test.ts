@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { afterAll, describe, it, expect } from "vitest";
-import { db, inArray } from "@deepmint/db";
-import { apiKeys } from "@deepmint/db/schema";
+import { and, db, eq, inArray, isNotNull, ne } from "@deepmint/db";
+import { apiKeys, claims, entities, notes } from "@deepmint/db/schema";
 import { BASE_URL, API_KEY } from "../api-v1/helpers";
 
 /**
@@ -14,7 +14,8 @@ import { BASE_URL, API_KEY } from "../api-v1/helpers";
  *   and delete their own keys
  *
  * Skipped automatically when TEST_API_KEY is absent. Nothing here writes to the
- * ledger.
+ * ledger, unless TEST_MCP_WRITES=1 is set: claims cannot be deleted, so that case
+ * leaves an agent and its claim behind.
  */
 const MCP_URL = `${BASE_URL}/api/mcp`;
 const MCP_HEADERS = {
@@ -126,7 +127,12 @@ describe.skipIf(!API_KEY)("MCP server (authenticated)", () => {
 describe.skipIf(!API_KEY || !process.env.DATABASE_URL)("MCP per-tool scopes", () => {
   const minted: string[] = [];
 
-  async function mintKey(scopes: string[]) {
+  const agents: string[] = [];
+
+  async function mintKey(
+    scopes: string[],
+    owner: { createdBy?: string; entityId?: string } = {},
+  ) {
     const plaintext = `dm_live_${randomBytes(16).toString("hex")}`;
     const [row] = await db
       .insert(apiKeys)
@@ -135,14 +141,44 @@ describe.skipIf(!API_KEY || !process.env.DATABASE_URL)("MCP per-tool scopes", ()
         keyHash: createHash("sha256").update(plaintext).digest("hex"),
         keyPrefix: plaintext.slice(0, 16),
         scopes,
+        ...owner,
       })
       .returning({ id: apiKeys.id });
     minted.push(row!.id);
     return plaintext;
   }
 
+  async function mintAgent() {
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const [agent] = await db
+      .insert(entities)
+      .values({
+        type: "player",
+        isAgent: true,
+        displayName: `zz MCP agent ${stamp}`,
+        slug: `zz-mcp-agent-${stamp}`,
+      })
+      .returning();
+    agents.push(agent!.id);
+    return agent!;
+  }
+
+  /** A Player's active claim: the admin in these cases, and never the agent. */
+  async function someoneElsesClaim() {
+    const [row] = await db
+      .select({ id: claims.id, entityId: claims.entityId })
+      .from(claims)
+      .where(eq(claims.status, "active"))
+      .limit(1);
+    return row!;
+  }
+
   afterAll(async () => {
     if (minted.length > 0) await db.delete(apiKeys).where(inArray(apiKeys.id, minted));
+    // An agent that wrote to the ledger stays: its rows cannot be deleted.
+    if (agents.length > 0 && !process.env.TEST_MCP_WRITES) {
+      await db.delete(entities).where(inArray(entities.id, agents));
+    }
   });
 
   it("a key reaches only the tools its scopes allow", async () => {
@@ -166,5 +202,92 @@ describe.skipIf(!API_KEY || !process.env.DATABASE_URL)("MCP per-tool scopes", ()
     const key = await mintKey(["claims:write"]);
     expect((await callTool("search_instruments", { query: "AAPL" }, key)).isError).toBe(false);
     expect((await callTool("get_consensus", { ticker: "AAPL" }, key)).isError).toBe(true);
+  });
+
+  it("a key with no agent cannot write, even with its admin's id on it", async () => {
+    const claim = await someoneElsesClaim();
+    const key = await mintKey(["claims:write"], { createdBy: claim.entityId });
+
+    const submit = await callTool(
+      "submit_claim",
+      { ticker: "AAPL", direction: "long", horizonDays: 30 },
+      key,
+    );
+    expect(submit.isError).toBe(true);
+    expect(submit.text).toContain("not bound to an agent");
+
+    const note = await callTool("add_note", { claimId: claim.id, noteText: "zz" }, key);
+    expect(note.isError).toBe(true);
+    expect(note.text).toContain("not bound to an agent");
+  });
+
+  it("an agent's key does not reach the claims of the admin who minted it", async () => {
+    const claim = await someoneElsesClaim();
+    const agent = await mintAgent();
+    const key = await mintKey(["claims:write"], {
+      createdBy: claim.entityId,
+      entityId: agent.id,
+    });
+    const note = await callTool("add_note", { claimId: claim.id, noteText: "zz" }, key);
+    expect(note.isError).toBe(true);
+    expect(note.text).toContain("your own claims");
+    const stored = await db.select({ id: notes.id }).from(notes).where(eq(notes.entityId, agent.id));
+    expect(stored).toEqual([]);
+  });
+
+  it("a key bound to anything but an agent cannot write", async () => {
+    const [human] = await db
+      .select({ id: entities.id })
+      .from(entities)
+      .where(and(eq(entities.isAgent, false), isNotNull(entities.clerkUserId)))
+      .limit(1);
+    const key = await mintKey(["claims:write"], { entityId: human!.id });
+    const submit = await callTool(
+      "submit_claim",
+      { ticker: "AAPL", direction: "long", horizonDays: 30 },
+      key,
+    );
+    expect(submit.isError).toBe(true);
+    expect(submit.text).toContain("not bound to an agent");
+  });
+
+  it("an agent's profile says it is an agent", async () => {
+    const agent = await mintAgent();
+    const key = await mintKey(["scores:read"]);
+    const { text, isError } = await callTool(
+      "get_entity_track_record",
+      { slug: agent.slug },
+      key,
+    );
+    expect(isError).toBe(false);
+    expect(JSON.parse(text).entity.isAgent).toBe(true);
+  });
+
+  it.runIf(process.env.TEST_MCP_WRITES)("an agent's claim and note are its own", async () => {
+    const claim = await someoneElsesClaim();
+    const agent = await mintAgent();
+    const key = await mintKey(["claims:write"], {
+      createdBy: claim.entityId,
+      entityId: agent.id,
+    });
+
+    const submitted = await callTool(
+      "submit_claim",
+      { ticker: "AAPL", direction: "long", horizonDays: 30 },
+      key,
+    );
+    expect(submitted.isError).toBe(false);
+    const { id } = JSON.parse(submitted.text);
+    const [stored] = await db.select().from(claims).where(eq(claims.id, id));
+    expect(stored?.entityId).toBe(agent.id);
+    expect(stored?.entityId).not.toBe(claim.entityId);
+
+    const note = await callTool("add_note", { claimId: id, noteText: "zz agent note" }, key);
+    expect(note.isError).toBe(false);
+    const [noted] = await db
+      .select()
+      .from(notes)
+      .where(and(eq(notes.claimId, id), ne(notes.entityId, claim.entityId)));
+    expect(noted?.entityId).toBe(agent.id);
   });
 });
