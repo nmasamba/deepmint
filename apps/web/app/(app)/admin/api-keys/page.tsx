@@ -96,11 +96,12 @@ export default function AdminApiKeysPage() {
       toast.error("Revoke failed", { description: err.message }),
   });
 
-  // Agents that already hold a key, for giving one a new key.
+  // Agents that already hold a key, for giving one a new key. A deleted
+  // agent cannot write, so it is not offered.
   const agents = [
     ...new Map(
       (keys ?? [])
-        .filter((k) => k.entityId && k.agentName)
+        .filter((k) => k.entityId && k.agentName && !k.agentDeleted)
         .map((k) => [k.entityId!, k.agentName!]),
     ),
   ].map(([id, displayName]) => ({ id, displayName }));

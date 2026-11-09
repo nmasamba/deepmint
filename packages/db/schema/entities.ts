@@ -22,5 +22,7 @@ export const entities = pgTable('entities', {
   sourceUrl: varchar('source_url', { length: 500 }),                  // Guide's public profile/blog
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  deletedAt: timestamp('deleted_at', { withTimezone: true }),         // soft delete
+  // Set when the account is deleted (D18): the row is anonymised and stays
+  // ranked as "Deleted user"; see queries/anonymiseEntity.ts.
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });

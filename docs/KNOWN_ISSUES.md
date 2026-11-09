@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **25 open issues: no high, 4 medium and 21 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **23 open issues: no high, 3 medium and 20 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 0 | 1 | 1 |
-| [Product (web app)](#area-product) | 0 | 2 | 3 | 5 |
+| [Product (web app)](#area-product) | 0 | 1 | 3 | 4 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 2 | 2 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 3 | 4 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
-| [Data model and shared code](#area-data) | 0 | 0 | 2 | 2 |
+| [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **4** | **21** | **25** |
+| **All** | **0** | **3** | **20** | **23** |
 
 <a id="area-scoring"></a>
 
@@ -63,16 +63,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Both landing-page buttons, "Sign Up as a Guide" and "Sign Up as a Player", go to plain `/sign-up`, and every new user is created as type `player`. No code changes `entities.type`, and the profile-claiming flow mentioned in a resolver comment does not exist.
 - **User impact:** An analyst who signs up as a Guide becomes a Player: scored with Player metrics (no Brier, z-score or target precision), listed with Players, without the ×1.2 Guide consensus weight or an Influence tab. An analyst already ingested as a Guide ends up with two unlinked entities.
 - **Evidence:** [`apps/web/components/landing/ChoosePath.tsx:69-75`](../apps/web/components/landing/ChoosePath.tsx#L69-L75) · [`apps/web/components/landing/ChoosePath.tsx:123-129`](../apps/web/components/landing/ChoosePath.tsx#L123-L129) · [`packages/db/queries/ensureEntityForClerkUser.ts:58`](../packages/db/queries/ensureEntityForClerkUser.ts#L58) · [`packages/ingestion/src/sources/resolver.ts:34-35`](../packages/ingestion/src/sources/resolver.ts#L34-L35)
-
-<a id="profile-edit-and-clerk-sync"></a>
-
-### Deleting a Clerk account leaves the public profile in place
-
-**Medium** · feature-gap · `profile-edit-and-clerk-sync`
-
-- **What's wrong:** The Clerk webhook handles `user.created` and `user.updated`, not `user.deleted`, and nothing ever sets `entities.deleted_at`. (Since wave 5 Clerk's name and avatar sync on `user.updated`, once the endpoint subscribes to it, the slug never changes, and users edit their bio and style tags in Settings.)
-- **User impact:** Deleting a Clerk account leaves the public profile, claims and leaderboard rows in place.
-- **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts`](../apps/web/app/api/webhooks/clerk/route.ts)
 
 <a id="equity-curve-placeholder"></a>
 
@@ -120,7 +110,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="unused-trpc-procedures"></a>
 
-### 15 of 76 tRPC procedures have no UI caller
+### 15 of 77 tRPC procedures have no UI caller
 
 **Low** · dead-code · `unused-trpc-procedures`
 
@@ -209,16 +199,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 <a id="area-data"></a>
 
 ## Data model and shared code
-
-<a id="soft-delete-half-implemented"></a>
-
-### Soft delete is read in some places but never set
-
-**Low** · data-integrity · `soft-delete-half-implemented`
-
-- **What's wrong:** `entities.deleted_at` is checked by five procedures but written by nothing. Most reads (profiles, search, REST v1, consensus, scoring, influence, MCP) ignore it, and a comment wrongly says consensus excludes deleted entities.
-- **User impact:** No effect today. A user cannot be removed, and a manual SQL soft-delete would hide an entity from only some surfaces.
-- **Evidence:** [`packages/db/schema/entities.ts:22`](../packages/db/schema/entities.ts#L22) · [`packages/api/routers/entities.ts:109-114`](../packages/api/routers/entities.ts#L109-L114) · [`apps/worker/functions/consensus-signal.ts:57-66`](../apps/worker/functions/consensus-signal.ts#L57-L66)
 
 <a id="dead-and-duplicated-shared-code"></a>
 

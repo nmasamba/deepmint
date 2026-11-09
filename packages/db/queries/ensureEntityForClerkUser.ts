@@ -1,4 +1,4 @@
-import { db, eq } from "@deepmint/db";
+import { db, eq, and, isNull } from "@deepmint/db";
 import { entities } from "@deepmint/db/schema";
 
 /** Max length of entities.slug / display_name (varchar(100)). */
@@ -20,7 +20,9 @@ export interface EnsureEntityInput {
 
 /**
  * Idempotently resolve a Clerk user to their `entities` row, creating it if
- * absent. Returns the existing row unchanged when one is already present.
+ * absent. Returns the existing row unchanged when one is already present,
+ * including a deleted account's anonymised row: it keeps its clerk_user_id,
+ * so a deleted user is never given a new entity.
  *
  * This exists because entity creation must not depend on a single webhook
  * delivery succeeding. `clerk_user_id` is UNIQUE, so the previous
@@ -80,7 +82,8 @@ export async function ensureEntityForClerkUser(
 
 /**
  * Bring an entity's name and avatar up to date with Clerk, which owns both
- * (D8). The slug never changes, because it is the profile's public address.
+ * (D8), unless the account has been deleted. The slug never changes, because
+ * it is the profile's public address.
  * An entity that does not exist yet is created, in case `user.created` was
  * never delivered. An avatar URL too long for its column leaves the old avatar
  * in place: failing here would have Clerk redeliver the event for ever.
@@ -89,6 +92,9 @@ export async function syncEntityFromClerk(
   input: EnsureEntityInput,
 ): Promise<typeof entities.$inferSelect> {
   const entity = await ensureEntityForClerkUser(input);
+  // A user.updated delivered after user.deleted (Svix retries arrive in any
+  // order) must not put a deleted user's name back.
+  if (entity.deletedAt) return entity;
   const displayName = storedDisplayName(input.displayName);
   const avatarUrl = fitsAvatarColumn(input.avatarUrl)
     ? (input.avatarUrl ?? null)
@@ -97,10 +103,12 @@ export async function syncEntityFromClerk(
     return entity;
   }
 
+  // Guarded again in the UPDATE: a user.deleted handled since the read above
+  // must win, and the row lock makes this re-check see it.
   const [updated] = await db
     .update(entities)
     .set({ displayName, avatarUrl, updatedAt: new Date() })
-    .where(eq(entities.id, entity.id))
+    .where(and(eq(entities.id, entity.id), isNull(entities.deletedAt)))
     .returning();
   return updated ?? entity;
 }

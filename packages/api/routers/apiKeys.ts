@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq } from "@deepmint/db";
+import { and, desc, eq, isNull, sql } from "@deepmint/db";
 import { apiKeys, entities } from "@deepmint/db/schema";
 import { slugify } from "@deepmint/shared";
 import { TRPCError } from "@trpc/server";
@@ -84,13 +84,15 @@ export const apiKeysRouter = router({
               and(
                 eq(entities.id, input.agentEntityId),
                 eq(entities.isAgent, true),
+                // A deleted agent can never write (resolveAgentEntity).
+                isNull(entities.deletedAt),
               ),
             )
             .limit(1);
           if (!agent) {
             throw new TRPCError({
               code: "BAD_REQUEST",
-              message: "agentEntityId is not an agent",
+              message: "agentEntityId is not an agent, or it has been deleted",
             });
           }
           entityId = agent.id;
@@ -139,6 +141,7 @@ export const apiKeysRouter = router({
         entityId: apiKeys.entityId,
         agentName: entities.displayName,
         agentSlug: entities.slug,
+        agentDeleted: sql<boolean>`${entities.deletedAt} is not null`,
         scopes: apiKeys.scopes,
         rateLimit: apiKeys.rateLimit,
         isActive: apiKeys.isActive,

@@ -1,5 +1,5 @@
 import { inngest } from "../inngest";
-import { db, eq, and, gte, desc, sql, inArray } from "@deepmint/db";
+import { db, eq, and, gte, desc, sql, inArray, isNull } from "@deepmint/db";
 import {
   entities,
   follows,
@@ -32,7 +32,8 @@ export const digestFunction = inngest.createFunction(
       const since = new Date();
       since.setHours(since.getHours() - 24);
 
-      // Get all entities that follow someone and have digest enabled
+      // Get all entities that follow someone and have digest enabled. A
+      // deleted account gets nothing: it has no one to send to.
       const followers = await db
         .select({
           entityId: entities.id,
@@ -40,7 +41,12 @@ export const digestFunction = inngest.createFunction(
           clerkUserId: entities.clerkUserId,
         })
         .from(entities)
-        .where(sql`${entities.id} IN (SELECT DISTINCT follower_id FROM follows)`);
+        .where(
+          and(
+            sql`${entities.id} IN (SELECT DISTINCT follower_id FROM follows)`,
+            isNull(entities.deletedAt),
+          ),
+        );
 
       let sent = 0;
       let skipped = 0;

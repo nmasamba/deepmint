@@ -69,10 +69,10 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Production:** set, on a Clerk **development** instance (`pk_test_` keys). Sign-in methods are set in the Clerk dashboard, not in code; Facebook and X were never configured. See priority 2 for the move to a production instance.
 
 **`CLERK_WEBHOOK_SECRET`**
-- **Powers:** `POST /api/webhooks/clerk` (`apps/web/app/api/webhooks/clerk/route.ts:25`), which creates the Player entity on `user.created` and syncs its name and avatar on `user.updated` (the slug never changes). Those are the only events it handles.
+- **Powers:** `POST /api/webhooks/clerk` (`apps/web/app/api/webhooks/clerk/route.ts:25`), which creates the Player entity on `user.created`, syncs its name and avatar on `user.updated` (the slug never changes), and anonymises the account on `user.deleted`, which stays ranked as "Deleted user". Those are the only events it handles.
 - **Required:** no. If the webhook never fires, the tRPC self-heal creates the entity on the user's first tRPC request.
 - **If missing:** every delivery gets a 500, because the route throws before checking headers.
-- **Get it:** Clerk dashboard → Webhooks → add endpoint `https://www.deepmint.ai/api/webhooks/clerk`, subscribe to `user.created` and `user.updated`, copy the signing secret. Use the `www` host: the bare `deepmint.ai` answers with a 307 redirect, which Svix does not follow.
+- **Get it:** Clerk dashboard → Webhooks → add endpoint `https://www.deepmint.ai/api/webhooks/clerk`, subscribe to `user.created`, `user.updated` and `user.deleted`, copy the signing secret. Use the `www` host: the bare `deepmint.ai` answers with a 307 redirect, which Svix does not follow.
 - **Verify:** `curl -X POST https://www.deepmint.ai/api/webhooks/clerk` returns `400 Missing svix headers` when the secret is set, and 500 when it is not. A real delivery logs `[clerk webhook] entity ensured` in the Vercel function logs. Locally, `apps/web/__tests__/webhooks/clerk.test.ts` signs payloads with this secret (from the root `.env.local`) and posts them to the dev server.
 - **Production:** secret set (probe 2026-10-05 returned the 400). Whether an endpoint is registered in Clerk is unverified; notes from 2026-08-11 say none was, and production entities came from the self-heal.
 

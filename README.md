@@ -176,7 +176,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 |---|---|
 | Monorepo | pnpm 10.32.1 workspaces, Turborepo 2 |
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui components, Serwist (PWA) |
-| API | tRPC v11 (15 routers, 76 procedures), REST `/api/v1`, MCP via `mcp-handler` |
+| API | tRPC v11 (15 routers, 77 procedures), REST `/api/v1`, MCP via `mcp-handler` |
 | Database | PostgreSQL (16 in Docker locally, Supabase in production) with Drizzle ORM 0.41 |
 | Background jobs | Inngest 4 (17 functions) |
 | Auth | Clerk (`@clerk/nextjs` 7) |

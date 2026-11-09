@@ -44,6 +44,13 @@ export const signalSimulateRouter = router({
           message: "Entity not found",
         });
       }
+      // A deleted account makes no new claims to mirror.
+      if (target.deletedAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This account has been deleted",
+        });
+      }
 
       // Check for existing active mirror
       const [existing] = await ctx.db

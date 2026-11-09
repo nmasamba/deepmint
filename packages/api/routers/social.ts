@@ -42,7 +42,7 @@ export const socialRouter = router({
 
       // Check target exists
       const [target] = await ctx.db
-        .select({ id: entities.id })
+        .select({ id: entities.id, deletedAt: entities.deletedAt })
         .from(entities)
         .where(eq(entities.id, input.targetEntityId))
         .limit(1);
@@ -51,6 +51,12 @@ export const socialRouter = router({
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Entity not found",
+        });
+      }
+      if (target.deletedAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This account has been deleted",
         });
       }
 

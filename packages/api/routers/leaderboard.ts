@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { memberProcedure, router } from "../trpc";
 import { alias } from "drizzle-orm/pg-core";
-import { db, desc, asc, eq, gte, and, isNull } from "@deepmint/db";
+import { db, desc, asc, eq, gte, and } from "@deepmint/db";
 import { scores, entities, instruments } from "@deepmint/db/schema";
 import {
   LOWER_IS_BETTER_METRICS,
@@ -62,8 +62,7 @@ export const leaderboardRouter = router({
       const conditions = [
         eq(scores.metric, input.metric),
         eq(scores.horizon, input.horizon),
-        // Soft-deleted entities must not be publicly ranked.
-        isNull(entities.deletedAt),
+        // A deleted account stays ranked, as "Deleted user" (D18).
       ];
 
       if (input.regimeTag) {
@@ -223,7 +222,6 @@ export const leaderboardRouter = router({
         eq(scores.horizon, "all"),
         eq(scores.regimeTag, tagged.regimeTag),
         eq(scores.asOfDate, latestRun.asOfDate),
-        isNull(entities.deletedAt),
         gte(sample.value, String(MIN_RANKED_OUTCOMES)),
       ];
       if (input.entityType) {

@@ -24,11 +24,12 @@ export async function createNotification(params: {
   metadata?: Record<string, unknown>;
 }): Promise<typeof notifications.$inferSelect | null> {
   const [entity] = await db
-    .select({ clerkUserId: entities.clerkUserId })
+    .select({ clerkUserId: entities.clerkUserId, deletedAt: entities.deletedAt })
     .from(entities)
     .where(eq(entities.id, params.entityId))
     .limit(1);
-  if (!entity?.clerkUserId) return null;
+  // No one reads an ingested Guide's notifications, or a deleted account's.
+  if (!entity?.clerkUserId || entity.deletedAt) return null;
 
   // Check preferences
   const prefColumn = TYPE_TO_PREF[params.type];
