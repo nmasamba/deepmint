@@ -68,7 +68,7 @@ flowchart TD
    - whether the target price was reached.
 6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures. Players also get risk measures such as the Sharpe ratio and maximum drawdown, worked out from a daily book: each claim is held from its entry close to its exit close and marked at every close in between, which takes at most one Polygon request per stock.
 7. **Leaderboard and consensus.** The leaderboard ranks authors by the new scores. For each stock, Deepmint recalculates the consensus: a weighted vote (bullish, bearish or neutral) of the active claims whose horizon has not yet passed, plus the average of their price targets and how widely those targets spread. Claims count for more when their author has a higher EIV, is a Guide or is a broker-verified Player, when they are newer and when their confidence is higher.
-8. **Nightly fingerprint.** Every night a job hashes the claims recorded the previous day, whatever date they carry, into a single Merkle root and stores it in the database. The roots are not yet published, anchored outside the database or checkable by users.
+8. **Nightly fingerprint.** Every night a job hashes the claims recorded the previous day, whatever date they carry, into a single Merkle root and stores it in the database. Signed-in users can read every root at `/audit`, and each claim's page shows its proof against its day's root, which the browser checks. The roots are not anchored outside the database.
 
 ## When do things happen?
 
@@ -148,7 +148,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - **Not working yet:** Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
 - **Error tracking and snapshots.** Error tracking (Sentry) and source snapshots (Cloudflare R2) are not wired into the app. Setting their keys alone does not turn them on.
-- **Audit.** The nightly audit roots are not published. Claims stored before migration 0012 with an earlier date, such as backfilled history, are in no root.
+- **Audit.** The roots are listed at `/audit` and each claim page shows its proof, but nothing anchors the roots outside the database yet. Claims stored before migration 0012 with an earlier date, such as backfilled history, are in no root. Roots from before PR #17 (leaf version 1) cover fewer fields, and a claim page shows no proof when such a root cannot be rebuilt from the ledger.
 - **Missing features.** There is no way to become a Guide or request a new stock.
 
 The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
@@ -176,7 +176,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 |---|---|
 | Monorepo | pnpm 10.32.1 workspaces, Turborepo 2 |
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui components, Serwist (PWA) |
-| API | tRPC v11 (15 routers, 74 procedures), REST `/api/v1`, MCP via `mcp-handler` |
+| API | tRPC v11 (15 routers, 76 procedures), REST `/api/v1`, MCP via `mcp-handler` |
 | Database | PostgreSQL (16 in Docker locally, Supabase in production) with Drizzle ORM 0.41 |
 | Background jobs | Inngest 4 (17 functions) |
 | Auth | Clerk (`@clerk/nextjs` 7) |

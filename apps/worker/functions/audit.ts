@@ -1,11 +1,8 @@
 import { inngest } from "../inngest";
-import { db, and, or, gte, lt, isNull, sql } from "@deepmint/db";
-import { claims, auditRoots } from "@deepmint/db/schema";
-import {
-  MERKLE_LEAF_VERSION,
-  computeClaimLeafHashV2,
-  buildMerkleTree,
-} from "@deepmint/shared";
+import { db } from "@deepmint/db";
+import { auditRoots } from "@deepmint/db/schema";
+import { MERKLE_LEAF_VERSION, buildMerkleTree } from "@deepmint/shared";
+import { auditWindowClaims, claimLeafHash } from "@deepmint/api/lib/auditWindow";
 
 /**
  * Merkle Audit worker: runs daily at 22:00 UTC. Deliberately UTC, unlike the
@@ -31,43 +28,23 @@ export const auditFunction = inngest.createFunction(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
       );
       const dayStart = new Date(todayStart.getTime() - 86400000);
-      const dayEnd = todayStart;
 
-      const windowClaims = await db
-        .select()
-        .from(claims)
-        .where(
-          or(
-            and(
-              gte(claims.recordedAt, dayStart),
-              lt(claims.recordedAt, dayEnd),
-            ),
-            // Rows from before migration 0012 have no recorded_at. created_at
-            // puts them in the root they always belonged to, so the day the
-            // migration lands leaves no gap.
-            and(
-              isNull(claims.recordedAt),
-              gte(claims.createdAt, dayStart),
-              lt(claims.createdAt, dayEnd),
-            ),
-          ),
-        )
-        // Rows from one insert share a recorded_at, so id settles the order: a
-        // root must be recomputable from the ledger.
-        .orderBy(
-          sql`coalesce(${claims.recordedAt}, ${claims.createdAt})`,
-          claims.id,
-        );
+      // The window and order claims.auditProof rebuilds a root from: claims
+      // recorded that day (a row from before migration 0012 by its
+      // created_at), ordered by that instant and then id.
+      const dateStr = dayStart.toISOString().split("T")[0]!;
+      const windowClaims = await auditWindowClaims(db, dateStr, MERKLE_LEAF_VERSION);
 
       if (windowClaims.length === 0) {
         console.log("No claims in the audit window — skipping Merkle root computation.");
         return { skipped: true, claimCount: 0 };
       }
 
-      const leaves = windowClaims.map((claim) => computeClaimLeafHashV2(claim));
+      const leaves = windowClaims.map((claim) =>
+        claimLeafHash(claim, MERKLE_LEAF_VERSION),
+      );
 
       const { root } = buildMerkleTree(leaves);
-      const dateStr = dayStart.toISOString().split("T")[0]!;
 
       // A stored root stands: a re-run for its date changes nothing.
       const stored = await db

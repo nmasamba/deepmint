@@ -3,7 +3,11 @@ import { createHash } from "crypto";
 import {
   computeClaimLeafHash,
   computeClaimLeafHashV2,
+  claimLeafPayloadV1,
+  claimLeafPayloadV2,
   buildMerkleTree,
+  getMerkleProof,
+  verifyMerkleProof,
 } from "../merkle";
 
 describe("computeClaimLeafHash", () => {
@@ -224,5 +228,88 @@ describe("buildMerkleTree", () => {
     const result2 = buildMerkleTree(leaves);
     expect(result1.root).toBe(result2.root);
     expect(result1.layers).toEqual(result2.layers);
+  });
+});
+
+describe("leaf payloads", () => {
+  function sha256(input: string): string {
+    return createHash("sha256").update(input).digest("hex");
+  }
+
+  it("are exactly what each version hashes", () => {
+    const v1 = {
+      id: "claim-001",
+      entityId: "entity-001",
+      instrumentId: "instr-001",
+      direction: "long",
+      horizonDays: 30,
+      createdAt: new Date("2026-01-15T12:00:00.000Z"),
+    };
+    expect(claimLeafPayloadV1(v1)).toBe(
+      "claim-001|entity-001|instr-001|long|30|2026-01-15T12:00:00.000Z",
+    );
+    expect(sha256(claimLeafPayloadV1(v1))).toBe(computeClaimLeafHash(v1));
+
+    const v2 = {
+      ...v1,
+      eventId: null,
+      targetPriceCents: 25000,
+      confidence: null,
+      rationale: 'says "buy" | twice',
+      rationaleTags: ["earnings"],
+      entryPriceCents: null,
+      sourceKind: "self_logged",
+      ratingGrade: null,
+      ratingAction: null,
+      analystName: null,
+      horizonStated: null,
+      sourceExcerpt: null,
+      recordedAt: new Date("2026-01-15T12:00:01.000Z"),
+    };
+    const payload = claimLeafPayloadV2(v2);
+    expect(JSON.parse(payload)[9]).toEqual(["earnings"]);
+    expect(sha256(payload)).toBe(computeClaimLeafHashV2(v2));
+  });
+});
+
+describe("getMerkleProof and verifyMerkleProof", () => {
+  function sha256(input: string): string {
+    return createHash("sha256").update(input).digest("hex");
+  }
+  const leavesOf = (n: number) =>
+    Array.from({ length: n }, (_, i) => sha256(`leaf-${i}`));
+
+  it("proves every leaf of trees from 1 to 17 leaves, odd layers included", () => {
+    for (let n = 1; n <= 17; n++) {
+      const leaves = leavesOf(n);
+      const { root } = buildMerkleTree(leaves);
+      for (let i = 0; i < n; i++) {
+        const proof = getMerkleProof(leaves, i);
+        expect(verifyMerkleProof(leaves[i]!, proof, root)).toBe(true);
+        // One sibling per layer above the leaves.
+        expect(proof).toHaveLength(Math.ceil(Math.log2(n)));
+      }
+    }
+  });
+
+  it("pairs the last node of an odd layer with itself", () => {
+    const leaves = leavesOf(3);
+    expect(getMerkleProof(leaves, 2)[0]).toEqual({ hash: leaves[2], position: "right" });
+    expect(getMerkleProof(leaves, 1)[0]).toEqual({ hash: leaves[0], position: "left" });
+  });
+
+  it("fails for another leaf, a changed sibling or another root", () => {
+    const leaves = leavesOf(6);
+    const { root } = buildMerkleTree(leaves);
+    const proof = getMerkleProof(leaves, 3);
+    expect(verifyMerkleProof(leaves[4]!, proof, root)).toBe(false);
+    const tampered = proof.map((step, i) => (i === 1 ? { ...step, hash: sha256("x") } : step));
+    expect(verifyMerkleProof(leaves[3]!, tampered, root)).toBe(false);
+    expect(verifyMerkleProof(leaves[3]!, proof, sha256("other"))).toBe(false);
+  });
+
+  it("refuses an index outside the leaves", () => {
+    expect(() => getMerkleProof(leavesOf(2), 2)).toThrow(RangeError);
+    expect(() => getMerkleProof([], 0)).toThrow(RangeError);
   });
 });

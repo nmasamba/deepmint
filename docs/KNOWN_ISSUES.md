@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **27 open issues: no high, 5 medium and 22 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **25 open issues: no high, 4 medium and 21 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 0 | 1 | 1 |
-| [Product (web app)](#area-product) | 0 | 3 | 3 | 6 |
+| [Product (web app)](#area-product) | 0 | 2 | 3 | 5 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 2 | 2 |
-| [Workers and schedules](#area-workers) | 0 | 1 | 4 | 5 |
+| [Workers and schedules](#area-workers) | 0 | 1 | 3 | 4 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 2 | 2 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **5** | **22** | **27** |
+| **All** | **0** | **4** | **21** | **25** |
 
 <a id="area-scoring"></a>
 
@@ -73,16 +73,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** The Clerk webhook handles `user.created` and `user.updated`, not `user.deleted`, and nothing ever sets `entities.deleted_at`. (Since wave 5 Clerk's name and avatar sync on `user.updated`, once the endpoint subscribes to it, the slug never changes, and users edit their bio and style tags in Settings.)
 - **User impact:** Deleting a Clerk account leaves the public profile, claims and leaderboard rows in place.
 - **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts`](../apps/web/app/api/webhooks/clerk/route.ts)
-
-<a id="claim-provenance-not-visible"></a>
-
-### The "audited" track record cannot be checked against an audit root
-
-**Medium** · feature-gap · `claim-provenance-not-visible`
-
-- **What's wrong:** Nothing reads `audit_roots`, and no Merkle proof is ever generated. (Since wave 3 each claim has a page, `/claims/[id]`, with its source link, publisher, dates, verified quote, content hash and outcome, and claim cards carry a source chip that links to it.)
-- **User impact:** Users can trace a call to its source, but not check it against an audit root, so the "audited performance" and "verified track records" copy has only half of its evidence behind it.
-- **Evidence:** [`apps/worker/functions/audit.ts:56-62`](../apps/worker/functions/audit.ts#L56-L62)
 
 <a id="equity-curve-placeholder"></a>
 
@@ -130,7 +120,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="unused-trpc-procedures"></a>
 
-### 15 of 74 tRPC procedures have no UI caller
+### 15 of 76 tRPC procedures have no UI caller
 
 **Low** · dead-code · `unused-trpc-procedures`
 
@@ -161,16 +151,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Both sync paths pick only links with `sync_status='active'`, so a link stays in `error` once a run's retries are spent, and the error state's Retry button only refetches. (Since wave 5 a retry that succeeds restores the link, the first sync reads back past the moment of linking, and the error state offers Reconnect.)
 - **User impact:** Dormant while SnapTrade is unconfigured. Once enabled, one lasting error ends syncing for that Player, and the Verified badge and ×1.5 weight stay off until they reconnect by hand, even if SnapTrade recovers.
 - **Evidence:** [`apps/worker/functions/broker-sync.ts`](../apps/worker/functions/broker-sync.ts) · [`packages/api/routers/broker.ts`](../packages/api/routers/broker.ts) · [`apps/web/components/settings/BrokerVerification.tsx`](../apps/web/components/settings/BrokerVerification.tsx)
-
-<a id="merkle-audit-gaps"></a>
-
-### Merkle roots are stored but never published, and older claims have gaps
-
-**Low** · data-integrity · `merkle-audit-gaps`
-
-- **What's wrong:** `bitcoin_tx_id` is never written and nothing reads `audit_roots`, so a root proves nothing to anyone outside the database. Claims stored before migration 0012 have no `recorded_at`: those dated earlier than they were stored (ratings, backfill, retried extractions) are in no root, and those that are in a root were hashed by leaf version 1, which leaves out target, entry price, confidence and rationale. (Since wave 5 each day's root covers every claim recorded that day, whatever its date, hashes every column but the review status, and a re-run for a stored date changes nothing.)
-- **User impact:** No visible effect today, because roots are neither published nor anchored. Once published, older history would be only partly covered.
-- **Evidence:** [`apps/worker/functions/audit.ts`](../apps/worker/functions/audit.ts) · [`packages/db/schema/audit.ts`](../packages/db/schema/audit.ts)
 
 <a id="leaderboard-refresh-noop"></a>
 
