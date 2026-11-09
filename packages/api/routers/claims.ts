@@ -16,9 +16,12 @@ import {
   adminProcedure,
 } from "../trpc";
 import {
+  CLAIM_RATE_LIMIT,
+  COVERED_TICKERS,
   VALID_HORIZONS,
   RATIONALE_TAGS,
   claimHoldReasons,
+  isCoveredTicker,
   isUnattributedRating,
 } from "@deepmint/shared";
 import { enrichClaimRows } from "../lib/claimEnrichment";
@@ -28,7 +31,7 @@ import { Inngest } from "inngest";
 
 const inngest = new Inngest({ id: "deepmint" });
 
-// Rate limiter: 10 claims per hour per entity (sliding window)
+// Rate limiter: CLAIM_RATE_LIMIT claims per hour per entity (sliding window)
 // Falls back to no-op when Upstash env vars are not set (local dev)
 function getRateLimiter(): Ratelimit | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -37,7 +40,7 @@ function getRateLimiter(): Ratelimit | null {
 
   return new Ratelimit({
     redis: new Redis({ url, token }),
-    limiter: Ratelimit.slidingWindow(10, "1 h"),
+    limiter: Ratelimit.slidingWindow(CLAIM_RATE_LIMIT, "1 h"),
     prefix: "deepmint:claims",
   });
 }
@@ -72,7 +75,7 @@ export const claimRouter = router({
         if (!success) {
           throw new TRPCError({
             code: "TOO_MANY_REQUESTS",
-            message: "Rate limit exceeded. Maximum 10 claims per hour.",
+            message: `Rate limit exceeded. Maximum ${CLAIM_RATE_LIMIT} claims per hour.`,
           });
         }
       }
@@ -93,6 +96,13 @@ export const claimRouter = router({
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Instrument not found or inactive",
+        });
+      }
+      // Only covered tickers have pages, ingestion and scoring alongside.
+      if (!isCoveredTicker(instrument.ticker)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${instrument.ticker} is not covered. Deepmint covers the Mag 7: ${COVERED_TICKERS.join(", ")}.`,
         });
       }
 

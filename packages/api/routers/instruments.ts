@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { eq, ilike, or, desc, asc, and, lt, sql } from "@deepmint/db";
+import { eq, ilike, or, desc, asc, and, lt, sql, inArray } from "@deepmint/db";
 import {
   instruments,
   consensusSignals,
   tickerRequests,
+  PRICEABLE_ASSET_CLASSES,
 } from "@deepmint/db/schema";
+import { COVERED_TICKERS } from "@deepmint/shared";
 import { TRPCError } from "@trpc/server";
 import { Inngest } from "inngest";
 import {
@@ -16,14 +18,9 @@ import {
 
 const inngest = new Inngest({ id: "deepmint" });
 
-const assetClassValues = [
-  "equity",
-  "etf",
-  "crypto",
-  "forex",
-  "commodity",
-  "index",
-] as const;
+// Only equity and ETF instruments can be priced: pricing always calls
+// Polygon's stocks endpoints.
+const assetClassValues = PRICEABLE_ASSET_CLASSES;
 const exchangeValues = ["NYSE", "NASDAQ", "AMEX"] as const;
 
 const instrumentInputSchema = z.object({
@@ -59,7 +56,7 @@ const bucketRank = (bucket: string | null): number =>
   (bucket && BUCKET_RANK[bucket]) || 6;
 
 export const instrumentRouter = router({
-  /** Search instruments by ticker or name */
+  /** Search covered instruments by ticker or name */
   search: publicProcedure
     .input(
       z.object({
@@ -74,6 +71,9 @@ export const instrumentRouter = router({
         .where(
           and(
             eq(instruments.isActive, true),
+            // Only covered tickers: an admin-added instrument stays out of
+            // the claim form, paper trades and MCP search until coverage widens.
+            inArray(instruments.ticker, [...COVERED_TICKERS]),
             or(
               ilike(instruments.ticker, pattern),
               ilike(instruments.name, pattern),
@@ -188,49 +188,6 @@ export const instrumentRouter = router({
             : null,
       };
     }),
-
-  /** Get all Mag 7 instruments with their latest consensus signals */
-  mag7: publicProcedure.query(async ({ ctx }) => {
-    const mag7Tickers = [
-      "AAPL",
-      "MSFT",
-      "GOOGL",
-      "AMZN",
-      "NVDA",
-      "META",
-      "TSLA",
-    ];
-
-    const allInstruments = await ctx.db
-      .select()
-      .from(instruments)
-      .where(
-        and(
-          eq(instruments.isActive, true),
-          sql`${instruments.ticker} = ANY(${mag7Tickers})`,
-        ),
-      )
-      .orderBy(marketCapOrder);
-
-    // Get latest consensus for each instrument
-    const results = await Promise.all(
-      allInstruments.map(async (instrument) => {
-        const [consensus] = await ctx.db
-          .select()
-          .from(consensusSignals)
-          .where(eq(consensusSignals.instrumentId, instrument.id))
-          .orderBy(desc(consensusSignals.asOfDate))
-          .limit(1);
-
-        return {
-          ...instrument,
-          consensusSignal: consensus ?? null,
-        };
-      }),
-    );
-
-    return results;
-  }),
 
   /** Admin: paginated list including inactive instruments */
   adminList: adminProcedure

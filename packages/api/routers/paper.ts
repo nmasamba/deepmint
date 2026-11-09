@@ -8,7 +8,12 @@ import {
 } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
-import { getLatestClose, getLatestCloses } from "@deepmint/shared";
+import {
+  COVERED_TICKERS,
+  getLatestClose,
+  getLatestCloses,
+  isCoveredTicker,
+} from "@deepmint/shared";
 import {
   PAPER_STARTING_BALANCE_CENTS,
   availableCashCents,
@@ -133,17 +138,28 @@ export const paperRouter = router({
         });
       }
 
-      // Verify instrument exists
+      // Verify instrument exists, is active and is covered, as for claims
       const [instrument] = await ctx.db
         .select()
         .from(instruments)
-        .where(eq(instruments.id, input.instrumentId))
+        .where(
+          and(
+            eq(instruments.id, input.instrumentId),
+            eq(instruments.isActive, true),
+          ),
+        )
         .limit(1);
 
       if (!instrument) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Instrument not found",
+          message: "Instrument not found or inactive",
+        });
+      }
+      if (!isCoveredTicker(instrument.ticker)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${instrument.ticker} is not covered. Deepmint covers the Mag 7: ${COVERED_TICKERS.join(", ")}.`,
         });
       }
 

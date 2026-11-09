@@ -124,7 +124,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
   - Deepmint stays with the Mag 7 until its core features have matured. Covering more stocks is planned for after that, not before.
   - The seven Mag-7 stocks were added to production on 2026-08-11.
   - Extraction accepts only those 7 tickers (AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA). Stock pages render only for them; any other symbol shows "Coming soon".
-  - Groundwork for more stocks already exists but is dormant. An admin button can add 50 S&P 500 stocks, and self-logged claims, search and paper trades accept any active stock in the database. There is no record of whether the button has been used in production. Pressing it before expansion is ready would expose the gaps listed under [instrument-universe-inconsistent](docs/KNOWN_ISSUES.md#instrument-universe-inconsistent).
+  - Groundwork for more stocks already exists but is dormant. An admin button can add 50 S&P 500 stocks, but claims, search, paper trades and consensus accept only the Mag 7 (`isCoveredTicker` in `@deepmint/shared`), as ticker pages and ingestion do, so stocks it adds stay out of every surface until coverage widens. There is no record of whether the button has been used in production.
 - **Keys.** Production key status was last recorded on 2026-07-02 in [docs/EXTERNAL_KEYS.md](docs/EXTERNAL_KEYS.md); it could not be re-checked on 2026-10-05. At that time the database, Clerk, Polygon, Hugging Face and Inngest keys were set, and Upstash, Sentry, R2, SnapTrade and Resend were empty.
 
 **What works:**
@@ -176,7 +176,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 |---|---|
 | Monorepo | pnpm 10.32.1 workspaces, Turborepo 2 |
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui components, Serwist (PWA) |
-| API | tRPC v11 (15 routers, 75 procedures), REST `/api/v1`, MCP via `mcp-handler` |
+| API | tRPC v11 (15 routers, 74 procedures), REST `/api/v1`, MCP via `mcp-handler` |
 | Database | PostgreSQL (16 in Docker locally, Supabase in production) with Drizzle ORM 0.41 |
 | Background jobs | Inngest 4 (17 functions) |
 | Auth | Clerk (`@clerk/nextjs` 7) |

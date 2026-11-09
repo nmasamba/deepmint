@@ -162,7 +162,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - Those tickers are added only when an admin presses "Seed S&P 500 Top 50". Whether that happened in production is not recorded.
   - Extraction and ticker pages stay Mag-7 only.
   - No UI calls `instruments.requestTicker`, and approving a request does not create an instrument.
-  - **Expansion is deferred by design.** Deepmint stays Mag-7 only until the core product has matured; this tooling is dormant groundwork for that later step (maintainer decision, 2026-10-05). The surfaces that would disagree once more stocks exist are listed in [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md#instrument-universe-inconsistent).
+  - **Expansion is deferred by design.** Deepmint stays Mag-7 only until the core product has matured; this tooling is dormant groundwork for that later step (maintainer decision, 2026-10-05). Since wave 7 every surface accepts only the Mag 7, through `isCoveredTicker` in `@deepmint/shared`, so stocks added early stay out of claims, search, paper trades and consensus.
   - Superseded: the default model `google/gemma-4-31B-it:fastest` (see Sprint 2).
 
 ## Sprint 7 — Hardening + mobile PWA
