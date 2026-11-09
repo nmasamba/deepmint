@@ -135,7 +135,7 @@ export const digestFunction = inngest.createFunction(
         // Build plain-text email (React Email template can be added later)
         const claimsSection =
           newClaims.length > 0
-            ? `NEW PREDICTIONS FROM PEOPLE YOU FOLLOW\n${newClaims
+            ? `NEW CLAIMS FROM PEOPLE YOU FOLLOW\n${newClaims
                 .map(
                   (c: { entity: { displayName: string }; instrument: { ticker: string }; claim: { direction: string } }) =>
                     `  ${c.entity.displayName} — ${c.claim.direction.toUpperCase()} ${c.instrument.ticker}`,
@@ -163,7 +163,7 @@ export const digestFunction = inngest.createFunction(
             await resend.emails.send({
               from: "Deepmint <digest@deepmint.app>",
               to: `user+${follower.clerkUserId}@deepmint.app`, // placeholder
-              subject: `Deepmint Daily: ${newClaims.length} new predictions, ${newOutcomes.length} outcomes`,
+              subject: `Deepmint Daily: ${newClaims.length} new claims, ${newOutcomes.length} outcomes`,
               text: body,
             });
             sent++;

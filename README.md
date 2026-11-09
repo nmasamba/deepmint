@@ -12,7 +12,7 @@ Over many claims this builds a scorecard: how often someone is right, how much t
 
 Today Deepmint covers seven large US technology stocks, the "Magnificent 7": Apple, Microsoft, Alphabet, Amazon, Nvidia, Meta and Tesla. That is a deliberate choice: more stocks will follow, but only once the core product has matured. [What's live today](#whats-live-today) has the details.
 
-**Where to find it:** the app is live, ahead of its public launch, at [www.deepmint.ai](https://www.deepmint.ai). Sign up there, then log a call with **New Claim** (or **Make a Prediction** on the dashboard). Every page except the landing page needs an account.
+**Where to find it:** the app is live, ahead of its public launch, at [www.deepmint.ai](https://www.deepmint.ai). Sign up there, then log a call with **New Claim**, in the top bar or on the dashboard. Every page except the landing page needs an account.
 
 ## Who is it for?
 
@@ -157,13 +157,13 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 
 | Term | Meaning |
 |---|---|
-| **Claim** | A dated call on one stock: a direction (long, short or neutral), a horizon, and an optional target price and confidence. The app also calls it a "prediction". |
+| **Claim** | A dated call on one stock: a direction (long, short or neutral), a horizon, and an optional target price and confidence. |
 | **Horizon** | How long a claim runs before it is checked: 1 day, 1 week, 1 month, 3 months, 6 months or 1 year. |
 | **Entry price** | The closing price a claim is measured from. For a claim logged now it is the close of the first trading session after it was made, set at markout and recorded on the outcome. For dated or backfilled claims it is the close on that date. Self-logged claims made before the next-close change shipped keep the previous-day close they were stored with. |
 | **Markout** | Checking a claim against the market when its horizon ends, using that day's closing price. Each claim gets one **outcome**: its return, whether the direction was right, and whether the target was reached. |
 | **Hit rate** | The share of an author's checked claims whose direction was right. |
 | **Basis points (bps)** | Hundredths of a percent: 100 bps = 1%. Returns are stored in basis points. |
-| **EIV** | Deepmint's 0–100 "edge" score. It combines how far the hit rate is above 50%, the average return, calibration (Guides only), and a discount for small samples. It is 0 when the hit rate is 50% or lower, or when the average return is zero or negative. The code calls it "Expected Information Value"; profile pages say "Earned Information Value". |
+| **EIV** | Deepmint's 0–100 "edge" score. It combines how far the hit rate is above 50%, the average return, calibration (Guides only), and a discount for small samples. It is 0 when the hit rate is 50% or lower, or when the average return is zero or negative. It stands for Expected Information Value. |
 | **Consensus** | For each stock, stored as one row per day: the weighted share of bullish, bearish and neutral active claims whose horizon has not passed, an overall direction, a 0–1 conviction, and the average price target with its dispersion. |
 | **Guide** | An analyst or firm whose published calls Deepmint collects. Guides are created only by the ingestion pipeline (and, with fictional data, by the local seed script). |
 | **Player** | Anyone who signs up. Every account is a Player. |

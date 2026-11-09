@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **33 open issues: no high, 6 medium and 27 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **32 open issues: no high, 6 medium and 26 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 0 | 1 | 1 |
-| [Product (web app)](#area-product) | 0 | 3 | 6 | 9 |
+| [Product (web app)](#area-product) | 0 | 3 | 5 | 8 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 2 | 3 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 4 | 5 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **6** | **27** | **33** |
+| **All** | **0** | **6** | **26** | **32** |
 
 <a id="area-scoring"></a>
 
@@ -103,16 +103,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** The chart plots only Start and Now; no equity history is stored. Learn describes it as a way to "track your performance".
 - **User impact:** A straight line that tells users nothing the Total Return card does not.
 - **Evidence:** [`apps/web/components/paper/EquityCurve.tsx:21-26`](../apps/web/components/paper/EquityCurve.tsx#L21-L26) · [`apps/web/components/paper/PortfolioDetail.tsx:105-111`](../apps/web/components/paper/PortfolioDetail.tsx#L105-L111) · [`apps/web/lib/learnModules.ts:277`](../apps/web/lib/learnModules.ts#L277)
-
-<a id="terminology-inconsistent"></a>
-
-### EIV and "claim" have several user-facing names
-
-**Low** · docs-drift · `terminology-inconsistent`
-
-- **What's wrong:** EIV is "Expected Information Value" in the scoring code and Learn, but "Earned Information Value" on profiles. "Claim" and "prediction" are used interchangeably, often on one screen ("Make a Prediction" opens "Submit a Claim").
-- **User impact:** Cosmetic confusion; nothing breaks.
-- **Evidence:** [`packages/scoring/src/eiv.ts:2`](../packages/scoring/src/eiv.ts#L2) · [`apps/web/lib/learnModules.ts:218`](../apps/web/lib/learnModules.ts#L218) · [`apps/web/components/EntityProfileTabs.tsx:99`](../apps/web/components/EntityProfileTabs.tsx#L99) · [`apps/web/app/(app)/dashboard/page.tsx:30`](../apps/web/app/%28app%29/dashboard/page.tsx#L30) · [`apps/web/components/claims/SubmitClaimForm.tsx:132`](../apps/web/components/claims/SubmitClaimForm.tsx#L132)
 
 <a id="api-key-ui-scopes"></a>
 

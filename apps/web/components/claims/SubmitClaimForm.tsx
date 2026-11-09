@@ -244,7 +244,7 @@ export function SubmitClaimForm({ trigger }: SubmitClaimFormProps) {
               </span>
             </Label>
             <Textarea
-              placeholder="Why are you making this call?"
+              placeholder="Why are you making this claim?"
               value={rationale}
               onChange={(e) => setRationale(e.target.value.slice(0, 5000))}
               className="min-h-[100px] border-border bg-bg-secondary text-text-primary"

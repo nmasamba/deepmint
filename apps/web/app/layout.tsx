@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Deepmint — Analyst Track Records, Scored Against the Market",
   description:
-    "Build a verifiable track record as a Guide or follow the best analysts as a Player. Every prediction is scored against real outcomes, and the board shows who's actually good.",
+    "Build a verifiable track record as a Guide or follow the best analysts as a Player. Every claim is scored against real outcomes, and the board shows who's actually good.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "https://www.deepmint.ai",
   ),

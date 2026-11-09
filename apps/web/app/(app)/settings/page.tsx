@@ -58,7 +58,7 @@ export default function SettingsPage() {
                   Daily Digest
                 </p>
                 <p className="text-xs text-text-secondary">
-                  A summary of new predictions, outcomes, and signal changes
+                  A summary of new claims, outcomes, and signal changes
                   from analysts you follow.
                 </p>
               </div>

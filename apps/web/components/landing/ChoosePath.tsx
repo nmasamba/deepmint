@@ -39,7 +39,7 @@ export function ChoosePath() {
 
               <p className="mt-4 text-sm leading-relaxed text-text-secondary">
                 You read the tape better than most and you know it. Deepmint
-                gives you a stage with receipts — every prediction locked,
+                gives you a stage with receipts — every claim locked,
                 timestamped, and scored against the actual close. Build
                 the track record that shuts the skeptics up.
               </p>

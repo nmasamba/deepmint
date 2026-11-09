@@ -12,7 +12,7 @@ const PREF_LABELS: { key: string; label: string; description: string }[] = [
   {
     key: "outcomeMature",
     label: "Outcome matured",
-    description: "When one of your predictions is resolved",
+    description: "When one of your claims is resolved",
   },
   {
     key: "rankChange",
@@ -22,7 +22,7 @@ const PREF_LABELS: { key: string; label: string; description: string }[] = [
   {
     key: "newClaimFromFollow",
     label: "New claim from followed",
-    description: "When someone you follow makes a prediction",
+    description: "When someone you follow makes a claim",
   },
   {
     key: "signalTradeLogged",

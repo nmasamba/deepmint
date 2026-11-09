@@ -17,8 +17,8 @@ export function HeroSection() {
 
         <p className="max-w-xl text-lg text-text-secondary">
           Deepmint is the arena where analysts stake their
-          reputation on real predictions and traders finally know who&apos;s
-          worth listening to. Every call recorded. Every outcome scored.
+          reputation on real claims and traders finally know who&apos;s
+          worth listening to. Every claim recorded. Every outcome scored.
           No hiding.
         </p>
 

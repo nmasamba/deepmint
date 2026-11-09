@@ -20,14 +20,14 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
             <p className="mt-1 text-text-secondary">
-              Consensus signals and the latest predictions.
+              Consensus signals and the latest claims.
             </p>
           </div>
           <SubmitClaimForm
             trigger={
               <Button className="bg-accent text-bg-primary hover:bg-accent/90">
                 <Target className="mr-2 h-4 w-4" />
-                Make a Prediction
+                New Claim
               </Button>
             }
           />
