@@ -36,6 +36,12 @@ export function BestInRegime() {
           Best in Current Conditions
         </h2>
         <RegimeBadge regime={data.regime} size="sm" />
+        <span
+          className="ml-auto text-xs text-text-secondary"
+          title={`EIV from claims entered in this regime, scored on ${data.asOfDate}`}
+        >
+          as of {data.asOfDate}
+        </span>
       </div>
 
       <div className="flex gap-3 overflow-x-auto pb-1">
@@ -65,7 +71,12 @@ export function BestInRegime() {
             <span className="font-mono text-xs text-accent">
               EIV {item.eivScore.toFixed(1)}
             </span>
-            <span className="text-[10px] text-text-secondary">n={item.sampleSize}</span>
+            <span
+              className="text-[10px] text-text-secondary"
+              title="Resolved claims entered in this regime"
+            >
+              n={item.sampleSize}
+            </span>
           </Link>
         ))}
       </div>
