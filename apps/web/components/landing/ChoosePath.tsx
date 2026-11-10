@@ -65,13 +65,17 @@ export function ChoosePath() {
                 </li>
               </ul>
 
+              {/* Sign up, then apply in Settings: an admin approves Guides (D16). */}
               <Link
-                href="/sign-up"
+                href={`/sign-up?redirect_url=${encodeURIComponent("/settings#guide")}`}
                 className="mt-6 inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-bg-primary transition-colors hover:bg-accent/90"
               >
-                Sign Up as a Guide
+                Apply as a Guide
                 <ArrowRight className="h-4 w-4" />
               </Link>
+              <p className="mt-2 text-xs text-text-secondary">
+                Sign up, then send a short application. An admin reviews each one.
+              </p>
             </div>
           </div>
 

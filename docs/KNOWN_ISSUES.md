@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **23 open issues: no high, 3 medium and 20 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **22 open issues: no high, 2 medium and 20 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -27,14 +27,14 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 0 | 1 | 1 |
-| [Product (web app)](#area-product) | 0 | 1 | 3 | 4 |
+| [Product (web app)](#area-product) | 0 | 0 | 3 | 3 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 2 | 2 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 3 | 4 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **3** | **20** | **23** |
+| **All** | **0** | **2** | **20** | **22** |
 
 <a id="area-scoring"></a>
 
@@ -53,16 +53,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 <a id="area-product"></a>
 
 ## Product (web app)
-
-<a id="guide-signup-path-missing"></a>
-
-### "Sign Up as a Guide" creates a Player, and no page lets a user apply
-
-**Medium** · feature-gap · `guide-signup-path-missing`
-
-- **What's wrong:** Both landing-page buttons, "Sign Up as a Guide" and "Sign Up as a Player", go to plain `/sign-up`, and every new user is created as type `player`. (Since wave 7 an admin can approve a Guide application on the review page, in place or by linking the user's account to the Guide Deepmint already ingested for them, but `guides.submitApplication` has no caller, so no user can send one.)
-- **User impact:** An analyst who signs up as a Guide becomes a Player: scored with Player metrics (no Brier, z-score or target precision), listed with Players, without the ×1.2 Guide consensus weight or an Influence tab, and with no way to ask to become a Guide.
-- **Evidence:** [`apps/web/components/landing/ChoosePath.tsx`](../apps/web/components/landing/ChoosePath.tsx) · [`packages/api/routers/guides.ts`](../packages/api/routers/guides.ts)
 
 <a id="equity-curve-placeholder"></a>
 
@@ -110,12 +100,12 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="unused-trpc-procedures"></a>
 
-### 17 of 81 tRPC procedures have no UI caller
+### 15 of 81 tRPC procedures have no UI caller
 
 **Low** · dead-code · `unused-trpc-procedures`
 
-- **What's wrong:** 14 are called nowhere: `entity.search`, `instruments.detail`, `.list`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history`, `influence.myInfluencers`, and `guides.submitApplication` and `guides.myApplication`, which wait for the Settings form (package 65). Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
-- **User impact:** Maintenance cost; 4 of the 14 answer signed-out callers.
+- **What's wrong:** 12 are called nowhere: `entity.search`, `instruments.detail`, `.list`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
+- **User impact:** Maintenance cost; 4 of the 12 answer signed-out callers.
 - **Evidence:** [`packages/api/routers/instruments.ts:401`](../packages/api/routers/instruments.ts#L401) · [`packages/api/routers/leaderboard.ts:104`](../packages/api/routers/leaderboard.ts#L104) · [`packages/api/routers/influence.ts:124`](../packages/api/routers/influence.ts#L124)
 
 <a id="area-workers"></a>

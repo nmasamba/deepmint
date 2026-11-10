@@ -18,7 +18,7 @@ Today Deepmint covers seven large US technology stocks, the "Magnificent 7": App
 
 | Who | What they can do today |
 |---|---|
-| **Guides**: analysts and research firms | Their calls are collected for them. Deepmint reads their published posts, or an archive of past posts, and an AI model extracts the calls. A Guide needs no account. Nobody can sign up as a Guide or claim a Guide profile yet: the landing page's "Sign Up as a Guide" button creates an ordinary Player account. |
+| **Guides**: analysts and research firms | Their calls are collected for them. Deepmint reads their published posts, or an archive of past posts, and an AI model extracts the calls. A Guide needs no account. An analyst can also apply from Settings, where the landing page's "Apply as a Guide" leads: an admin approves them as a Guide, or makes the Guide profile Deepmint already built for them their account. |
 | **Players**: everyone who signs up | Log your own claims in the web app. They are checked against real prices by the same rules as Guides' claims. You appear on the leaderboard next to the Guides. You can also run practice ("paper") portfolios with virtual money. |
 | **Followers** | This is not a separate account type. Any Player can follow Guides and other Players, read their claims in a "Following" feed, keep a watchlist of stocks, and use "Mirror Signals" to copy someone's calls into a paper portfolio. A mirror copies a call when it goes live, if the call is dated within the last 48 hours: an old rating or a late approval is not copied, and neither is a backfill or a neutral call. |
 | **Admins** | Admin rights are granted by the maintainer in Clerk. Admins approve or reject claims held for review, switch Guides' feeds on, manage the list of stocks and issue API keys. |
@@ -149,7 +149,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
 - **Error tracking and snapshots.** Error tracking (Sentry) and source snapshots (Cloudflare R2) are not wired into the app. Setting their keys alone does not turn them on.
 - **Audit.** The roots are listed at `/audit` and each claim page shows its proof, but nothing anchors the roots outside the database yet. Claims stored before migration 0012 with an earlier date, such as backfilled history, are in no root. Roots from before PR #17 (leaf version 1) cover fewer fields, and a claim page shows no proof when such a root cannot be rebuilt from the ledger.
-- **Missing features.** There is no way to become a Guide or request a new stock.
+- **Missing features.** There is no way to request a new stock.
 
 The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 
