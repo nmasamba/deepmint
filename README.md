@@ -82,6 +82,7 @@ The jobs tied to the US market run on US Eastern time (`TZ=America/New_York` in 
 | Market regime | Records the day's market conditions (S&P 500 trend, VIX, sector spread) for the leaderboard | 17:30 | 21:30 / 22:30 | Mon–Fri |
 | Broker sync | Imports trades from linked brokerage accounts | 18:00 | 22:00 / 23:00 | Mon–Fri |
 | Consensus and influence | Recalculates each ticker's consensus and each Guide's influence, so a claim's decay and expiry count even when none matures | 18:30 | 22:30 / 23:30 | Every day |
+| Paper equity | Records each paper portfolio's value at the day's close, for its equity curve | 19:00 | 23:00 / 00:00 | Mon–Fri |
 | Merkle audit | Fingerprints the claims recorded on the previous UTC day | 18:00 / 17:00 | 22:00 | Every day |
 
 Other jobs run in a chain rather than on a clock:
@@ -110,7 +111,7 @@ A claim's end date is its entry date plus the horizon in calendar days. (For old
 | REST API | `https://www.deepmint.ai/api/v1`: `GET /entities/{slug}/scores`, `GET /instruments/{ticker}/consensus`, `GET /leaderboard?metric=…`, plus the spec at `/openapi.json` | The three data endpoints need an API key (`Authorization: Bearer dm_live_…`), and only admins can create keys. The spec needs no key; signed-in users can also browse it at `/docs/api`. |
 | AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Each tool checks its own scope: `consensus:read` for regime and consensus, `leaderboard:read` for the leaderboard, `scores:read` for a track record (profile, scores, and claims with outcomes). Instrument search needs only a valid key. The write tools (`submit_claim`, `add_note`) need `claims:write` and a key bound to an agent. An agent is a Player of its own, marked "AI agent" on its profile, so its claims are scored like anyone's and never land on the admin who minted the key. |
 | App API (tRPC) | `/api/trpc` | Used by the web app itself. Ticker, claim and market reads answer without sign-in; leaderboard and profile reads need a signed-in user. |
-| Background jobs | 17 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
+| Background jobs | 18 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
 | Database | PostgreSQL on Supabase | Operators only |
 | Outside services | Clerk (sign-in), Polygon (end-of-day stock prices), Hugging Face router (the extraction model) | — |
 
@@ -176,9 +177,9 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 |---|---|
 | Monorepo | pnpm 10.32.1 workspaces, Turborepo 2 |
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui components, Serwist (PWA) |
-| API | tRPC v11 (16 routers, 81 procedures), REST `/api/v1`, MCP via `mcp-handler` |
+| API | tRPC v11 (16 routers, 82 procedures), REST `/api/v1`, MCP via `mcp-handler` |
 | Database | PostgreSQL (16 in Docker locally, Supabase in production) with Drizzle ORM 0.41 |
-| Background jobs | Inngest 4 (17 functions) |
+| Background jobs | Inngest 4 (18 functions) |
 | Auth | Clerk (`@clerk/nextjs` 7) |
 | Market data | Polygon.io through `@massive.com/client-js` (US stock endpoints only) |
 | Extraction LLM | OpenAI SDK pointed at the Hugging Face router: `openai/gpt-oss-120b:fastest`, with fallback `meta-llama/Llama-3.3-70B-Instruct:fastest` |
@@ -190,7 +191,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 ```
 apps/
   web/         Next.js app: pages, /api/trpc, /api/v1, /api/mcp, Clerk webhook, /api/inngest
-  worker/      The 17 Inngest functions (served by apps/web) and the backfill CLI
+  worker/      The 18 Inngest functions (served by apps/web) and the backfill CLI
 packages/
   api/         tRPC routers
   db/          Drizzle schema, migrations (drizzle/0000–0011), seed scripts

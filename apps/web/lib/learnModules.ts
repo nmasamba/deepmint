@@ -278,7 +278,7 @@ Either side needs the cash: a short sets aside its value until you close it.
 
 To close a position later, click the **Close** button next to any open trade. The P&L is calculated automatically.
 
-Track your performance with the equity curve chart and the summary metrics at the top of your portfolio.`,
+The equity curve plots your portfolio's value at each trading day's close, recorded the next morning, and the summary metrics at the top show where it stands now.`,
       },
     ],
   },

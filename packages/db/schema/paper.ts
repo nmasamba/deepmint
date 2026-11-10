@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, numeric, timestamp, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, bigint, numeric, date, timestamp, unique } from 'drizzle-orm/pg-core';
 import { claims } from './claims';
 import { entities } from './entities';
 import { instruments } from './instruments';
@@ -25,4 +25,20 @@ export const paperTrades = pgTable('paper_trades', {
   closedAt: timestamp('closed_at', { withTimezone: true }),
 }, (t) => [
   unique('paper_trades_claim_portfolio_unique').on(t.claimId, t.portfolioId), // one trade per mirrored claim per portfolio; also serves lookups by claim
+]);
+
+/**
+ * A paper portfolio's equity at one session's close, written after the close
+ * by the paper-equity-snapshot job (D19 option 2): cash plus open positions
+ * marked at that session's closes. One row per portfolio per session; a rerun
+ * writes nothing new.
+ */
+export const paperEquitySnapshots = pgTable('paper_equity_snapshots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  portfolioId: uuid('portfolio_id').references(() => paperPortfolios.id).notNull(),
+  asOfDate: date('as_of_date').notNull(),                             // the session whose closes valued it
+  equityCents: bigint('equity_cents', { mode: 'number' }).notNull(),
+  computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  unique('paper_equity_snapshots_portfolio_date_unique').on(t.portfolioId, t.asOfDate),
 ]);
