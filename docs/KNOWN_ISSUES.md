@@ -148,13 +148,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="feed-first-read-dates-old-posts"></a>
 
-### A feed's first read dates old posts the day they are stored
+### An undated feed's first read dates its posts the day they are stored
 
 **Low** · data-integrity · `feed-first-read-dates-old-posts`
 
-- **What's wrong:** The RSS lane stores every Mag-7 item a feed still lists, with no age limit, and `extract-claims` dates each claim by when its post was stored, unless the post states a rating date. A three-month-old post first read today becomes a claim dated today, and markout scores it from the next close. (Mirrors and follower notices read the post's own date, so they skip it.)
-- **User impact:** Latent until an admin switches a feed on at `/admin/guides`, which warns about it. The claims cannot be removed afterwards, and an old call is scored against a market its author never saw. What the first read should do is a product choice: skip old posts, or date them as published, as a backfill does.
-- **Evidence:** [`packages/ingestion/src/sources/rss.ts`](../packages/ingestion/src/sources/rss.ts) · [`apps/worker/functions/extract.ts`](../apps/worker/functions/extract.ts)
+- **What's wrong:** Since 2026-11-10 a feed read skips posts published more than 7 days earlier (`FEED_MAX_AGE_DAYS`), but an item with no date cannot be judged: a feed without dates still turns every Mag-7 post it lists into a claim dated the day it is stored, on its first read. A post from the last 7 days that a backfill also stored becomes two claims with different dates, since the archive's text differs from the feed's title and summary and the extractor's dedupe compares dates.
+- **User impact:** Latent until an admin switches on a feed without dates, or backfills a Guide whose feed is on; `/admin/guides` says both. The claims cannot be removed afterwards.
+- **Evidence:** [`packages/ingestion/src/sources/rss.ts`](../packages/ingestion/src/sources/rss.ts) · [`apps/worker/functions/backfill.ts`](../apps/worker/functions/backfill.ts) · [`apps/worker/functions/extract.ts`](../apps/worker/functions/extract.ts)
 
 <a id="r2-snapshot-capture-dead"></a>
 

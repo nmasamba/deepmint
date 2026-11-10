@@ -125,9 +125,11 @@ export default function AdminGuidesPage() {
           here{guides ? `: ${onCount} of ${guides.length}` : ""}.
         </p>
         <p className="mt-2 text-sm text-warning">
-          The first read takes every post the feed still lists, and its claims
-          are dated and scored from the day they are stored, however old the
-          post. Claims cannot be removed afterwards.
+          Each read takes only posts published in the last 7 days; older
+          history is a backfill&apos;s job, so end a backfill&apos;s archive 7
+          days before switching its feed on. A post with no date is taken once,
+          however old. A post&apos;s claims are dated and scored from the day it
+          is stored, and cannot be removed afterwards.
         </p>
       </div>
 
