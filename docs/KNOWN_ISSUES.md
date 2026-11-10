@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **21 open issues: no high, 2 medium and 19 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **22 open issues: no high, 2 medium and 20 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -28,13 +28,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 0 | 1 | 1 |
 | [Product (web app)](#area-product) | 0 | 0 | 2 | 2 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 2 | 2 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 3 | 3 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 3 | 4 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **2** | **19** | **21** |
+| **All** | **0** | **2** | **20** | **22** |
 
 <a id="area-scoring"></a>
 
@@ -87,6 +87,16 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** `initLink` stores the SnapTrade `userSecret` unencrypted in `broker_links.metadata`, and `broker-sync` returns whole rows from a step, so Inngest run state keeps a copy.
 - **User impact:** None today: no secrets are stored. Once enabled, database or Inngest read access exposes them; using them also needs the partner consumer key, which lives in Vercel env.
 - **Evidence:** [`packages/api/routers/broker.ts:110-127`](../packages/api/routers/broker.ts#L110-L127) · [`apps/worker/functions/broker-sync.ts:36-46`](../apps/worker/functions/broker-sync.ts#L36-L46)
+
+<a id="linked-guide-keeps-broker-link"></a>
+
+### A linked Guide keeps the user's broker link
+
+**Low** · data-integrity · `linked-guide-keeps-broker-link`
+
+- **What's wrong:** Approving a Guide application with a link moves the user's broker links, link status and SnapTrade user to the ingested Guide (`linkAccountToGuide`, 2026-11-10). Broker verification is otherwise for Players only: `broker.initLink` refuses any other type, so the Guide can never link a broker again once its link is disconnected, and consensus weights a verified Guide's claims ×1.2 as a Guide and ×1.5 as broker-verified, ×1.8 in all, which no other Guide can reach.
+- **User impact:** None today: no broker links exist while SnapTrade is not configured. Once it is, a linked analyst with a broker link counts for more in consensus than any other Guide.
+- **Evidence:** [`packages/api/lib/guideLink.ts`](../packages/api/lib/guideLink.ts) (`linkAccountToGuide`) · [`packages/api/routers/broker.ts`](../packages/api/routers/broker.ts) (`initLink`) · [`packages/scoring/src/consensus.ts`](../packages/scoring/src/consensus.ts) (`computeConsensusSignal`)
 
 <a id="unused-trpc-procedures"></a>
 

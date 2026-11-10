@@ -11,14 +11,22 @@ The plan for fixing every open issue in [KNOWN_ISSUES.md](KNOWN_ISSUES.md), agre
 | 2 | 17–27 | 0009 | **Merged**: [#15](https://github.com/nmasamba/deepmint/pull/15) (2026-11-03) with 17–20, 23, 24, 26 and 27; 21, 22 and 25 wait for their keys |
 | 3 | 28–36 | 0010 | **Merged**: [#16](https://github.com/nmasamba/deepmint/pull/16) (2026-11-04), with wave 4 |
 | 4 | 37–44 | 0011 | **Merged**: [#16](https://github.com/nmasamba/deepmint/pull/16) (2026-11-04), with wave 3 |
-| 5 | 45–53 | 0012 | **PR open**: [#17](https://github.com/nmasamba/deepmint/pull/17) (2026-11-05), with wave 6 |
-| 6 | 54–57 | 0013 | **PR open**: [#17](https://github.com/nmasamba/deepmint/pull/17) (2026-11-05), with wave 5 |
-| 7 | 58–63 | 0014 | Not started |
-| 8 | 64–67 | 0015 | Not started |
+| 5 | 45–53 | 0012 | **Merged**: [#17](https://github.com/nmasamba/deepmint/pull/17) (2026-11-09), with wave 6 |
+| 6 | 54–57 | 0013 | **Merged**: [#17](https://github.com/nmasamba/deepmint/pull/17) (2026-11-09), with wave 5 |
+| 7 | 58–63 | 0014 | **PR open**: [#18](https://github.com/nmasamba/deepmint/pull/18) (2026-11-10), with wave 8 |
+| 8 | 64–67 | 0015 | **PR open**: [#18](https://github.com/nmasamba/deepmint/pull/18) (2026-11-10), with wave 7 |
 | 9 | 68–72: dead code and tooling | – | Not started |
 | 10 | 73–77: last cleanup | – | Not started |
 
-From wave 3 the waves ship in pairs, one PR each: 3+4, 5+6, 7+8 and 9+10 (see [How it is delivered](#how-it-is-delivered)). Wave 2's packages 21, 22 and 25 go into the first of those PRs after their keys are in `.env.local`; their keys were still missing when the 5+6 PR opened.
+From wave 3 the waves ship in pairs, one PR each: 3+4, 5+6, 7+8 and 9+10 (see [How it is delivered](#how-it-is-delivered)). Wave 2's packages 21, 22 and 25 go into the first of those PRs after their keys are in `.env.local`; their keys were still missing when the 7+8 PR opened.
+
+Waves 7 and 8 were built with four more maintainer choices (2026-11-10):
+- **Linking a user to an ingested Guide (58): link anyway.** Approval moves the user's account to the Guide; their claims so far, which cannot move, stay on their old Player profile under their name, and deleting the account anonymises both.
+- **`/audit` (67) stays behind sign-in.** Each claim's proof is on its public claim page.
+- **Feeds skip posts over 7 days old** (`feed-first-read-dates-old-posts`, owned by no package): history is a backfill's job. Built as an extra commit in the 7+8 PR.
+- **Admin deletion (64)** anonymises a user's or an agent's record and leaves Clerk alone; ingested Guides cannot be deleted that way.
+
+tRPC reserves `apply` as a router key, so package 58's `guides.apply` is `guides.submitApplication`.
 
 After wave 0 (`main` at `c86b730`), KNOWN_ISSUES lists 98 open issues: 0 high, 26 medium and 72 low. The [Coverage](#coverage) section places every one of them.
 
@@ -1034,22 +1042,47 @@ Not excluded: 98 issues. Excluded (open PRs): self-logged-claim-lookahead (NCE),
 |---|---|
 | gitignored-doc-references | 76 |
 
-## Keys to request and maintainer steps
+<a id="keys-to-request-and-maintainer-steps"></a>
 
-**Keys** (ask before writing each wave's live tests):
+## To-do, by priority
+
+What is left, kept by each remediation PR; last updated by the waves 7 and 8 PR on 2026-11-10. Everything here is for the maintainer unless it says "session". It replaces the keys table and step list this section used to hold.
+
+### P0. Waves 7 and 8 (before and right after merging their PR)
+
+1. In the Supabase SQL editor, run 0014's preflight, migration and check, then 0015's, from the PR. Both can be pasted while today's code is deployed.
+2. Merge the PR.
+3. Subscribe the Clerk webhook endpoint to `user.deleted`, and to `user.updated` if that is not done yet (from #17). Until then a deleted Clerk account keeps its profile, and name and avatar changes do not sync.
+4. Send one `markouts/completed` from the Inngest dashboard. That run writes the regime rows behind "Best in Current Conditions", raises every EIV 2.5-fold (the 0.4 penalty is gone, which also shifts consensus weights) and, if #17's run has not happened, writes `position_count` for the Sharpe and Avg Return boards. Its `regime`, `bars-*` and `compute-scores` steps should each finish well under 300 s.
+5. At 07:00 US Eastern on the next Tuesday to Saturday, check the first `paper-equity-snapshot` run: it should store the previous session's date, and its `closes` step took 75 s locally with all seven stocks held.
+6. Delete a test user in Clerk and check that its profile reads "Deleted user", and change a test user's name and check the profile follows: no real `user.deleted` or `user.updated` delivery has been seen yet.
+7. Check that production sets no `NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL`: it would send "Apply as a Guide" sign-ups past the Settings form.
+
+### P1. Owed checks
+
+8. The read-only MCP calls on www, owed since #16.
+
+### P2. Keys that unblock held packages
+
+9. SnapTrade sandbox keys and `BROKER_CREDENTIALS_KEY`: package 22, the first live run of package 49, and the SnapTrade side of account deletion (package 64), none of which has run against SnapTrade. Needed before SnapTrade's production keys.
+10. `RESEND_API_KEY` and `DIGEST_FROM_EMAIL`: package 21, the daily digest.
+11. `NEXT_PUBLIC_SENTRY_DSN`, and optionally `SENTRY_AUTH_TOKEN`: package 25.
+
+### P3. Next PR (session)
+
+12. Waves 9 and 10, packages 68–77, as one PR, with 21, 22 and 25 if their keys have arrived.
+
+### P4. Housekeeping
+
+13. Report whether production has an unprefixed `INNGEST_EVENT_KEY` (package 3).
+14. Confirm the Vercel plan, for `maxDuration` 300 s (package 31), and the Root Directory (package 70).
+15. Optional: add the Clerk session-token claim (package 13).
+16. Optional: a contact address for API Docs (`api-docs-nav-for-all`).
+
+### Keys asked for so far
 
 | Wave | Keys |
 |---|---|
 | W1 | POLYGON_API_KEY, HF_API_KEY, TEST_API_KEY, Clerk dev keys |
 | W2 | Resend API key (21), SnapTrade sandbox keys (22, later 49), Sentry DSN (25), CLERK_WEBHOOK_SECRET (24) |
-| W8 | Clerk dev-instance webhook tunnel (51 and 64 tests) |
-
-**Production steps for the maintainer:**
-- Paste migrations 0009 to 0015 in order, each **before** the PR that carries it merges.
-- Set env vars: DIGEST_FROM_EMAIL (21), BROKER_CREDENTIALS_KEY (22), NEXT_PUBLIC_SENTRY_DSN and an optional SENTRY_AUTH_TOKEN (25).
-- Report whether production has an unprefixed INNGEST_EVENT_KEY (3).
-- Confirm the Vercel plan, for maxDuration (31), and the Root Directory (70).
-- Optionally add the Clerk session-token claim (13).
-- Subscribe the Clerk webhook to user.updated (W5) and user.deleted (W8).
-- Send one `markouts/completed` after package 42 deploys.
-- After 2026-11-02, check that markout ran at 22:00 UTC (1).
+| W8 | None beyond those: packages 64 and 67 were tested with signed webhook payloads and local stand-ins |

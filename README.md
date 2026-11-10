@@ -12,7 +12,7 @@ Over many claims this builds a scorecard: how often someone is right, how much t
 
 Today Deepmint covers seven large US technology stocks, the "Magnificent 7": Apple, Microsoft, Alphabet, Amazon, Nvidia, Meta and Tesla. That is a deliberate choice: more stocks will follow, but only once the core product has matured. [What's live today](#whats-live-today) has the details.
 
-**Where to find it:** the app is live, ahead of its public launch, at [www.deepmint.ai](https://www.deepmint.ai). Sign up there, then log a call with **New Claim**, in the top bar or on the dashboard. Every page except the landing page needs an account.
+**Where to find it:** the app is live, ahead of its public launch, at [www.deepmint.ai](https://www.deepmint.ai). Sign up there, then log a call with **New Claim**, in the top bar or on the dashboard. Ticker pages, Learn and claim pages are public; everything else needs an account.
 
 ## Who is it for?
 
@@ -21,7 +21,7 @@ Today Deepmint covers seven large US technology stocks, the "Magnificent 7": App
 | **Guides**: analysts and research firms | Their calls are collected for them. Deepmint reads their published posts, or an archive of past posts, and an AI model extracts the calls. A Guide needs no account. An analyst can also apply from Settings, where the landing page's "Apply as a Guide" leads: an admin approves them as a Guide, or makes the Guide profile Deepmint already built for them their account. |
 | **Players**: everyone who signs up | Log your own claims in the web app. They are checked against real prices by the same rules as Guides' claims. You appear on the leaderboard next to the Guides. You can also run practice ("paper") portfolios with virtual money. |
 | **Followers** | This is not a separate account type. Any Player can follow Guides and other Players, read their claims in a "Following" feed, keep a watchlist of stocks, and use "Mirror Signals" to copy someone's calls into a paper portfolio. A mirror copies a call when it goes live, if the call is dated within the last 48 hours: an old rating or a late approval is not copied, and neither is a backfill or a neutral call. |
-| **Admins** | Admin rights are granted by the maintainer in Clerk. Admins approve or reject claims held for review, switch Guides' feeds on, manage the list of stocks and issue API keys. |
+| **Admins** | Admin rights are granted by the maintainer in Clerk. Admins approve or reject claims held for review and Guide applications, switch Guides' feeds on, manage the list of stocks, issue API keys and delete accounts. |
 | **Developers and AI agents** | Read scores, consensus and leaderboards through a REST API, using a key issued by an admin. AI agents can use the same data through the MCP server at `/api/mcp`, with the same kind of key. |
 
 ## Why does it exist?
@@ -76,13 +76,13 @@ The jobs tied to the US market run on US Eastern time (`TZ=America/New_York` in 
 
 | Job | What it does | Eastern | UTC (EDT / EST) | Days |
 |---|---|---|---|---|
+| Paper equity | Records each paper portfolio's value at the previous session's close, for its equity curve | 07:00 | 11:00 / 12:00 | Tue–Sat |
 | Daily digest | Emails a summary of followed activity (not delivered today; see below) | 08:00 | 12:00 / 13:00 | Mon–Fri |
 | Ingest | Collects new Guide posts, then hands them to extraction | 16:30 | 20:30 / 21:30 | Mon–Fri |
 | Markout | Checks matured claims against closing prices | 17:00 | 21:00 / 22:00 | Mon–Fri |
 | Market regime | Records the day's market conditions (S&P 500 trend, VIX, sector spread) for the leaderboard | 17:30 | 21:30 / 22:30 | Mon–Fri |
 | Broker sync | Imports trades from linked brokerage accounts | 18:00 | 22:00 / 23:00 | Mon–Fri |
 | Consensus and influence | Recalculates each ticker's consensus and each Guide's influence, so a claim's decay and expiry count even when none matures | 18:30 | 22:30 / 23:30 | Every day |
-| Paper equity | Records each paper portfolio's value at the day's close, for its equity curve | 19:00 | 23:00 / 00:00 | Mon–Fri |
 | Merkle audit | Fingerprints the claims recorded on the previous UTC day | 18:00 / 17:00 | 22:00 | Every day |
 
 Other jobs run in a chain rather than on a clock:
@@ -125,7 +125,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
   - Deepmint stays with the Mag 7 until its core features have matured. Covering more stocks is planned for after that, not before.
   - The seven Mag-7 stocks were added to production on 2026-08-11.
   - Extraction accepts only those 7 tickers (AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA). Stock pages render only for them; any other symbol shows "Coming soon".
-  - Groundwork for more stocks already exists but is dormant. An admin button can add 50 S&P 500 stocks, but claims, search, paper trades and consensus accept only the Mag 7 (`isCoveredTicker` in `@deepmint/shared`), as ticker pages and ingestion do, so stocks it adds stay out of every surface until coverage widens. There is no record of whether the button has been used in production.
+  - Groundwork for more stocks already exists but is dormant. An admin button can add 50 S&P 500 stocks, but claims, search, paper trades and consensus accept only `COVERED_TICKERS` in `@deepmint/shared` (the Mag 7), and ticker pages, ingestion and MCP only `MAG7_TICKERS`, so stocks it adds stay out of every surface until both lists widen. There is no record of whether the button has been used in production.
 - **Keys.** Production key status was last recorded on 2026-07-02 in [docs/EXTERNAL_KEYS.md](docs/EXTERNAL_KEYS.md); it could not be re-checked on 2026-10-05. At that time the database, Clerk, Polygon, Hugging Face and Inngest keys were set, and Upstash, Sentry, R2, SnapTrade and Resend were empty.
 
 **What works:**
@@ -149,7 +149,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - **Not working yet:** Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
 - **Error tracking and snapshots.** Error tracking (Sentry) and source snapshots (Cloudflare R2) are not wired into the app. Setting their keys alone does not turn them on.
-- **Audit.** The roots are listed at `/audit` and each claim page shows its proof, but nothing anchors the roots outside the database yet. Claims stored before migration 0012 with an earlier date, such as backfilled history, are in no root. Roots from before PR #17 (leaf version 1) cover fewer fields, and a claim page shows no proof when such a root cannot be rebuilt from the ledger.
+- **Audit.** The roots are listed at `/audit` for signed-in users and each claim page shows its proof, but nothing anchors the roots outside the database yet. Claims stored with an earlier date before the version 2 audit shipped (PR #17), such as backfilled history, are in no root. Roots from before PR #17 (leaf version 1) cover fewer fields, and a claim page shows no proof when such a root cannot be rebuilt from the ledger.
 - **Missing features.** There is no way to request a new stock.
 
 The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
@@ -194,7 +194,7 @@ apps/
   worker/      The 18 Inngest functions (served by apps/web) and the backfill CLI
 packages/
   api/         tRPC routers
-  db/          Drizzle schema, migrations (drizzle/0000–0011), seed scripts
+  db/          Drizzle schema, migrations (drizzle/0000–0015), seed scripts
   ingestion/   Feed adapters, LLM extractor, content hashing
   scoring/     Pure scoring functions: hit rate, Brier, Sharpe, EIV, consensus, regime
   shared/      Polygon price client, Merkle tree, constants (Mag-7 list, horizons)
@@ -268,7 +268,7 @@ Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `
 pnpm --filter @deepmint/db db:migrate
 ```
 
-This applies the committed migrations 0000–0011. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
+This applies the committed migrations 0000–0015. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
 
 **4. Seed the local database (local only, once)**
 
@@ -332,15 +332,15 @@ In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`.
 
 ### Tests
 
-These results were measured on 2026-11-02 with no `.env.local`.
+These results were measured on 2026-11-10 with no `.env.local`.
 
 | Command | Result without keys | What enables more |
 |---|---|---|
-| `pnpm --filter @deepmint/scoring test` | 127 passed (6 files) | Nothing needed |
-| `pnpm --filter @deepmint/shared test` | 69 passed, 2 skipped (6 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
-| `pnpm --filter @deepmint/api test` | 32 passed, 39 skipped (9 files) | `DATABASE_URL` in the root `.env.local` runs the 39 database tests. They read, or write inside a transaction they roll back. |
-| `pnpm --filter @deepmint/ingestion test` | 83 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
-| `pnpm --filter @deepmint/web test` | 67 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
+| `pnpm --filter @deepmint/scoring test` | 135 passed (6 files) | Nothing needed |
+| `pnpm --filter @deepmint/shared test` | 74 passed, 2 skipped (6 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
+| `pnpm --filter @deepmint/api test` | 35 passed, 55 skipped (11 files) | `DATABASE_URL` in the root `.env.local` runs the 55 database tests. They read, write inside a transaction they roll back, or create their own `zz-` rows and delete them afterwards. |
+| `pnpm --filter @deepmint/ingestion test` | 85 passed, 13 skipped (12 files) | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 7 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
+| `pnpm --filter @deepmint/web test` | 72 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
 
 The worker has no tests.
 

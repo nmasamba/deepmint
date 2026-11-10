@@ -50,7 +50,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Required:** yes, for anything that touches data.
 - **If missing:** the first query throws `DATABASE_URL environment variable is not set`. `next build` still succeeds, because the client is a lazy proxy. `db:seed` throws at start.
 - **Get it:** production: Supabase dashboard → project → Connect → connection string. Local: `postgresql://deepmint:deepmint@localhost:5433/deepmint`. docker-compose publishes Postgres on host port **5433**, not 5432.
-- **Verify:** locally, `pnpm --filter @deepmint/db db:migrate` applies migrations 0000–0007 (drizzle-kit reads `packages/db/.env`, see [Local env files](#local-env-files)).
+- **Verify:** locally, `pnpm --filter @deepmint/db db:migrate` applies migrations 0000–0015 (drizzle-kit reads `packages/db/.env`, see [Local env files](#local-env-files)).
 - **Production:** set (last recorded). Migrations 0000–0007 are applied; 0007 was applied and verified on 2026-10-05.
 - **Schema changes reach Supabase by hand:**
   1. Paste the migration's SQL into the Supabase SQL editor.
@@ -248,9 +248,9 @@ The RSS lane has no variable. It reads Guides with `is_allowlisted = true` and a
 
 These are read from the **root** `.env.local` by `apps/web/vitest.config.ts`.
 
-- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 67 tests in 6 files skip. The 6 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`. One MCP test also needs `TEST_MCP_WRITES=1`, because it writes a claim that cannot be deleted.
+- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 72 tests in 6 files skip. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`. One MCP test also needs `TEST_MCP_WRITES=1`, because it writes a claim that cannot be deleted.
   - Mint it at `/admin/api-keys` as an admin, in the database used by the server under test. The default read scopes are enough.
-  - Admins are the only people who can mint keys; the UI offers only the 3 read scopes.
+  - Admins are the only people who can mint keys; the UI offers the 3 read scopes and `claims:write` for an agent.
 - **`TEST_BASE_URL`**: default `http://localhost:3000`. The server must be running.
 - **`TEST_ENTITY_SLUG`**: default `demo-guide`, which no seed creates. Use a seeded slug such as `sarah-chen`.
 
