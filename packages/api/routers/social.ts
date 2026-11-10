@@ -28,6 +28,11 @@ const redis = getRedis();
 const FOLLOWER_COUNT_KEY = (entityId: string) =>
   `deepmint:followers:${entityId}`;
 
+/** Drop an entity's cached follower count, after follows changed elsewhere. */
+export async function invalidateFollowerCount(entityId: string): Promise<void> {
+  if (redis) await redis.del(FOLLOWER_COUNT_KEY(entityId));
+}
+
 export const socialRouter = router({
   /** Follow an entity. */
   follow: protectedProcedure

@@ -107,7 +107,7 @@ export async function POST(req: Request) {
     if (result?.snaptradeUserId && getSnapTradeClient()) {
       try {
         await deleteUser(result.snaptradeUserId);
-        await clearSnaptradeUser(result.entityId);
+        await clearSnaptradeUser(result.snaptradeEntityId!);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("[clerk webhook] SnapTrade deleteUser failed", err);

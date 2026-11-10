@@ -18,3 +18,4 @@ export * from './notifications';
 export * from './tickerRequests';
 export * from './apiKeys';
 export * from './marketRegimes';
+export * from './guideApplications';

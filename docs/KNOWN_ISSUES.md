@@ -56,13 +56,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="guide-signup-path-missing"></a>
 
-### "Sign Up as a Guide" creates a Player; there is no way to become or claim a Guide
+### "Sign Up as a Guide" creates a Player, and no page lets a user apply
 
 **Medium** · feature-gap · `guide-signup-path-missing`
 
-- **What's wrong:** Both landing-page buttons, "Sign Up as a Guide" and "Sign Up as a Player", go to plain `/sign-up`, and every new user is created as type `player`. No code changes `entities.type`, and the profile-claiming flow mentioned in a resolver comment does not exist.
-- **User impact:** An analyst who signs up as a Guide becomes a Player: scored with Player metrics (no Brier, z-score or target precision), listed with Players, without the ×1.2 Guide consensus weight or an Influence tab. An analyst already ingested as a Guide ends up with two unlinked entities.
-- **Evidence:** [`apps/web/components/landing/ChoosePath.tsx:69-75`](../apps/web/components/landing/ChoosePath.tsx#L69-L75) · [`apps/web/components/landing/ChoosePath.tsx:123-129`](../apps/web/components/landing/ChoosePath.tsx#L123-L129) · [`packages/db/queries/ensureEntityForClerkUser.ts:58`](../packages/db/queries/ensureEntityForClerkUser.ts#L58) · [`packages/ingestion/src/sources/resolver.ts:34-35`](../packages/ingestion/src/sources/resolver.ts#L34-L35)
+- **What's wrong:** Both landing-page buttons, "Sign Up as a Guide" and "Sign Up as a Player", go to plain `/sign-up`, and every new user is created as type `player`. (Since wave 7 an admin can approve a Guide application on the review page, in place or by linking the user's account to the Guide Deepmint already ingested for them, but `guides.submitApplication` has no caller, so no user can send one.)
+- **User impact:** An analyst who signs up as a Guide becomes a Player: scored with Player metrics (no Brier, z-score or target precision), listed with Players, without the ×1.2 Guide consensus weight or an Influence tab, and with no way to ask to become a Guide.
+- **Evidence:** [`apps/web/components/landing/ChoosePath.tsx`](../apps/web/components/landing/ChoosePath.tsx) · [`packages/api/routers/guides.ts`](../packages/api/routers/guides.ts)
 
 <a id="equity-curve-placeholder"></a>
 
@@ -110,12 +110,12 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="unused-trpc-procedures"></a>
 
-### 15 of 77 tRPC procedures have no UI caller
+### 17 of 81 tRPC procedures have no UI caller
 
 **Low** · dead-code · `unused-trpc-procedures`
 
-- **What's wrong:** 12 are called nowhere: `entity.search`, `instruments.detail`, `.list`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
-- **User impact:** Maintenance cost; 4 of the 12 answer signed-out callers.
+- **What's wrong:** 14 are called nowhere: `entity.search`, `instruments.detail`, `.list`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history`, `influence.myInfluencers`, and `guides.submitApplication` and `guides.myApplication`, which wait for the Settings form (package 65). Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
+- **User impact:** Maintenance cost; 4 of the 14 answer signed-out callers.
 - **Evidence:** [`packages/api/routers/instruments.ts:401`](../packages/api/routers/instruments.ts#L401) · [`packages/api/routers/leaderboard.ts:104`](../packages/api/routers/leaderboard.ts#L104) · [`packages/api/routers/influence.ts:124`](../packages/api/routers/influence.ts#L124)
 
 <a id="area-workers"></a>

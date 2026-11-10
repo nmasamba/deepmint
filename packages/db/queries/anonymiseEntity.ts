@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { db, eq, and, ne, sql } from "@deepmint/db";
+import { db, eq, and, ne, or, isNotNull, sql } from "@deepmint/db";
 import {
   entities,
   apiKeys,
   brokerLinks,
+  guideApplications,
   playerTrades,
   signalSimulatePortfolios,
 } from "@deepmint/db/schema";
@@ -23,6 +24,8 @@ export interface AnonymiseResult {
    * skipped remote delete loses nothing.
    */
   snaptradeUserId: string | null;
+  /** The row that holds snaptradeUserId, for clearSnaptradeUser. */
+  snaptradeEntityId: string | null;
   keysRevoked: number;
   brokerLinksClosed: number;
 }
@@ -55,7 +58,8 @@ async function deletedSlug(tx: Tx, id: string): Promise<string> {
  * clerk_user_id is kept, unique as ever, so a late or replayed Clerk event
  * finds this row and changes nothing, and nothing can create a new entity for
  * the deleted user. deleted_at marks the row; a signed-in request for it acts
- * as no one. Running it again changes nothing.
+ * as no one. Running it again changes nothing. A Guide linked to the account
+ * takes the account's old Player record with it.
  */
 export async function anonymiseEntity(entityId: string): Promise<AnonymiseResult | null> {
   return db.transaction(async (tx) => {
@@ -73,63 +77,128 @@ export async function anonymiseEntity(entityId: string): Promise<AnonymiseResult
         slug: entity.slug,
         alreadyDeleted: true,
         snaptradeUserId: entity.snaptradeUserId,
+        snaptradeEntityId: entity.snaptradeUserId ? entity.id : null,
         keysRevoked: 0,
         brokerLinksClosed: 0,
       };
     }
 
-    const now = new Date();
-    const slug = await deletedSlug(tx, entity.id);
-    await tx
-      .update(entities)
-      .set({
-        displayName: DELETED_DISPLAY_NAME,
-        slug,
-        bio: null,
-        avatarUrl: null,
-        styleTags: [],
-        sourceUrl: null,
-        isAllowlisted: false,
-        brokerLinkStatus: "none",
-        deletedAt: now,
-        updatedAt: now,
+    const result = await anonymiseRow(tx, entity.id);
+    let snaptrade = entity.snaptradeUserId
+      ? { userId: entity.snaptradeUserId, entityId: entity.id }
+      : null;
+
+    // Linking an ingested Guide to an account (D16) leaves the account's old
+    // Player profile as a separate record under the person's name. Deleting
+    // either one anonymises both: the account found by its Clerk id, or an
+    // old record whose account was linked while a deletion was on its way.
+    const linked = await tx
+      .select({
+        oldRecord: guideApplications.entityId,
+        guide: guideApplications.linkedGuideId,
       })
-      .where(eq(entities.id, entityId));
-
-    // Keys that act as this entity. Keys it minted as an admin act as their
-    // agents or as no one (package 54), so they stay.
-    const keys = await tx
-      .update(apiKeys)
-      .set({ isActive: false, revokedAt: now })
-      .where(and(eq(apiKeys.entityId, entityId), eq(apiKeys.isActive, true)))
-      .returning({ id: apiKeys.id });
-
-    const links = await tx
-      .update(brokerLinks)
-      .set({
-        syncStatus: "disconnected",
-        disconnectedAt: sql`coalesce(${brokerLinks.disconnectedAt}, now())`,
-        isVerified: false,
-        metadata: {},
-      })
-      .where(eq(brokerLinks.entityId, entityId))
-      .returning({ id: brokerLinks.id });
-    await tx.delete(playerTrades).where(eq(playerTrades.entityId, entityId));
-
-    await tx
-      .update(signalSimulatePortfolios)
-      .set({ isActive: false })
-      .where(eq(signalSimulatePortfolios.entityId, entityId));
+      .from(guideApplications)
+      .where(
+        and(
+          eq(guideApplications.status, "approved"),
+          isNotNull(guideApplications.linkedGuideId),
+          or(
+            eq(guideApplications.linkedGuideId, entity.id),
+            eq(guideApplications.entityId, entity.id),
+          ),
+        ),
+      );
+    const others = new Set(
+      linked.flatMap((l) => [l.oldRecord, l.guide!]).filter((id) => id !== entity.id),
+    );
+    for (const id of others) {
+      const [other] = await tx
+        .select({ deletedAt: entities.deletedAt, snaptradeUserId: entities.snaptradeUserId })
+        .from(entities)
+        .where(eq(entities.id, id))
+        .for("update")
+        .limit(1);
+      if (!other || other.deletedAt) continue;
+      await anonymiseRow(tx, id);
+      if (!snaptrade && other.snaptradeUserId) {
+        snaptrade = { userId: other.snaptradeUserId, entityId: id };
+      }
+    }
 
     return {
       entityId,
-      slug,
+      slug: result.slug,
       alreadyDeleted: false,
-      snaptradeUserId: entity.snaptradeUserId,
-      keysRevoked: keys.length,
-      brokerLinksClosed: links.length,
+      snaptradeUserId: snaptrade?.userId ?? null,
+      snaptradeEntityId: snaptrade?.entityId ?? null,
+      keysRevoked: result.keysRevoked,
+      brokerLinksClosed: result.brokerLinksClosed,
     };
   });
+}
+
+/** Anonymise one locked, not yet deleted row, as anonymiseEntity describes. */
+async function anonymiseRow(
+  tx: Tx,
+  entityId: string,
+): Promise<{ slug: string; keysRevoked: number; brokerLinksClosed: number }> {
+  const now = new Date();
+  const slug = await deletedSlug(tx, entityId);
+  await tx
+    .update(entities)
+    .set({
+      displayName: DELETED_DISPLAY_NAME,
+      slug,
+      bio: null,
+      avatarUrl: null,
+      styleTags: [],
+      sourceUrl: null,
+      isAllowlisted: false,
+      brokerLinkStatus: "none",
+      deletedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(entities.id, entityId));
+
+  // Keys that act as this entity. Keys it minted as an admin act as their
+  // agents or as no one (package 54), so they stay.
+  const keys = await tx
+    .update(apiKeys)
+    .set({ isActive: false, revokedAt: now })
+    .where(and(eq(apiKeys.entityId, entityId), eq(apiKeys.isActive, true)))
+    .returning({ id: apiKeys.id });
+
+  const links = await tx
+    .update(brokerLinks)
+    .set({
+      syncStatus: "disconnected",
+      disconnectedAt: sql`coalesce(${brokerLinks.disconnectedAt}, now())`,
+      isVerified: false,
+      metadata: {},
+    })
+    .where(eq(brokerLinks.entityId, entityId))
+    .returning({ id: brokerLinks.id });
+  await tx.delete(playerTrades).where(eq(playerTrades.entityId, entityId));
+
+  await tx
+    .update(signalSimulatePortfolios)
+    .set({ isActive: false })
+    .where(eq(signalSimulatePortfolios.entityId, entityId));
+
+  // A Guide application says who its applicant is: its text goes, and one
+  // still open is closed.
+  await tx
+    .update(guideApplications)
+    .set({
+      pitch: "",
+      sourceUrl: null,
+      reviewNote: null,
+      status: sql`case when ${guideApplications.status} = 'pending' then 'rejected'::guide_application_status else ${guideApplications.status} end`,
+      reviewedAt: sql`coalesce(${guideApplications.reviewedAt}, now())`,
+    })
+    .where(eq(guideApplications.entityId, entityId));
+
+  return { slug, keysRevoked: keys.length, brokerLinksClosed: links.length };
 }
 
 /**
@@ -177,6 +246,7 @@ export async function anonymiseClerkUser(clerkUserId: string): Promise<Anonymise
       slug: placeholder.slug,
       alreadyDeleted: false,
       snaptradeUserId: null,
+      snaptradeEntityId: null,
       keysRevoked: 0,
       brokerLinksClosed: 0,
     };

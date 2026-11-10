@@ -165,8 +165,8 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 | **Basis points (bps)** | Hundredths of a percent: 100 bps = 1%. Returns are stored in basis points. |
 | **EIV** | Deepmint's 0–100 "edge" score. It combines how far the hit rate is above 50%, the average return, calibration (Guides only), and a discount for small samples. It is 0 when the hit rate is 50% or lower, or when the average return is zero or negative. It stands for Expected Information Value. |
 | **Consensus** | For each stock, stored as one row per day: the weighted share of bullish, bearish and neutral active claims whose horizon has not passed, an overall direction, a 0–1 conviction, and the average price target with its dispersion. |
-| **Guide** | An analyst or firm whose published calls Deepmint collects. Guides are created only by the ingestion pipeline (and, with fictional data, by the local seed script). |
-| **Player** | Anyone who signs up. Every account is a Player. |
+| **Guide** | An analyst or firm whose published calls Deepmint collects. Guides are created by the ingestion pipeline and when an admin approves a user's Guide application (and, with fictional data, by the local seed script). An approval can link the user's account to the Guide already ingested for them. |
+| **Player** | Anyone who signs up. Every account starts as a Player. |
 
 ## For developers
 
@@ -176,7 +176,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 |---|---|
 | Monorepo | pnpm 10.32.1 workspaces, Turborepo 2 |
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui components, Serwist (PWA) |
-| API | tRPC v11 (15 routers, 77 procedures), REST `/api/v1`, MCP via `mcp-handler` |
+| API | tRPC v11 (16 routers, 81 procedures), REST `/api/v1`, MCP via `mcp-handler` |
 | Database | PostgreSQL (16 in Docker locally, Supabase in production) with Drizzle ORM 0.41 |
 | Background jobs | Inngest 4 (17 functions) |
 | Auth | Clerk (`@clerk/nextjs` 7) |

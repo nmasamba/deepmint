@@ -1,5 +1,5 @@
-import { db, eq, and, isNull } from "@deepmint/db";
-import { entities } from "@deepmint/db/schema";
+import { db, eq, and, or, isNull, exists } from "@deepmint/db";
+import { entities, guideApplications } from "@deepmint/db/schema";
 import { slugify } from "@deepmint/shared";
 
 export interface ResolveGuideInput {
@@ -19,12 +19,13 @@ export interface ResolveGuideInput {
  * scraped analyst), then on the derived slug. This is the missing
  * source-handle → entities resolver for the ingestion pipeline.
  *
- * A slug matches only an ingested Guide (type guide, no Clerk user), so a
- * person who signed up under a firm's name never receives the firm's
- * ratings. When the slug is someone else's, the walk tries -2 to -6.
- *
- * Ingested Guides have clerkUserId null and isVerified false; they become
- * verified only via the broker/Proof-of-Skin flow or by claiming the profile.
+ * A slug matches only an ingested Guide (type guide, no Clerk user) or one an
+ * admin linked to its analyst's account by approving their Guide application
+ * (guide_applications.linked_guide_id), whose ratings must keep reaching it.
+ * So a person who signed up under a firm's name, or became a Guide without a
+ * link, never receives the firm's ratings. When the slug is someone else's,
+ * the walk tries -2 to -6. The Verified badge comes from a broker link only
+ * (D7).
  */
 export async function resolveOrCreateGuide(
   input: ResolveGuideInput,
@@ -50,7 +51,20 @@ export async function resolveOrCreateGuide(
         and(
           eq(entities.slug, slug),
           eq(entities.type, "guide"),
-          isNull(entities.clerkUserId),
+          or(
+            isNull(entities.clerkUserId),
+            exists(
+              db
+                .select({ id: guideApplications.id })
+                .from(guideApplications)
+                .where(
+                  and(
+                    eq(guideApplications.linkedGuideId, entities.id),
+                    eq(guideApplications.status, "approved"),
+                  ),
+                ),
+            ),
+          ),
         ),
       )
       .limit(1);
@@ -71,7 +85,6 @@ export async function resolveOrCreateGuide(
         sourceUrl: input.sourceUrl ?? null,
         styleTags: input.styleTags ?? [],
         isAllowlisted: input.allowlisted ?? false,
-        isVerified: false,
       })
       .onConflictDoNothing({ target: entities.slug })
       .returning({ id: entities.id });

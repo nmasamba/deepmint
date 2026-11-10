@@ -161,7 +161,7 @@ export const entityRouter = router({
       if (result.snaptradeUserId && getSnapTradeClient()) {
         try {
           await deleteUser(result.snaptradeUserId);
-          await clearSnaptradeUser(target.id);
+          await clearSnaptradeUser(result.snaptradeEntityId!);
         } catch (err) {
           console.error("[entity.adminDelete] SnapTrade deleteUser failed", err);
         }
