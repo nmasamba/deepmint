@@ -28,6 +28,11 @@ const redis = getRedis();
 const FOLLOWER_COUNT_KEY = (entityId: string) =>
   `deepmint:followers:${entityId}`;
 
+/** Drop an entity's cached follower count, after follows changed elsewhere. */
+export async function invalidateFollowerCount(entityId: string): Promise<void> {
+  if (redis) await redis.del(FOLLOWER_COUNT_KEY(entityId));
+}
+
 export const socialRouter = router({
   /** Follow an entity. */
   follow: protectedProcedure
@@ -42,7 +47,7 @@ export const socialRouter = router({
 
       // Check target exists
       const [target] = await ctx.db
-        .select({ id: entities.id })
+        .select({ id: entities.id, deletedAt: entities.deletedAt })
         .from(entities)
         .where(eq(entities.id, input.targetEntityId))
         .limit(1);
@@ -51,6 +56,12 @@ export const socialRouter = router({
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Entity not found",
+        });
+      }
+      if (target.deletedAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This account has been deleted",
         });
       }
 

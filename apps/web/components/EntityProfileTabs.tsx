@@ -125,7 +125,7 @@ function OverviewTab({
       <div className="rounded-lg border-2 border-accent/30 bg-accent/5 p-6">
         <div className="flex items-center gap-2 text-accent text-sm mb-2">
           <Zap className="h-4 w-4" />
-          Earned Information Value (EIV)
+          Expected Information Value (EIV)
         </div>
         <div className="text-3xl font-mono font-bold text-text-primary">
           {eiv !== null ? eiv.toFixed(1) : "—"}

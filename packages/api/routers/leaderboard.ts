@@ -1,20 +1,22 @@
 import { z } from "zod";
 import { memberProcedure, router } from "../trpc";
 import { alias } from "drizzle-orm/pg-core";
-import { db, desc, asc, eq, gte, and, isNull } from "@deepmint/db";
+import { db, desc, asc, eq, gte, and } from "@deepmint/db";
 import { scores, entities, instruments } from "@deepmint/db/schema";
 import {
   LOWER_IS_BETTER_METRICS,
   MIN_RANKED_OUTCOMES,
   RETURN_METRICS,
 } from "@deepmint/shared";
-import { getLatestMarketRegime } from "../lib/marketRegime";
+import type { MarketRegime } from "@deepmint/scoring";
 import { topByInstrument } from "../lib/topByInstrument";
 
 // The scorer's rows beside each ranked score: its entity's sample at that
 // horizon on that date, and whether the pooled hit rate cleared the z-test.
 const sample = alias(scores, "sample");
 const significance = alias(scores, "significance");
+// An entity's outcome count in the regime its EIV row is tagged with.
+const regimeSample = alias(scores, "regime_sample");
 
 // The sample behind a metric: a return board leaves out neutral claims, or
 // nine of them would carry one lucky position over the floor.
@@ -60,8 +62,7 @@ export const leaderboardRouter = router({
       const conditions = [
         eq(scores.metric, input.metric),
         eq(scores.horizon, input.horizon),
-        // Soft-deleted entities must not be publicly ranked.
-        isNull(entities.deletedAt),
+        // A deleted account stays ranked, as "Deleted user" (D18).
       ];
 
       if (input.regimeTag) {
@@ -171,9 +172,12 @@ export const leaderboardRouter = router({
     }),
 
   /**
-   * Best entities in current market conditions.
-   * Auto-detects regime and returns top entities by EIV within that regime,
-   * among those with at least MIN_RANKED_OUTCOMES scored outcomes.
+   * Best entities in the latest scoring run's market regime, by their EIV
+   * from the outcomes entered in that regime (the scorer writes one only
+   * when there are at least MIN_REGIME_OUTCOMES), among those with at least
+   * MIN_RANKED_OUTCOMES scored outcomes in all. Only the latest run counts,
+   * and its date is returned with it: an older run would describe
+   * conditions that may have passed.
    */
   bestInCurrentConditions: memberProcedure
     .input(
@@ -183,43 +187,43 @@ export const leaderboardRouter = router({
       }),
     )
     .query(async ({ input }) => {
-      // The latest stored regime snapshot; never computed on a page view.
-      const snapshot = await getLatestMarketRegime();
-      if (!snapshot) return { regime: null, entities: [] };
-      const currentRegime = snapshot.regime;
+      // The latest scoring run: it writes eiv_overall for every entity it
+      // scores, whether or not any of them has a record in the regime.
+      const [latestRun] = await db
+        .select({ asOfDate: scores.asOfDate })
+        .from(scores)
+        .where(and(eq(scores.metric, "eiv_overall"), eq(scores.horizon, "all")))
+        .orderBy(desc(scores.asOfDate))
+        .limit(1);
+      if (!latestRun) return { regime: null, asOfDate: null, entities: [] };
 
-      // Query the regime-tagged "eiv" row, NOT "eiv_overall".
-      //
-      // score.ts writes eiv_overall with regimeTag null and writes "eiv" with
-      // horizon "all" plus the regime tag. Filtering eiv_overall on
-      // regime_tag = currentRegime therefore compared NULL to a string, which
-      // is never true in SQL — and because the latestDate probe below shares
-      // these conditions, this endpoint returned an empty list unconditionally
-      // and had never surfaced a single row.
+      // The regime that run scored in, from its regime-tagged "eiv" rows.
+      // eiv_overall carries no tag.
+      const [tagged] = await db
+        .select({ regimeTag: scores.regimeTag })
+        .from(scores)
+        .where(
+          and(
+            eq(scores.metric, "eiv"),
+            eq(scores.horizon, "all"),
+            eq(scores.asOfDate, latestRun.asOfDate),
+          ),
+        )
+        .orderBy(desc(scores.computedAt))
+        .limit(1);
+      if (!tagged?.regimeTag) {
+        return { regime: null, asOfDate: latestRun.asOfDate, entities: [] };
+      }
+
+      // Both floors apply before LIMIT: the board's sample floor on all
+      // outcomes, and the regime's sample, which is the n shown.
       const conditions = [
         eq(scores.metric, "eiv"),
         eq(scores.horizon, "all"),
-        eq(scores.regimeTag, currentRegime),
+        eq(scores.regimeTag, tagged.regimeTag),
+        eq(scores.asOfDate, latestRun.asOfDate),
+        gte(sample.value, String(MIN_RANKED_OUTCOMES)),
       ];
-
-      // Get latest date with this regime+metric combo (across all types, so
-      // the as-of date is computed over the whole regime leaderboard).
-      const [latestDate] = await db
-        .select({ asOfDate: scores.asOfDate })
-        .from(scores)
-        .where(and(...conditions))
-        .orderBy(desc(scores.asOfDate))
-        .limit(1);
-
-      if (!latestDate) return { regime: currentRegime, entities: [] };
-
-      conditions.push(eq(scores.asOfDate, latestDate.asOfDate));
-      // Entity-table predicates are added only AFTER the latestDate probe
-      // above, which selects from `scores` alone and would produce invalid SQL
-      // if it referenced `entities`. Both are applied before LIMIT so the
-      // result is the best N of the requested type, not a truncated mixed set.
-      conditions.push(isNull(entities.deletedAt));
-      conditions.push(gte(sample.value, String(MIN_RANKED_OUTCOMES)));
       if (input.entityType) {
         conditions.push(eq(entities.type, input.entityType));
       }
@@ -228,7 +232,7 @@ export const leaderboardRouter = router({
         .select({
           entityId: scores.entityId,
           value: scores.value,
-          sampleSize: sample.value,
+          sampleSize: regimeSample.value,
           entityName: entities.displayName,
           entitySlug: entities.slug,
           entityType: entities.type,
@@ -237,12 +241,23 @@ export const leaderboardRouter = router({
         .from(scores)
         .innerJoin(entities, eq(scores.entityId, entities.id))
         .innerJoin(sample, sampleRow("eiv", "all"))
+        .innerJoin(
+          regimeSample,
+          and(
+            eq(regimeSample.entityId, scores.entityId),
+            eq(regimeSample.asOfDate, scores.asOfDate),
+            eq(regimeSample.metric, "regime_outcome_count"),
+            eq(regimeSample.horizon, "all"),
+            eq(regimeSample.regimeTag, scores.regimeTag),
+          ),
+        )
         .where(and(...conditions))
         .orderBy(desc(scores.value))
         .limit(input.limit);
 
       return {
-        regime: currentRegime,
+        regime: tagged.regimeTag as MarketRegime,
+        asOfDate: latestRun.asOfDate,
         entities: rows.map((row, i) => ({
           rank: i + 1,
           entity: {

@@ -91,7 +91,6 @@ async function seed(db: SeedDb) {
         bio: g.bio,
         styleTags: g.styleTags,
         isAllowlisted: true,
-        isVerified: true,
       })),
     )
     .returning();
@@ -108,7 +107,6 @@ async function seed(db: SeedDb) {
       bio: "Swing trader focused on tech. Building a verified track record.",
       styleTags: ["swing", "tech"],
       brokerLinkStatus: "verified" as const,
-      isVerified: true,
     },
     {
       displayName: "Jordan Macro",
@@ -116,7 +114,6 @@ async function seed(db: SeedDb) {
       bio: "Macro-driven positions. Long-term conviction trades.",
       styleTags: ["macro", "long-term"],
       brokerLinkStatus: "none" as const,
-      isVerified: false,
     },
     {
       displayName: "Sam Momentum",
@@ -124,7 +121,6 @@ async function seed(db: SeedDb) {
       bio: "Momentum and breakout trader. Data-driven entries and exits.",
       styleTags: ["momentum", "breakout"],
       brokerLinkStatus: "none" as const,
-      isVerified: false,
     },
   ];
 
@@ -138,7 +134,6 @@ async function seed(db: SeedDb) {
         bio: p.bio,
         styleTags: p.styleTags,
         brokerLinkStatus: p.brokerLinkStatus,
-        isVerified: p.isVerified,
       })),
     )
     .returning();

@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
-import { db, eq, desc } from "@deepmint/db";
+import { db, eq, desc, and, inArray } from "@deepmint/db";
 import { consensusSignals, instruments } from "@deepmint/db/schema";
+import { COVERED_TICKERS } from "@deepmint/shared";
 
 export const consensusRouter = router({
   /**
@@ -21,13 +22,22 @@ export const consensusRouter = router({
     }),
 
   /**
-   * Latest consensus signals for all Mag 7 instruments.
+   * Latest consensus signals for the covered tickers (the Mag 7), in
+   * COVERED_TICKERS order. Any other active instrument an admin adds is left
+   * out: each tile links to a ticker page, and only the Mag 7 have one.
    */
   mag7: publicProcedure.query(async () => {
-    const allInstruments = await db
+    const rows = await db
       .select({ id: instruments.id, ticker: instruments.ticker, name: instruments.name })
       .from(instruments)
-      .where(eq(instruments.isActive, true));
+      .where(
+        and(
+          eq(instruments.isActive, true),
+          inArray(instruments.ticker, [...COVERED_TICKERS]),
+        ),
+      );
+    const order = (ticker: string) => COVERED_TICKERS.indexOf(ticker);
+    const allInstruments = rows.sort((a, b) => order(a.ticker) - order(b.ticker));
 
     const result = [];
 

@@ -14,11 +14,15 @@ export const entities = pgTable('entities', {
   styleTags: jsonb('style_tags').$type<string[]>().default([]),       // e.g. ['value', 'tech', 'macro']
   brokerLinkStatus: brokerLinkStatusEnum('broker_link_status').default('none'),
   snaptradeUserId: varchar('snaptrade_user_id', { length: 255 }),      // SnapTrade registered user ID
+  // Unused: the Verified badge reads broker_link_status alone (D7). Kept
+  // because dropping a column needs a migration.
   isVerified: boolean('is_verified').default(false),
   isAllowlisted: boolean('is_allowlisted').default(false),            // for Guides
   isAgent: boolean('is_agent').default(false).notNull(),              // a Player run by an AI agent through an API key
   sourceUrl: varchar('source_url', { length: 500 }),                  // Guide's public profile/blog
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  deletedAt: timestamp('deleted_at', { withTimezone: true }),         // soft delete
+  // Set when the account is deleted (D18): the row is anonymised and stays
+  // ranked as "Deleted user"; see queries/anonymiseEntity.ts.
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });

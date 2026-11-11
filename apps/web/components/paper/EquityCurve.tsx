@@ -12,16 +12,22 @@ import {
 interface EquityCurveProps {
   startingBalance: number;
   currentEquity: number;
+  /** Equity at each session's close since the portfolio opened (cents). */
+  history?: Array<{ date: string; equityCents: number }>;
 }
 
+/**
+ * The portfolio's value from its start, through each day's close (the daily
+ * paper-equity-snapshot job), to now.
+ */
 export function EquityCurve({
   startingBalance,
   currentEquity,
+  history = [],
 }: EquityCurveProps) {
-  // Simple 2-point chart for now (starting → current)
-  // A full equity curve would require historical daily snapshots
   const data = [
     { label: "Start", value: startingBalance / 100 },
+    ...history.map((p) => ({ label: p.date.slice(5), value: p.equityCents / 100 })),
     { label: "Now", value: currentEquity / 100 },
   ];
 
@@ -32,6 +38,11 @@ export function EquityCurve({
       <p className="mb-3 text-xs font-medium uppercase text-text-secondary">
         Equity Curve
       </p>
+      {history.length === 0 && (
+        <p className="mb-2 text-xs text-text-secondary">
+          A point is added the morning after each trading day.
+        </p>
+      )}
       <div className="h-32">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
@@ -65,7 +76,11 @@ export function EquityCurve({
               dataKey="value"
               stroke={isPositive ? "#22C55E" : "#EF4444"}
               strokeWidth={2}
-              dot={{ fill: isPositive ? "#22C55E" : "#EF4444", r: 4 }}
+              dot={
+                data.length <= 30
+                  ? { fill: isPositive ? "#22C55E" : "#EF4444", r: 3 }
+                  : false
+              }
             />
           </LineChart>
         </ResponsiveContainer>

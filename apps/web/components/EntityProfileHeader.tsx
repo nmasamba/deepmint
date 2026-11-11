@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Bot, ShieldCheck, Calendar, Pencil } from "lucide-react";
+import { Bot, ShieldCheck, Calendar, Pencil, Trash2 } from "lucide-react";
 import { FollowButton } from "@/components/FollowButton";
 import { MirrorSignalsButton } from "@/components/signal-simulate/MirrorSignalsButton";
 import { trpc } from "@/lib/trpc";
@@ -17,13 +20,16 @@ interface EntityProfileHeaderProps {
     bio: string | null;
     avatarUrl: string | null;
     styleTags: string[] | null;
-    isVerified: boolean | null;
     isAgent: boolean;
     brokerLinkStatus: string | null;
     createdAt: string | Date;
   };
   /** The viewer's own profile: "Edit profile" instead of Follow and Mirror. */
   isOwnProfile?: boolean;
+  /** A deleted account (D18): its record stays, with nothing to follow. */
+  isDeleted?: boolean;
+  /** An admin may delete this account: a user's or an agent's, not yet deleted. */
+  canDelete?: boolean;
 }
 
 function getInitials(name: string): string {
@@ -43,9 +49,33 @@ function formatDate(date: string | Date): string {
   });
 }
 
-export function EntityProfileHeader({ entity, isOwnProfile }: EntityProfileHeaderProps) {
-  const isVerified =
-    entity.isVerified || entity.brokerLinkStatus === "verified";
+export function EntityProfileHeader({
+  entity,
+  isOwnProfile,
+  isDeleted,
+  canDelete,
+}: EntityProfileHeaderProps) {
+  const router = useRouter();
+  const deleteAccount = trpc.entity.adminDelete.useMutation({
+    onSuccess: (result) => {
+      toast.success("Account deleted");
+      router.replace(`/${entity.type}/${result.slug}`);
+    },
+    onError: (err) => toast.error("Delete failed", { description: err.message }),
+  });
+  const handleDelete = () => {
+    if (
+      !confirm(
+        `Delete ${entity.displayName}'s account? Their name, bio and avatar are removed, their API keys revoked and broker links closed. Their claims and scores stay, as "Deleted user". This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    deleteAccount.mutate({ entityId: entity.id });
+  };
+
+  // Verified means broker-verified, and nothing else (D7).
+  const isVerified = entity.brokerLinkStatus === "verified";
   const styleTags = entity.styleTags ?? [];
 
   const { data: followerData } = trpc.social.followerCount.useQuery(
@@ -131,7 +161,11 @@ export function EntityProfileHeader({ entity, isOwnProfile }: EntityProfileHeade
         </div>
 
         {/* Follow + Mirror buttons, or the way to edit your own profile */}
-        {isOwnProfile ? (
+        {isDeleted ? (
+          <p className="text-sm text-text-secondary">
+            This account was deleted. Its claims and scores stay on the record.
+          </p>
+        ) : isOwnProfile ? (
           <Link
             href="/settings#profile"
             className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline"
@@ -144,6 +178,19 @@ export function EntityProfileHeader({ entity, isOwnProfile }: EntityProfileHeade
             <FollowButton targetEntityId={entity.id} />
             <MirrorSignalsButton targetEntityId={entity.id} />
           </div>
+        )}
+
+        {canDelete && !isDeleted && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleDelete}
+            disabled={deleteAccount.isPending}
+            className="border-red-500/30 text-red-500 hover:bg-red-500/10"
+          >
+            <Trash2 className="mr-1 h-3 w-3" />
+            {deleteAccount.isPending ? "Deleting…" : "Delete account (admin)"}
+          </Button>
         )}
       </div>
     </div>

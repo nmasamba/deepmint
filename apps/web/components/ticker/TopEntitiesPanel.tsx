@@ -12,7 +12,6 @@ interface EntityRow {
     slug: string;
     type: "player" | "guide";
     avatarUrl: string | null;
-    isVerified: boolean | null;
     brokerLinkStatus: string | null;
   };
   metricValue: string;
@@ -66,9 +65,7 @@ export function TopEntitiesPanel({ title, entities, isLoading, isError }: TopEnt
       </h3>
       <div className="space-y-3">
         {entities.map((row, idx) => {
-          const isVerified =
-            row.entity.isVerified ||
-            row.entity.brokerLinkStatus === "verified";
+          const isVerified = row.entity.brokerLinkStatus === "verified";
           const profilePath =
             row.entity.type === "guide"
               ? `/guide/${row.entity.slug}`

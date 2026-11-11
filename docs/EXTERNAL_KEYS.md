@@ -33,7 +33,7 @@ Ordered by what each step changes in the running code today.
    - `claims.submit` has no 10-claims-per-hour limit, so a signed-in user can submit claims without bound.
    - `/api/v1` and `/api/mcp` have no per-key limit. This matters once the first `dm_live_` key is issued; production had 0 keys on 2026-08-03 and the count since is not recorded.
 2. **Clerk production instance, before launch.** Production runs on a development instance. That instance allows 100 Backend API requests per 10 seconds. The admin check makes at most one (`users.getUser`) per signed-in user per minute per server instance, and none with the optional session-token claim (see [Clerk](#clerk)). Moving needs the custom domain, Google OAuth credentials and DNS, then new values for both keys and the webhook secret.
-3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 17 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
+3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 18 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
 4. **SnapTrade: when Player broker verification launches,** and only after the gaps listed under [SnapTrade](#snaptrade) are fixed.
 5. **Resend: code first.** The digest sends to placeholder addresses.
 6. **Cloudflare R2: code first, lowest priority.** No code path uploads anything.
@@ -50,7 +50,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Required:** yes, for anything that touches data.
 - **If missing:** the first query throws `DATABASE_URL environment variable is not set`. `next build` still succeeds, because the client is a lazy proxy. `db:seed` throws at start.
 - **Get it:** production: Supabase dashboard → project → Connect → connection string. Local: `postgresql://deepmint:deepmint@localhost:5433/deepmint`. docker-compose publishes Postgres on host port **5433**, not 5432.
-- **Verify:** locally, `pnpm --filter @deepmint/db db:migrate` applies migrations 0000–0007 (drizzle-kit reads `packages/db/.env`, see [Local env files](#local-env-files)).
+- **Verify:** locally, `pnpm --filter @deepmint/db db:migrate` applies migrations 0000–0015 (drizzle-kit reads `packages/db/.env`, see [Local env files](#local-env-files)).
 - **Production:** set (last recorded). Migrations 0000–0007 are applied; 0007 was applied and verified on 2026-10-05.
 - **Schema changes reach Supabase by hand:**
   1. Paste the migration's SQL into the Supabase SQL editor.
@@ -69,10 +69,10 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Production:** set, on a Clerk **development** instance (`pk_test_` keys). Sign-in methods are set in the Clerk dashboard, not in code; Facebook and X were never configured. See priority 2 for the move to a production instance.
 
 **`CLERK_WEBHOOK_SECRET`**
-- **Powers:** `POST /api/webhooks/clerk` (`apps/web/app/api/webhooks/clerk/route.ts:25`), which creates the Player entity on `user.created` and syncs its name and avatar on `user.updated` (the slug never changes). Those are the only events it handles.
+- **Powers:** `POST /api/webhooks/clerk` (`apps/web/app/api/webhooks/clerk/route.ts:25`), which creates the Player entity on `user.created`, syncs its name and avatar on `user.updated` (the slug never changes), and anonymises the account on `user.deleted`, which stays ranked as "Deleted user". Those are the only events it handles.
 - **Required:** no. If the webhook never fires, the tRPC self-heal creates the entity on the user's first tRPC request.
 - **If missing:** every delivery gets a 500, because the route throws before checking headers.
-- **Get it:** Clerk dashboard → Webhooks → add endpoint `https://www.deepmint.ai/api/webhooks/clerk`, subscribe to `user.created` and `user.updated`, copy the signing secret. Use the `www` host: the bare `deepmint.ai` answers with a 307 redirect, which Svix does not follow.
+- **Get it:** Clerk dashboard → Webhooks → add endpoint `https://www.deepmint.ai/api/webhooks/clerk`, subscribe to `user.created`, `user.updated` and `user.deleted`, copy the signing secret. Use the `www` host: the bare `deepmint.ai` answers with a 307 redirect, which Svix does not follow.
 - **Verify:** `curl -X POST https://www.deepmint.ai/api/webhooks/clerk` returns `400 Missing svix headers` when the secret is set, and 500 when it is not. A real delivery logs `[clerk webhook] entity ensured` in the Vercel function logs. Locally, `apps/web/__tests__/webhooks/clerk.test.ts` signs payloads with this secret (from the root `.env.local`) and posts them to the dev server.
 - **Production:** secret set (probe 2026-10-05 returned the 400). Whether an endpoint is registered in Clerk is unverified; notes from 2026-08-11 say none was, and production entities came from the self-heal.
 
@@ -106,7 +106,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
   - The "current price" is the **previous session's close** (previous-day aggregate first, then the snapshot's `prevDay`; the code notes the snapshot endpoint returns 403 on the current plan). If both calls fail, the lookup throws; it never invents a price. Since the next-close entry change, claims never use it; it prices paper trades and the ticker page.
   - The plan has **no index data**: `I:VIX` and `I:SPX` return 403 NOT_AUTHORIZED (checked 2026-10-06). The regime's S&P 500 30-day return is therefore measured on SPY, and VIX is recorded as defaulted in every snapshot (`market_regimes.defaulted_fields`); it is never replaced by a made-up value. A plan with index data fills VIX in with no code change.
   - Every call takes the next slot in a queue spaced 12.5 s apart, sized for a 5-requests-per-minute plan, so calls started together run one after another. The queue is per process: separate serverless instances do not share it.
-  - `getLatestClose` and `getLatestCloses` (in `@deepmint/shared`) return the latest close with its session date, memoised for 5 minutes per process, shared by concurrent callers and cached in Upstash when configured. No caller uses them yet. `getCurrentPrice` and `getEODPrice` are never cached. The regime indicators are cached only with Upstash.
+  - `getLatestClose` and `getLatestCloses` (in `@deepmint/shared`) return the latest close with its session date, memoised for 5 minutes per process, shared by concurrent callers and cached in Upstash when configured. Paper trades and valuations, Signal Simulate, the ticker page header and the daily paper-equity snapshot use them. `getCurrentPrice` and `getEODPrice` are never cached. The regime indicators are cached only with Upstash.
 - **Get it:** Massive (polygon.io) dashboard → API keys.
 - **Verify:** with the key exported in your shell, run `pnpm --filter @deepmint/worker exec tsx -e 'import("@deepmint/shared").then(async (m) => console.log(await m.getCurrentPrice("AAPL")))'`. It prints AAPL's previous close in cents; `22500` means the key was not read.
 - **Production:** set (last recorded).
@@ -133,13 +133,13 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 
 **Variables:** `INNGEST_EVENT_KEY` (lets the app send events) and `INNGEST_SIGNING_KEY` (lets Inngest Cloud invoke `/api/inngest`). Both are read implicitly by inngest 4.1.0. The Vercel integration provides them as `INNGEST_WORKFLOW_INNGEST_EVENT_KEY` and `INNGEST_WORKFLOW_INNGEST_SIGNING_KEY`. `packages/api/lib/inngestEnv.ts` copies those onto the standard names when the standard names are unset. It runs before any Inngest client is built: `packages/api/trpc.ts` imports it on its first line, so it precedes the clients the claims, social and instruments routers build when they load, and `apps/worker/inngest.ts` and `apps/web/app/api/inngest/inngest-env.ts` (imported first by the route) import it too. An unprefixed `INNGEST_EVENT_KEY` is therefore not needed.
 
-- **Powers:** all 17 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 8 crons (ingest, markout, market regime, broker sync, consensus, influence, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
+- **Powers:** all 18 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 9 crons (ingest, markout, market regime, broker sync, consensus, influence, paper equity, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
 - **Required:** yes, in production.
 - **If missing:** the SDK runs in cloud mode unless `INNGEST_DEV` is set. In cloud mode `send()` throws without an event key, and `/api/inngest` cannot verify Inngest's requests without the signing key, so no function runs.
 - **Before wave 1** the tRPC routers' clients never saw the mapping, so with only the prefixed keys their `claims/created` and `social/followed` sends would have failed silently, and a stale compiled `apps/worker/inngest.js` without it shadowed `inngest.ts` in the production bundle. Both are fixed; whether production ever lacked an unprefixed `INNGEST_EVENT_KEY` was not recorded.
 - **Get it:** Vercel → Integrations → Inngest (keys arrive prefixed), or Inngest dashboard → Production → event key and signing key.
 - **Verify:**
-  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job, 17 since `notify-followers-new-claim`).
+  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job, 17 since `notify-followers-new-claim`, 18 since `paper-equity-snapshot`).
   - For the routers, follow and then unfollow any profile, and look for a `social/followed` event in the Inngest dashboard's event list. Do not test with a claim: claims are append-only.
 - **Production:** app `deepmint` is synced through the Vercel integration. The route sets `maxDuration = 300`.
 
@@ -248,9 +248,9 @@ The RSS lane has no variable. It reads Guides with `is_allowlisted = true` and a
 
 These are read from the **root** `.env.local` by `apps/web/vitest.config.ts`.
 
-- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 67 tests in 6 files skip. The 6 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`. One MCP test also needs `TEST_MCP_WRITES=1`, because it writes a claim that cannot be deleted.
+- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 72 tests in 6 files skip. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`. One MCP test also needs `TEST_MCP_WRITES=1`, because it writes a claim that cannot be deleted.
   - Mint it at `/admin/api-keys` as an admin, in the database used by the server under test. The default read scopes are enough.
-  - Admins are the only people who can mint keys; the UI offers only the 3 read scopes.
+  - Admins are the only people who can mint keys; the UI offers the 3 read scopes and `claims:write` for an agent.
 - **`TEST_BASE_URL`**: default `http://localhost:3000`. The server must be running.
 - **`TEST_ENTITY_SLUG`**: default `demo-guide`, which no seed creates. Use a seeded slug such as `sarah-chen`.
 

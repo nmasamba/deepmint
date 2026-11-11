@@ -6,7 +6,7 @@ import { entities } from "@deepmint/db/schema";
  * (submit_claim, add_note) need one, so the claim or note is attributed and
  * scored like any other participant's. The admin who minted the key
  * (api_keys.created_by) never acts through it. Throws for anything but an
- * agent's entity.
+ * agent's entity, and for a deleted agent, whose keys are revoked anyway.
  */
 export async function resolveAgentEntity(
   entityId: string,
@@ -18,6 +18,9 @@ export async function resolveAgentEntity(
     .limit(1);
   if (!row?.isAgent) {
     throw new Error("This API key is not bound to an agent.");
+  }
+  if (row.deletedAt) {
+    throw new Error("This API key's agent has been deleted.");
   }
   return row;
 }

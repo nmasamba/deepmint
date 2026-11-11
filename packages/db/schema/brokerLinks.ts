@@ -13,6 +13,9 @@ export const brokerLinks = pgTable('broker_links', {
   syncStatus: brokerSyncStatusEnum('sync_status').default('pending'),
   lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
   syncErrorMessage: varchar('sync_error_message', { length: 500 }),
+  // This account has imported a trade in a tracked instrument; cleared on a
+  // failed sync or a disconnect. Any such account makes the entity's
+  // broker_link_status 'verified', which is what the badge reads.
   isVerified: boolean('is_verified').default(false),
   metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

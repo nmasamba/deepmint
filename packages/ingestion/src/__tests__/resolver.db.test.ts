@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from "vitest";
-import { db, eq, like } from "@deepmint/db";
-import { entities } from "@deepmint/db/schema";
+import { db, eq, like, inArray } from "@deepmint/db";
+import { entities, guideApplications } from "@deepmint/db/schema";
 import { resolveOrCreateGuide } from "../sources/resolver";
 
 /**
@@ -12,6 +12,12 @@ describe.skipIf(!process.env.DATABASE_URL)("resolveOrCreateGuide (database)", ()
   const prefix = `zz-resolver-${Date.now()}`;
 
   afterAll(async () => {
+    const ours = (
+      await db.select({ id: entities.id }).from(entities).where(like(entities.slug, `${prefix}%`))
+    ).map((e) => e.id);
+    if (ours.length) {
+      await db.delete(guideApplications).where(inArray(guideApplications.entityId, ours));
+    }
     await db.delete(entities).where(like(entities.slug, `${prefix}%`));
   });
 
@@ -56,6 +62,42 @@ describe.skipIf(!process.env.DATABASE_URL)("resolveOrCreateGuide (database)", ()
   it("matches an existing ingested Guide by slug", async () => {
     const first = await resolveOrCreateGuide({ handle: `${prefix} Research` });
     expect(await resolveOrCreateGuide({ handle: `${prefix}  research ` })).toBe(first);
+  });
+
+  it("keeps sending ratings to a Guide linked to its analyst's account", async () => {
+    const guideId = await resolveOrCreateGuide({ handle: `${prefix} Analyst` });
+    const [player] = await db
+      .insert(entities)
+      .values({ type: "player", displayName: "Old record", slug: `${prefix}-analyst-old` })
+      .returning({ id: entities.id });
+    // As an approved, linked application leaves them.
+    await db
+      .update(entities)
+      .set({ clerkUserId: `${prefix}-clerk-analyst` })
+      .where(eq(entities.id, guideId));
+    await db.insert(guideApplications).values({
+      entityId: player!.id,
+      pitch: "I publish the Analyst ratings.",
+      claimedGuideId: guideId,
+      linkedGuideId: guideId,
+      status: "approved",
+    });
+    expect(await resolveOrCreateGuide({ handle: `${prefix} Analyst` })).toBe(guideId);
+  });
+
+  it("does not send ratings to a Guide with an account and no link", async () => {
+    const [selfMade] = await db
+      .insert(entities)
+      .values({
+        type: "guide",
+        displayName: "Self-made",
+        slug: `${prefix}-desk`,
+        clerkUserId: `${prefix}-clerk-desk`,
+      })
+      .returning({ id: entities.id });
+    const guideId = await resolveOrCreateGuide({ handle: `${prefix} Desk` });
+    expect(guideId).not.toBe(selfMade!.id);
+    expect((await entityById(guideId)).slug).toBe(`${prefix}-desk-2`);
   });
 
   it("caps a long name at the column width instead of failing", async () => {

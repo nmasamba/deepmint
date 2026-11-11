@@ -31,6 +31,9 @@ export function PortfolioDetail({ portfolioId }: PortfolioDetailProps) {
   const { data: perf } = trpc.paper.portfolioPerformance.useQuery({
     portfolioId,
   });
+  const { data: equityHistory } = trpc.paper.equityHistory.useQuery({
+    portfolioId,
+  });
 
   const closeMutation = trpc.paper.closeTrade.useMutation({
     onSuccess: (trade) => {
@@ -106,11 +109,12 @@ export function PortfolioDetail({ portfolioId }: PortfolioDetailProps) {
         </div>
       )}
 
-      {/* Equity curve placeholder */}
+      {/* Equity curve: daily closes since the start, then now */}
       {perf && (
         <EquityCurve
           startingBalance={perf.startingBalanceCents}
           currentEquity={perf.totalEquityCents}
+          history={equityHistory}
         />
       )}
 

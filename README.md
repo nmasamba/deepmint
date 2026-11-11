@@ -12,16 +12,16 @@ Over many claims this builds a scorecard: how often someone is right, how much t
 
 Today Deepmint covers seven large US technology stocks, the "Magnificent 7": Apple, Microsoft, Alphabet, Amazon, Nvidia, Meta and Tesla. That is a deliberate choice: more stocks will follow, but only once the core product has matured. [What's live today](#whats-live-today) has the details.
 
-**Where to find it:** the app is live, ahead of its public launch, at [www.deepmint.ai](https://www.deepmint.ai). Sign up there, then log a call with **New Claim** (or **Make a Prediction** on the dashboard). Every page except the landing page needs an account.
+**Where to find it:** the app is live, ahead of its public launch, at [www.deepmint.ai](https://www.deepmint.ai). Sign up there, then log a call with **New Claim**, in the top bar or on the dashboard. Ticker pages, Learn and claim pages are public; everything else needs an account.
 
 ## Who is it for?
 
 | Who | What they can do today |
 |---|---|
-| **Guides**: analysts and research firms | Their calls are collected for them. Deepmint reads their published posts, or an archive of past posts, and an AI model extracts the calls. A Guide needs no account. Nobody can sign up as a Guide or claim a Guide profile yet: the landing page's "Sign Up as a Guide" button creates an ordinary Player account. |
+| **Guides**: analysts and research firms | Their calls are collected for them. Deepmint reads their published posts, or an archive of past posts, and an AI model extracts the calls. A Guide needs no account. An analyst can also apply from Settings, where the landing page's "Apply as a Guide" leads: an admin approves them as a Guide, or makes the Guide profile Deepmint already built for them their account. |
 | **Players**: everyone who signs up | Log your own claims in the web app. They are checked against real prices by the same rules as Guides' claims. You appear on the leaderboard next to the Guides. You can also run practice ("paper") portfolios with virtual money. |
 | **Followers** | This is not a separate account type. Any Player can follow Guides and other Players, read their claims in a "Following" feed, keep a watchlist of stocks, and use "Mirror Signals" to copy someone's calls into a paper portfolio. A mirror copies a call when it goes live, if the call is dated within the last 48 hours: an old rating or a late approval is not copied, and neither is a backfill or a neutral call. |
-| **Admins** | Admin rights are granted by the maintainer in Clerk. Admins approve or reject claims held for review, switch Guides' feeds on, manage the list of stocks and issue API keys. |
+| **Admins** | Admin rights are granted by the maintainer in Clerk. Admins approve or reject claims held for review and Guide applications, switch Guides' feeds on, manage the list of stocks, issue API keys and delete accounts. |
 | **Developers and AI agents** | Read scores, consensus and leaderboards through a REST API, using a key issued by an admin. AI agents can use the same data through the MCP server at `/api/mcp`, with the same kind of key. |
 
 ## Why does it exist?
@@ -53,7 +53,7 @@ flowchart TD
 
 1. **A claim is captured.**
    - **Players** use the claim form. They pick a stock, a direction (long = up, short = down, neutral = roughly flat), a horizon and a confidence from 0 to 100 (the slider starts at 50 and is always sent), and can add a target price, a written rationale and tags. The claim goes live at once. Its entry price is the **closing price of the first trading session after it was made**: the same day's close if it was logged before 16:00 ET on a trading day, otherwise the next session's. It is set when the claim is checked, so nothing that had already moved when the claim was made counts.
-   - **Guides**: every weekday a job reads new posts from the Guide feeds an operator has switched on. If enabled, it also reads a news feed of Wall Street analyst ratings; that feed is off by default. An operator can also load an archive of a Guide's past posts (a "backfill"). Each post is stored with a fingerprint (a hash of its link, text and publication date), so a post seen again is skipped. A feed item with no date is fingerprinted with the time it was fetched instead, so it can be stored again on a later run.
+   - **Guides**: every weekday a job reads new posts from the Guide feeds an operator has switched on, taking only posts published in the last 7 days: older posts are left to a backfill, which dates their claims as published. If enabled, it also reads a news feed of Wall Street analyst ratings; that feed is off by default. An operator can also load an archive of a Guide's past posts (a "backfill"). Each post is stored with a fingerprint (a hash of its link, text and publication date), so a post seen again is skipped. A feed item with no date is fingerprinted without one, so it is stored once, dated when first seen.
 2. **An AI model reads Guide posts.** A large language model (open models served through Hugging Face) pulls out each call: which of the 7 stocks, which direction, which horizon and any target price. It keeps a supporting quote and the stated horizon only if they appear word for word in the post. Posts that name none of the 7 companies are skipped without calling the model.
 3. **Uncertain claims wait for a person.** An extracted claim goes live only if all of these hold:
    - the model is at least 80% confident;
@@ -68,7 +68,7 @@ flowchart TD
    - whether the target price was reached.
 6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures. Players also get risk measures such as the Sharpe ratio and maximum drawdown, worked out from a daily book: each claim is held from its entry close to its exit close and marked at every close in between, which takes at most one Polygon request per stock.
 7. **Leaderboard and consensus.** The leaderboard ranks authors by the new scores. For each stock, Deepmint recalculates the consensus: a weighted vote (bullish, bearish or neutral) of the active claims whose horizon has not yet passed, plus the average of their price targets and how widely those targets spread. Claims count for more when their author has a higher EIV, is a Guide or is a broker-verified Player, when they are newer and when their confidence is higher.
-8. **Nightly fingerprint.** Every night a job hashes the claims recorded the previous day, whatever date they carry, into a single Merkle root and stores it in the database. The roots are not yet published, anchored outside the database or checkable by users.
+8. **Nightly fingerprint.** Every night a job hashes the claims recorded the previous day, whatever date they carry, into a single Merkle root and stores it in the database. Signed-in users can read every root at `/audit`, and each claim's page shows its proof against its day's root, which the browser checks. The roots are not anchored outside the database.
 
 ## When do things happen?
 
@@ -76,6 +76,7 @@ The jobs tied to the US market run on US Eastern time (`TZ=America/New_York` in 
 
 | Job | What it does | Eastern | UTC (EDT / EST) | Days |
 |---|---|---|---|---|
+| Paper equity | Records each paper portfolio's value at the previous session's close, for its equity curve | 07:00 | 11:00 / 12:00 | Tue–Sat |
 | Daily digest | Emails a summary of followed activity (not delivered today; see below) | 08:00 | 12:00 / 13:00 | Mon–Fri |
 | Ingest | Collects new Guide posts, then hands them to extraction | 16:30 | 20:30 / 21:30 | Mon–Fri |
 | Markout | Checks matured claims against closing prices | 17:00 | 21:00 / 22:00 | Mon–Fri |
@@ -110,7 +111,7 @@ A claim's end date is its entry date plus the horizon in calendar days. (For old
 | REST API | `https://www.deepmint.ai/api/v1`: `GET /entities/{slug}/scores`, `GET /instruments/{ticker}/consensus`, `GET /leaderboard?metric=…`, plus the spec at `/openapi.json` | The three data endpoints need an API key (`Authorization: Bearer dm_live_…`), and only admins can create keys. The spec needs no key; signed-in users can also browse it at `/docs/api`. |
 | AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Each tool checks its own scope: `consensus:read` for regime and consensus, `leaderboard:read` for the leaderboard, `scores:read` for a track record (profile, scores, and claims with outcomes). Instrument search needs only a valid key. The write tools (`submit_claim`, `add_note`) need `claims:write` and a key bound to an agent. An agent is a Player of its own, marked "AI agent" on its profile, so its claims are scored like anyone's and never land on the admin who minted the key. |
 | App API (tRPC) | `/api/trpc` | Used by the web app itself. Ticker, claim and market reads answer without sign-in; leaderboard and profile reads need a signed-in user. |
-| Background jobs | 17 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
+| Background jobs | 18 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
 | Database | PostgreSQL on Supabase | Operators only |
 | Outside services | Clerk (sign-in), Polygon (end-of-day stock prices), Hugging Face router (the extraction model) | — |
 
@@ -124,7 +125,7 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
   - Deepmint stays with the Mag 7 until its core features have matured. Covering more stocks is planned for after that, not before.
   - The seven Mag-7 stocks were added to production on 2026-08-11.
   - Extraction accepts only those 7 tickers (AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA). Stock pages render only for them; any other symbol shows "Coming soon".
-  - Groundwork for more stocks already exists but is dormant. An admin button can add 50 S&P 500 stocks, and self-logged claims, search and paper trades accept any active stock in the database. There is no record of whether the button has been used in production. Pressing it before expansion is ready would expose the gaps listed under [instrument-universe-inconsistent](docs/KNOWN_ISSUES.md#instrument-universe-inconsistent).
+  - Groundwork for more stocks already exists but is dormant. An admin button can add 50 S&P 500 stocks, but claims, search, paper trades and consensus accept only `COVERED_TICKERS` in `@deepmint/shared` (the Mag 7), and ticker pages, ingestion and MCP only `MAG7_TICKERS`, so stocks it adds stay out of every surface until both lists widen. There is no record of whether the button has been used in production.
 - **Keys.** Production key status was last recorded on 2026-07-02 in [docs/EXTERNAL_KEYS.md](docs/EXTERNAL_KEYS.md); it could not be re-checked on 2026-10-05. At that time the database, Clerk, Polygon, Hugging Face and Inngest keys were set, and Upstash, Sentry, R2, SnapTrade and Resend were empty.
 
 **What works:**
@@ -148,8 +149,8 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - **Not working yet:** Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
 - **Error tracking and snapshots.** Error tracking (Sentry) and source snapshots (Cloudflare R2) are not wired into the app. Setting their keys alone does not turn them on.
-- **Audit.** The nightly audit roots are not published. Claims stored before migration 0012 with an earlier date, such as backfilled history, are in no root.
-- **Missing features.** There is no way to become a Guide or request a new stock.
+- **Audit.** The roots are listed at `/audit` for signed-in users and each claim page shows its proof, but nothing anchors the roots outside the database yet. Claims stored with an earlier date before the version 2 audit shipped (PR #17), such as backfilled history, are in no root. Roots from before PR #17 (leaf version 1) cover fewer fields, and a claim page shows no proof when such a root cannot be rebuilt from the ledger.
+- **Missing features.** There is no way to request a new stock.
 
 The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 
@@ -157,16 +158,16 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 
 | Term | Meaning |
 |---|---|
-| **Claim** | A dated call on one stock: a direction (long, short or neutral), a horizon, and an optional target price and confidence. The app also calls it a "prediction". |
+| **Claim** | A dated call on one stock: a direction (long, short or neutral), a horizon, and an optional target price and confidence. |
 | **Horizon** | How long a claim runs before it is checked: 1 day, 1 week, 1 month, 3 months, 6 months or 1 year. |
 | **Entry price** | The closing price a claim is measured from. For a claim logged now it is the close of the first trading session after it was made, set at markout and recorded on the outcome. For dated or backfilled claims it is the close on that date. Self-logged claims made before the next-close change shipped keep the previous-day close they were stored with. |
 | **Markout** | Checking a claim against the market when its horizon ends, using that day's closing price. Each claim gets one **outcome**: its return, whether the direction was right, and whether the target was reached. |
 | **Hit rate** | The share of an author's checked claims whose direction was right. |
 | **Basis points (bps)** | Hundredths of a percent: 100 bps = 1%. Returns are stored in basis points. |
-| **EIV** | Deepmint's 0–100 "edge" score. It combines how far the hit rate is above 50%, the average return, calibration (Guides only), and a discount for small samples. It is 0 when the hit rate is 50% or lower, or when the average return is zero or negative. The code calls it "Expected Information Value"; profile pages say "Earned Information Value". |
+| **EIV** | Deepmint's 0–100 "edge" score. It combines how far the hit rate is above 50%, the average return, calibration (Guides only), and a discount for small samples. It is 0 when the hit rate is 50% or lower, or when the average return is zero or negative. It stands for Expected Information Value. |
 | **Consensus** | For each stock, stored as one row per day: the weighted share of bullish, bearish and neutral active claims whose horizon has not passed, an overall direction, a 0–1 conviction, and the average price target with its dispersion. |
-| **Guide** | An analyst or firm whose published calls Deepmint collects. Guides are created only by the ingestion pipeline (and, with fictional data, by the local seed script). |
-| **Player** | Anyone who signs up. Every account is a Player. |
+| **Guide** | An analyst or firm whose published calls Deepmint collects. Guides are created by the ingestion pipeline and when an admin approves a user's Guide application (and, with fictional data, by the local seed script). An approval can link the user's account to the Guide already ingested for them. |
+| **Player** | Anyone who signs up. Every account starts as a Player. |
 
 ## For developers
 
@@ -176,9 +177,9 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 |---|---|
 | Monorepo | pnpm 10.32.1 workspaces, Turborepo 2 |
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui components, Serwist (PWA) |
-| API | tRPC v11 (15 routers, 75 procedures), REST `/api/v1`, MCP via `mcp-handler` |
+| API | tRPC v11 (16 routers, 82 procedures), REST `/api/v1`, MCP via `mcp-handler` |
 | Database | PostgreSQL (16 in Docker locally, Supabase in production) with Drizzle ORM 0.41 |
-| Background jobs | Inngest 4 (17 functions) |
+| Background jobs | Inngest 4 (18 functions) |
 | Auth | Clerk (`@clerk/nextjs` 7) |
 | Market data | Polygon.io through `@massive.com/client-js` (US stock endpoints only) |
 | Extraction LLM | OpenAI SDK pointed at the Hugging Face router: `openai/gpt-oss-120b:fastest`, with fallback `meta-llama/Llama-3.3-70B-Instruct:fastest` |
@@ -190,10 +191,10 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 ```
 apps/
   web/         Next.js app: pages, /api/trpc, /api/v1, /api/mcp, Clerk webhook, /api/inngest
-  worker/      The 17 Inngest functions (served by apps/web) and the backfill CLI
+  worker/      The 18 Inngest functions (served by apps/web) and the backfill CLI
 packages/
   api/         tRPC routers
-  db/          Drizzle schema, migrations (drizzle/0000–0011), seed scripts
+  db/          Drizzle schema, migrations (drizzle/0000–0015), seed scripts
   ingestion/   Feed adapters, LLM extractor, content hashing
   scoring/     Pure scoring functions: hit rate, Brier, Sharpe, EIV, consensus, regime
   shared/      Polygon price client, Merkle tree, constants (Mag-7 list, horizons)
@@ -267,7 +268,7 @@ Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `
 pnpm --filter @deepmint/db db:migrate
 ```
 
-This applies the committed migrations 0000–0011. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
+This applies the committed migrations 0000–0015. Do not run `db:generate` as a setup step; it is only for after you edit the schema.
 
 **4. Seed the local database (local only, once)**
 
@@ -331,15 +332,15 @@ In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`.
 
 ### Tests
 
-These results were measured on 2026-11-02 with no `.env.local`.
+These results were measured on 2026-11-10 with no `.env.local`.
 
 | Command | Result without keys | What enables more |
 |---|---|---|
-| `pnpm --filter @deepmint/scoring test` | 127 passed (6 files) | Nothing needed |
-| `pnpm --filter @deepmint/shared test` | 69 passed, 2 skipped (6 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
-| `pnpm --filter @deepmint/api test` | 32 passed, 39 skipped (9 files) | `DATABASE_URL` in the root `.env.local` runs the 39 database tests. They read, or write inside a transaction they roll back. |
-| `pnpm --filter @deepmint/ingestion test` | 83 passed, 11 skipped | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 5 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
-| `pnpm --filter @deepmint/web test` | 67 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 2 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
+| `pnpm --filter @deepmint/scoring test` | 135 passed (6 files) | Nothing needed |
+| `pnpm --filter @deepmint/shared test` | 74 passed, 2 skipped (6 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
+| `pnpm --filter @deepmint/api test` | 35 passed, 55 skipped (11 files) | `DATABASE_URL` in the root `.env.local` runs the 55 database tests. They read, write inside a transaction they roll back, or create their own `zz-` rows and delete them afterwards. |
+| `pnpm --filter @deepmint/ingestion test` | 85 passed, 13 skipped (12 files) | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 7 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
+| `pnpm --filter @deepmint/web test` | 72 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
 
 The worker has no tests.
 

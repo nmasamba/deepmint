@@ -11,7 +11,7 @@ export default function OfflinePage() {
       </h1>
       <p className="mt-2 max-w-sm text-text-secondary">
         Deepmint requires an internet connection to fetch live market data and
-        analyst predictions. Check your connection and try again.
+        analyst claims. Check your connection and try again.
       </p>
       <button
         type="button"

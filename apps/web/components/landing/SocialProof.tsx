@@ -9,7 +9,7 @@ export function SocialProof() {
 
   const stats = [
     {
-      label: "Predictions Tracked",
+      label: "Claims Tracked",
       value: data?.claimsCount ?? 0,
     },
     {

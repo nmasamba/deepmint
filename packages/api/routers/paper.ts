@@ -1,14 +1,20 @@
 import { z } from "zod";
-import { eq, and, isNull, sql } from "@deepmint/db";
+import { eq, and, asc, isNull, sql } from "@deepmint/db";
 import {
   paperPortfolios,
   paperTrades,
+  paperEquitySnapshots,
   instruments,
   signalSimulatePortfolios,
 } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
-import { getLatestClose, getLatestCloses } from "@deepmint/shared";
+import {
+  COVERED_TICKERS,
+  getLatestClose,
+  getLatestCloses,
+  isCoveredTicker,
+} from "@deepmint/shared";
 import {
   PAPER_STARTING_BALANCE_CENTS,
   availableCashCents,
@@ -133,17 +139,28 @@ export const paperRouter = router({
         });
       }
 
-      // Verify instrument exists
+      // Verify instrument exists, is active and is covered, as for claims
       const [instrument] = await ctx.db
         .select()
         .from(instruments)
-        .where(eq(instruments.id, input.instrumentId))
+        .where(
+          and(
+            eq(instruments.id, input.instrumentId),
+            eq(instruments.isActive, true),
+          ),
+        )
         .limit(1);
 
       if (!instrument) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Instrument not found",
+          message: "Instrument not found or inactive",
+        });
+      }
+      if (!isCoveredTicker(instrument.ticker)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${instrument.ticker} is not covered. Deepmint covers the Mag 7: ${COVERED_TICKERS.join(", ")}.`,
         });
       }
 
@@ -308,6 +325,40 @@ export const paperRouter = router({
         trades,
         availableCashCents: availableCash,
       };
+    }),
+
+  /**
+   * A portfolio's equity at each session's close, from the daily
+   * paper-equity-snapshot job (D19), oldest first. The chart adds the start
+   * and the live valuation from portfolioPerformance.
+   */
+  equityHistory: protectedProcedure
+    .input(z.object({ portfolioId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const [portfolio] = await ctx.db
+        .select()
+        .from(paperPortfolios)
+        .where(
+          and(
+            eq(paperPortfolios.id, input.portfolioId),
+            eq(paperPortfolios.entityId, ctx.entity.id),
+          ),
+        )
+        .limit(1);
+      if (!portfolio) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Portfolio not found" });
+      }
+
+      const points = await ctx.db
+        .select({
+          date: paperEquitySnapshots.asOfDate,
+          equityCents: paperEquitySnapshots.equityCents,
+        })
+        .from(paperEquitySnapshots)
+        .where(eq(paperEquitySnapshots.portfolioId, portfolio.id))
+        .orderBy(asc(paperEquitySnapshots.asOfDate));
+
+      return points;
     }),
 
   /** Compute portfolio performance metrics. */

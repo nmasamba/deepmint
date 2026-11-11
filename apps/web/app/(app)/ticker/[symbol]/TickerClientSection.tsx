@@ -38,7 +38,6 @@ export function TickerClientSection({
       slug: string;
       type: "player" | "guide";
       avatarUrl: string | null;
-      isVerified: boolean | null;
       brokerLinkStatus: string | null;
     };
     outcomes: number;

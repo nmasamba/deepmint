@@ -4,6 +4,11 @@ import {
   ensureEntityForClerkUser,
   syncEntityFromClerk,
 } from "@deepmint/db/queries/ensureEntityForClerkUser";
+import {
+  anonymiseClerkUser,
+  clearSnaptradeUser,
+} from "@deepmint/db/queries/anonymiseEntity";
+import { deleteUser, getSnapTradeClient } from "@deepmint/api/lib/snaptrade";
 import { clerkDisplayName, slugify } from "@deepmint/shared";
 
 interface ClerkWebhookEvent {
@@ -91,6 +96,29 @@ export async function POST(req: Request) {
     console.log("[clerk webhook] entity ensured", {
       clerkUserId: id,
       slug: entity.slug,
+    });
+  }
+
+  if (event.type === "user.deleted") {
+    // Anonymise the account (D18): its record stays ranked as "Deleted user".
+    // Idempotent. A user with no entity yet gets a deleted placeholder, so a
+    // late user.created or user.updated finds it and creates nothing.
+    const result = event.data.id ? await anonymiseClerkUser(event.data.id) : null;
+    if (result?.snaptradeUserId && getSnapTradeClient()) {
+      try {
+        await deleteUser(result.snaptradeUserId);
+        await clearSnaptradeUser(result.snaptradeEntityId!);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("[clerk webhook] SnapTrade deleteUser failed", err);
+      }
+    }
+
+    // eslint-disable-next-line no-console
+    console.log("[clerk webhook] user deleted", {
+      clerkUserId: event.data.id,
+      entityId: result?.entityId ?? null,
+      alreadyDeleted: result?.alreadyDeleted ?? null,
     });
   }
 

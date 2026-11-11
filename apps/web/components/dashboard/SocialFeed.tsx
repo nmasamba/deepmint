@@ -66,7 +66,7 @@ export function SocialFeed() {
         <Users className="mx-auto h-8 w-8 text-text-secondary/40" />
         <p className="mt-3 text-text-secondary">Your feed is empty.</p>
         <p className="mt-1 text-sm text-text-secondary/60">
-          Follow Guides and Players to see their predictions here.
+          Follow Guides and Players to see their claims here.
         </p>
       </div>
     );

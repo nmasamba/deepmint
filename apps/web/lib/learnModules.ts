@@ -146,7 +146,7 @@ On Deepmint, Guide profiles show **hit rate** alongside **average return** to gi
   },
   {
     id: "why-predictions-need-horizons",
-    title: "Why Predictions Need Horizons",
+    title: "Why Claims Need Horizons",
     description:
       "Understand why time horizons matter and how the same analyst can have different accuracy at different timeframes.",
     icon: Clock,
@@ -154,16 +154,16 @@ On Deepmint, Guide profiles show **hit rate** alongside **average return** to gi
     difficulty: "beginner",
     sections: [
       {
-        title: "The Problem with Open-Ended Predictions",
+        title: "The Problem with Open-Ended Claims",
         content: `"Apple will go up."
 
-When? By how much? Without a time horizon, this prediction is unfalsifiable — and therefore useless.
+When? By how much? Without a time horizon, this claim is unfalsifiable — and therefore useless.
 
-On Deepmint, every claim must include a **horizon**: 1 day, 1 week, 1 month, 3 months, 6 months, or 1 year. When the horizon expires, the prediction is evaluated against actual market data. No ambiguity.`,
+On Deepmint, every claim must include a **horizon**: 1 day, 1 week, 1 month, 3 months, 6 months, or 1 year. When the horizon expires, the claim is evaluated against actual market data. No ambiguity.`,
       },
       {
         title: "Different Skills at Different Horizons",
-        content: `A guide might have an 80% hit rate on 1-year calls but only 45% on 1-week calls. Why?
+        content: `A guide might have an 80% hit rate on 1-year claims but only 45% on 1-week claims. Why?
 
 - **Short-term** accuracy requires understanding market microstructure, momentum, and sentiment flows.
 - **Long-term** accuracy requires fundamental analysis, understanding business models, and patience.
@@ -174,9 +174,9 @@ These are different skills. Deepmint tracks Guides' hit rates at each horizon se
         title: "Horizon and Risk",
         content: `Longer horizons generally mean more uncertainty but also more potential for fundamental value to be realized.
 
-A 1-day prediction on a stock is essentially a bet on short-term momentum. A 1-year prediction is a bet on the business.
+A 1-day claim on a stock is essentially a bet on short-term momentum. A 1-year claim is a bet on the business.
 
-When following Guides on Deepmint, pay attention to which horizon they specialize in. If you're a long-term investor, a guide who's great at 1-day calls may not be relevant to you.`,
+When following Guides on Deepmint, pay attention to which horizon they specialize in. If you're a long-term investor, a guide who's great at 1-day claims may not be relevant to you.`,
       },
     ],
   },
@@ -193,7 +193,7 @@ When following Guides on Deepmint, pay attention to which horizon they specializ
         title: "What is Calibration?",
         content: `Calibration measures how well your stated confidence matches reality.
 
-If you say you're 70% confident about 10 predictions, and 7 of them turn out correct — you're perfectly calibrated.
+If you say you're 70% confident about 10 claims, and 7 of them turn out correct — you're perfectly calibrated.
 
 Most people are **overconfident**: they say 90% when they should say 65%. This is one of the most robust findings in behavioral psychology.`,
       },
@@ -223,7 +223,7 @@ On Deepmint, a Guide's **Expected Information Value (EIV)** is multiplied by (1 
     quiz: [
       {
         question:
-          "If you rate 10 predictions at 80% confidence and 6 are correct, you are:",
+          "If you rate 10 claims at 80% confidence and 6 are correct, you are:",
         options: ["Well-calibrated", "Overconfident", "Underconfident"],
         correctIndex: 1,
       },
@@ -278,7 +278,7 @@ Either side needs the cash: a short sets aside its value until you close it.
 
 To close a position later, click the **Close** button next to any open trade. The P&L is calculated automatically.
 
-Track your performance with the equity curve chart and the summary metrics at the top of your portfolio.`,
+The equity curve plots your portfolio's value at each trading day's close, recorded the next morning, and the summary metrics at the top show where it stands now.`,
       },
     ],
   },

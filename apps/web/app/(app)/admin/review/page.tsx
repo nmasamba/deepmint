@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { GuideApplicationsReview } from "@/components/admin/GuideApplicationsReview";
 import { HOLD_REASON_TEXT, formatCurrency } from "@deepmint/shared";
 import { Check, X, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { toast } from "sonner";
@@ -63,6 +64,9 @@ export default function AdminReviewPage() {
         </p>
       </div>
 
+      <GuideApplicationsReview />
+
+      <h2 className="text-lg font-semibold text-text-primary">Claims</h2>
       {error ? (
         <div className="rounded-lg border border-red-500/30 bg-bg-secondary p-8 text-center">
           <p className="text-red-400">Could not load the review queue: {error.message}</p>

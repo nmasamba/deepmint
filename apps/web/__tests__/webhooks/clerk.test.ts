@@ -122,6 +122,75 @@ describe.skipIf(!API_KEY || !SECRET)("POST /api/webhooks/clerk", () => {
     });
   });
 
+  describe("user.deleted", () => {
+    const id = `${clerkId}-deleted`;
+    const named = {
+      id,
+      first_name: "Grace",
+      last_name: "Hopper",
+      username: null,
+      image_url: "https://img.clerk.com/grace.png",
+    };
+    const deleted = { id, deleted: true, object: "user" };
+
+    it("anonymises the account and keeps its row", async () => {
+      expect((await post("user.created", named)).status).toBe(200);
+      const created = await entityOf(id);
+      await db
+        .update(entities)
+        .set({ bio: "Personal", styleTags: ["macro"] })
+        .where(eq(entities.id, created!.id));
+
+      expect((await post("user.deleted", deleted)).status).toBe(200);
+      const row = await entityOf(id);
+      expect(row).toMatchObject({
+        id: created!.id,
+        displayName: "Deleted user",
+        slug: `deleted-${created!.id}`,
+        bio: null,
+        avatarUrl: null,
+        styleTags: [],
+      });
+      expect(row?.deletedAt).toBeInstanceOf(Date);
+    });
+
+    it("a late user.updated does not restore the name", async () => {
+      expect((await post("user.updated", named)).status).toBe(200);
+      const row = await entityOf(id);
+      expect(row?.displayName).toBe("Deleted user");
+      expect(row?.avatarUrl).toBeNull();
+    });
+
+    it("a replayed user.created creates no new entity", async () => {
+      expect((await post("user.created", named)).status).toBe(200);
+      const rows = await db.select().from(entities).where(eq(entities.clerkUserId, id));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.displayName).toBe("Deleted user");
+    });
+
+    it("a second user.deleted changes nothing", async () => {
+      const before = await entityOf(id);
+      expect((await post("user.deleted", deleted)).status).toBe(200);
+      const after = await entityOf(id);
+      expect(after?.deletedAt).toEqual(before?.deletedAt);
+      expect(after?.updatedAt).toEqual(before?.updatedAt);
+    });
+
+    it("holds a user deleted before user.created arrived, so its late delivery creates no one", async () => {
+      const early = `${clerkId}-early`;
+      expect((await post("user.deleted", { id: early, deleted: true, object: "user" })).status).toBe(200);
+      const placeholder = await entityOf(early);
+      expect(placeholder).toMatchObject({ displayName: "Deleted user", slug: `deleted-${placeholder!.id}` });
+      expect(placeholder?.deletedAt).toBeInstanceOf(Date);
+
+      expect((await post("user.created", { ...named, id: early })).status).toBe(200);
+      expect((await post("user.updated", { ...named, id: early })).status).toBe(200);
+      const rows = await db.select().from(entities).where(eq(entities.clerkUserId, early));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ id: placeholder!.id, displayName: "Deleted user" });
+    });
+  });
+
   it("rejects a payload signed with another secret", async () => {
     const body = `{"type":"user.created","data":{"id":"${clerkId}-x"}}`;
     const other = "whsec_" + Buffer.from("not-the-real-secret-000000000000").toString("base64");

@@ -1,6 +1,13 @@
 import { inngest } from "../inngest";
-import { db, eq, and, ne, sql, desc } from "@deepmint/db";
-import { entities, instruments, outcomes, scores, claims } from "@deepmint/db/schema";
+import { db, eq, and, ne, sql, desc, asc, lte } from "@deepmint/db";
+import {
+  entities,
+  instruments,
+  outcomes,
+  scores,
+  claims,
+  marketRegimes,
+} from "@deepmint/db/schema";
 import {
   hitRate,
   avgReturnBps,
@@ -10,8 +17,10 @@ import {
   targetCoverage,
   dailyBookReturns,
   playerRiskMetrics,
-  detectRegime,
+  computeOverallEIV,
   computeRegimeAwareEIV,
+  buildRegimeHistory,
+  regimeOnDate,
   markoutWindow,
   outcomesWithPosition,
 } from "@deepmint/scoring";
@@ -86,18 +95,26 @@ export const scoreFunction = inngest.createFunction(
 
     // The day's market-regime snapshot, computed and stored if this run is
     // the first to need it (the market-regime-snapshot cron also writes it).
-    const currentRegime = await step.run("regime", async (): Promise<MarketRegime> => {
+    // If it cannot be computed, the latest stored one stands in, and with none
+    // stored the run writes no regime EIV: a made-up default would label "Best
+    // in Current Conditions" with a regime no snapshot ever recorded.
+    const currentRegime = await step.run("regime", async (): Promise<MarketRegime | null> => {
       try {
         const snapshot = await ensureRegimeSnapshot(today);
         console.log(`[scoring] Regime: ${snapshot.regime}`, snapshot);
         return snapshot.regime as MarketRegime;
       } catch (err) {
-        console.warn("[scoring] Failed to fetch live regime indicators, using defaults:", err);
-        return detectRegime({
-          sp500Return30d: 0.01,
-          vixLevel: 18,
-          sectorDispersion: 0.08,
-        });
+        const [latest] = await db
+          .select({ asOfDate: marketRegimes.asOfDate, regime: marketRegimes.regime })
+          .from(marketRegimes)
+          .where(lte(marketRegimes.asOfDate, today))
+          .orderBy(desc(marketRegimes.asOfDate))
+          .limit(1);
+        console.warn(
+          `[scoring] No regime for ${today}; using ${latest ? `${latest.regime} from ${latest.asOfDate}` : "none"}:`,
+          err,
+        );
+        return (latest?.regime as MarketRegime | undefined) ?? null;
       }
     });
 
@@ -135,6 +152,15 @@ export const scoreFunction = inngest.createFunction(
           type: entities.type,
         })
         .from(entities);
+
+      // Each outcome counts in the regime of the latest snapshot on or before
+      // its entry date (D6). The tag lives only in this run: outcomes are
+      // append-only, and a stored tag would also go stale if a snapshot were
+      // ever corrected.
+      const regimeDays = await db
+        .select({ asOfDate: marketRegimes.asOfDate, regime: marketRegimes.regime })
+        .from(marketRegimes)
+        .orderBy(asc(marketRegimes.asOfDate));
 
       let scored = 0;
       let skipped = 0;
@@ -231,6 +257,40 @@ export const scoreFunction = inngest.createFunction(
           });
         };
 
+        // This entity's record in each regime that has enough outcomes. Only
+        // Guides are Brier-scored, so a Player's confidence is left out.
+        const regimeHistory = buildRegimeHistory(
+          entityOutcomes.map((o) => ({
+            regime: regimeOnDate(
+              regimeDays,
+              markoutWindow({
+                direction: o.direction,
+                horizonDays: o.horizonDays,
+                entryPriceCents: o.claimEntryPriceCents,
+                targetPriceCents: o.targetPriceCents,
+                createdAt: o.createdAt,
+              }).from,
+            ),
+            direction: o.direction,
+            directionCorrect: o.directionCorrect,
+            returnBps: o.returnBps,
+            confidence:
+              entity.type === "guide"
+                ? (claimMap.get(o.claimId)?.confidence ?? null)
+                : null,
+          })),
+        );
+        // EIV in the current regime, written only when the entity has enough
+        // outcomes entered in it, with that sample beside it.
+        const addRegimeEIV = () => {
+          if (!currentRegime) return;
+          const eiv = computeRegimeAwareEIV(regimeHistory, currentRegime);
+          const record = regimeHistory.find((r) => r.regime === currentRegime);
+          if (eiv === null || !record) return;
+          addScore("eiv", eiv, "all", currentRegime);
+          addScore("regime_outcome_count", record.sampleSize, "all", currentRegime);
+        };
+
         const byHorizon = new Map<string, typeof entityOutcomes>();
         for (const o of entityOutcomes) {
           const h = o.horizon;
@@ -296,18 +356,16 @@ export const scoreFunction = inngest.createFunction(
           }
 
           // EIV
-          const eiv = computeRegimeAwareEIV(
-            {
+          addScore(
+            "eiv_overall",
+            computeOverallEIV({
               hitRate: hr,
               avgReturnBps: avgReturnBps(positionOutcomes),
               brierScore: predictions.length > 0 ? brierScore(predictions) : 0.5,
               totalClaims: entityOutcomes.length,
-            },
-            [], // No regime history yet
-            currentRegime
+            }),
           );
-          addScore("eiv", eiv, "all", currentRegime);
-          addScore("eiv_overall", eiv);
+          addRegimeEIV();
         } else if (entity.type === "player") {
           // Player risk metrics, from a daily mark-to-market book of the claims.
           // A book missing an instrument would misstate them, so without its
@@ -346,18 +404,16 @@ export const scoreFunction = inngest.createFunction(
           addScore("hit_rate", hitRate(entityOutcomes));
 
           // EIV
-          const eiv = computeRegimeAwareEIV(
-            {
+          addScore(
+            "eiv_overall",
+            computeOverallEIV({
               hitRate: hitRate(entityOutcomes),
               avgReturnBps: avgReturnBps(positionOutcomes),
               brierScore: 0.5,
               totalClaims: entityOutcomes.length,
-            },
-            [],
-            currentRegime
+            }),
           );
-          addScore("eiv", eiv, "all", currentRegime);
-          addScore("eiv_overall", eiv);
+          addRegimeEIV();
         }
 
         // Replace this entity's scores for the date in one transaction

@@ -9,6 +9,7 @@ import {
 } from "@deepmint/db/schema";
 import { computeConsensusSignal, computeTargetStats } from "@deepmint/scoring";
 import type { ClaimWithWeight } from "@deepmint/scoring";
+import { COVERED_TICKERS } from "@deepmint/shared";
 
 /**
  * Consensus signal worker: runs after scoring and every day at 18:30 US
@@ -30,11 +31,17 @@ export const consensusSignalFunction = inngest.createFunction(
       const today = new Date();
       const todayStr = today.toISOString().slice(0, 10);
 
-      // Get all active instruments (Mag 7)
+      // The active, covered instruments: an instrument an admin adds gets no
+      // consensus until coverage widens, as it has no ticker page.
       const allInstruments = await db
         .select({ id: instruments.id, ticker: instruments.ticker })
         .from(instruments)
-        .where(eq(instruments.isActive, true));
+        .where(
+          and(
+            eq(instruments.isActive, true),
+            inArray(instruments.ticker, [...COVERED_TICKERS]),
+          ),
+        );
 
       let computed = 0;
 

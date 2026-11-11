@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from "@deepmint/db";
+import { and, desc, eq, sql } from "@deepmint/db";
 import type { db as Db } from "@deepmint/db";
 import { claims, entities, outcomes } from "@deepmint/db/schema";
 
@@ -28,7 +28,6 @@ export async function topByInstrument(
         slug: entities.slug,
         type: entities.type,
         avatarUrl: entities.avatarUrl,
-        isVerified: entities.isVerified,
         brokerLinkStatus: entities.brokerLinkStatus,
       },
       outcomes: n,
@@ -42,7 +41,7 @@ export async function topByInstrument(
       and(
         eq(outcomes.instrumentId, instrumentId),
         eq(claims.status, "active"),
-        isNull(entities.deletedAt),
+        // A deleted account stays ranked, as "Deleted user" (D18).
         opts.entityType ? eq(entities.type, opts.entityType) : undefined,
       ),
     )

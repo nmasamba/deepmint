@@ -2,10 +2,11 @@
 
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Loader2, Mail, Bell, ShieldCheck, UserRound } from "lucide-react";
+import { Award, Loader2, Mail, Bell, ShieldCheck, UserRound } from "lucide-react";
 import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
 import { BrokerVerification } from "@/components/settings/BrokerVerification";
 import { ProfileForm } from "@/components/settings/ProfileForm";
+import { GuideApplication } from "@/components/settings/GuideApplication";
 
 export default function SettingsPage() {
   const utils = trpc.useUtils();
@@ -35,6 +36,15 @@ export default function SettingsPage() {
         <ProfileForm />
       </div>
 
+      {/* Becoming a Guide */}
+      <div id="guide" className="rounded-lg border border-border bg-bg-secondary p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Award className="h-5 w-5 text-text-secondary" />
+          <h2 className="text-lg font-semibold text-text-primary">Become a Guide</h2>
+        </div>
+        <GuideApplication />
+      </div>
+
       {/* Email Preferences */}
       <div className="rounded-lg border border-border bg-bg-secondary p-6">
         <div className="flex items-center gap-2 mb-4">
@@ -58,7 +68,7 @@ export default function SettingsPage() {
                   Daily Digest
                 </p>
                 <p className="text-xs text-text-secondary">
-                  A summary of new predictions, outcomes, and signal changes
+                  A summary of new claims, outcomes, and signal changes
                   from analysts you follow.
                 </p>
               </div>

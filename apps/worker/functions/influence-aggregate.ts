@@ -24,13 +24,14 @@ export const influenceAggregateFunction = inngest.createFunction(
       const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
 
       // Events from the last 30 days that still count: both claims active and
-      // the credited entity a live Guide. Rows recorded before those rules
-      // were enforced may break them.
+      // the credited entity a Guide. Rows recorded before those rules were
+      // enforced may break them. A deleted Guide keeps its influence, as it
+      // keeps its rank (D18).
       const counted = and(
         gte(influenceEvents.detectedAt, thirtyDaysAgo),
         sql`exists (select 1 from ${claims} where ${claims.id} = ${influenceEvents.guideClaimId} and ${claims.status} = 'active')`,
         sql`(${influenceEvents.playerClaimId} is null or exists (select 1 from ${claims} where ${claims.id} = ${influenceEvents.playerClaimId} and ${claims.status} = 'active'))`,
-        sql`exists (select 1 from ${entities} where ${entities.id} = ${influenceEvents.guideEntityId} and ${entities.type} = 'guide' and ${entities.deletedAt} is null)`,
+        sql`exists (select 1 from ${entities} where ${entities.id} = ${influenceEvents.guideEntityId} and ${entities.type} = 'guide')`,
       );
 
       // Get all guides who have influence events in last 30d

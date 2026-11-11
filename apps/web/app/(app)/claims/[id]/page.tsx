@@ -7,6 +7,7 @@ import { entities } from "@deepmint/db/schema";
 import { ClaimCard } from "@/components/claims/ClaimCard";
 import { ClaimNotes } from "@/components/claims/ClaimNotes";
 import { ClaimProvenance } from "@/components/claims/ClaimProvenance";
+import { ClaimAuditProof } from "@/components/claims/ClaimAuditProof";
 import { resolveIsAdmin } from "@/lib/adminRole";
 
 interface ClaimPageProps {
@@ -16,11 +17,15 @@ interface ClaimPageProps {
 export default async function ClaimPage({ params }: ClaimPageProps) {
   const { id } = await params;
 
-  // claims.detail decides who sees a claim that is not active.
-  const { userId, sessionClaims } = await auth();
-  const [entity] = userId
-    ? await db.select().from(entities).where(eq(entities.clerkUserId, userId)).limit(1)
+  // claims.detail decides who sees a claim that is not active. A deleted
+  // account views as signed out (D18).
+  const { userId: sessionUserId, sessionClaims } = await auth();
+  const [found] = sessionUserId
+    ? await db.select().from(entities).where(eq(entities.clerkUserId, sessionUserId)).limit(1)
     : [];
+  const deleted = !!found?.deletedAt;
+  const userId = deleted ? null : sessionUserId;
+  const entity = deleted ? undefined : found;
   const isAdmin = await resolveIsAdmin(userId, sessionClaims);
   const caller = createCaller(createContext({ userId, entity: entity ?? null, isAdmin }));
 
@@ -46,6 +51,15 @@ export default async function ClaimPage({ params }: ClaimPageProps) {
         linkToDetail={false}
       />
       <ClaimProvenance claim={detail.claim} source={detail.source} outcomes={detail.outcomes} />
+      <ClaimAuditProof
+        claim={{
+          id: detail.claim.id,
+          direction: detail.claim.direction,
+          horizonDays: detail.claim.horizonDays,
+          createdAt: detail.claim.createdAt.toISOString(),
+        }}
+        showRootsLink={!!userId}
+      />
       <ClaimNotes
         claimId={detail.claim.id}
         notes={detail.notes}

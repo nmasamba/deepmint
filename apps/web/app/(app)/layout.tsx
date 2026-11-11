@@ -3,6 +3,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { Toaster } from "sonner";
 import { resolveIsAdmin } from "@/lib/adminRole";
+import { isDeletedAccount } from "@/lib/deletedAccount";
 
 export default async function AppLayout({
   children,
@@ -11,7 +12,9 @@ export default async function AppLayout({
 }) {
   // Admin role from Clerk privateMetadata, server-side only: the session
   // claim when present, else one cached backend lookup per user per 60 s.
-  const { userId, sessionClaims } = await auth();
+  const { userId: sessionUserId, sessionClaims } = await auth();
+  // A deleted account browses as signed out (D18).
+  const userId = (await isDeletedAccount(sessionUserId)) ? null : sessionUserId;
   const isAdmin = await resolveIsAdmin(userId, sessionClaims);
 
   return (

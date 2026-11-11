@@ -20,11 +20,14 @@ export function createContext(opts: {
   isAdmin?: boolean;
   apiKeyVerified?: boolean;
 }): Context {
+  // A deleted account acts as no one, even with a session that has not
+  // expired yet: its entity stays anonymised (D18).
+  const deleted = !!opts.entity?.deletedAt;
   return {
     db,
-    userId: opts.userId,
-    entity: opts.entity,
-    isAdmin: opts.isAdmin ?? false,
+    userId: deleted ? null : opts.userId,
+    entity: deleted ? null : opts.entity,
+    isAdmin: deleted ? false : (opts.isAdmin ?? false),
     apiKeyVerified: opts.apiKeyVerified ?? false,
   };
 }

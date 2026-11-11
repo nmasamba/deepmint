@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, lt, desc, sql } from "@deepmint/db";
+import { eq, and, lt, desc, sql, inArray } from "@deepmint/db";
 import {
   claims,
   entities,
@@ -7,28 +7,41 @@ import {
   notes,
   outcomes,
   events,
+  auditRoots,
 } from "@deepmint/db/schema";
 import { TRPCError } from "@trpc/server";
 import {
   router,
   publicProcedure,
   protectedProcedure,
+  memberProcedure,
   adminProcedure,
 } from "../trpc";
 import {
+  CLAIM_RATE_LIMIT,
+  COVERED_TICKERS,
   VALID_HORIZONS,
   RATIONALE_TAGS,
   claimHoldReasons,
+  isCoveredTicker,
   isUnattributedRating,
+  getMerkleProof,
 } from "@deepmint/shared";
 import { enrichClaimRows } from "../lib/claimEnrichment";
+import {
+  auditDateV1,
+  auditDateV2,
+  claimLeafPayload,
+  recomputeRoot,
+  utcDayBounds,
+} from "../lib/auditWindow";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { Inngest } from "inngest";
 
 const inngest = new Inngest({ id: "deepmint" });
 
-// Rate limiter: 10 claims per hour per entity (sliding window)
+// Rate limiter: CLAIM_RATE_LIMIT claims per hour per entity (sliding window)
 // Falls back to no-op when Upstash env vars are not set (local dev)
 function getRateLimiter(): Ratelimit | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -37,7 +50,7 @@ function getRateLimiter(): Ratelimit | null {
 
   return new Ratelimit({
     redis: new Redis({ url, token }),
-    limiter: Ratelimit.slidingWindow(10, "1 h"),
+    limiter: Ratelimit.slidingWindow(CLAIM_RATE_LIMIT, "1 h"),
     prefix: "deepmint:claims",
   });
 }
@@ -72,7 +85,7 @@ export const claimRouter = router({
         if (!success) {
           throw new TRPCError({
             code: "TOO_MANY_REQUESTS",
-            message: "Rate limit exceeded. Maximum 10 claims per hour.",
+            message: `Rate limit exceeded. Maximum ${CLAIM_RATE_LIMIT} claims per hour.`,
           });
         }
       }
@@ -93,6 +106,13 @@ export const claimRouter = router({
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Instrument not found or inactive",
+        });
+      }
+      // Only covered tickers have pages, ingestion and scoring alongside.
+      if (!isCoveredTicker(instrument.ticker)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${instrument.ticker} is not covered. Deepmint covers the Mag 7: ${COVERED_TICKERS.join(", ")}.`,
         });
       }
 
@@ -269,6 +289,131 @@ export const claimRouter = router({
         ...enriched!,
         outcomes: claimOutcomes,
         notes: claimNotes,
+      };
+    }),
+
+  /**
+   * Where a claim stands in the published daily Merkle roots, with its proof
+   * when it has one. The root is rebuilt from the ledger first, and a proof is
+   * returned only against a root that rebuilds exactly; otherwise the status
+   * says why there is none. Visible to whoever may see the claim.
+   */
+  auditProof: publicProcedure
+    .input(z.object({ claimId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const [claim] = await ctx.db
+        .select()
+        .from(claims)
+        .where(eq(claims.id, input.claimId))
+        .limit(1);
+      const visible =
+        claim?.status === "active" ||
+        ctx.isAdmin ||
+        (!!ctx.entity && ctx.entity.id === claim?.entityId);
+      if (!claim || !visible) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Claim not found" });
+      }
+
+      // The current audit puts a claim in the root of the day it was
+      // recorded; the version 1 audit, in the root of its own date.
+      const recordedDay = auditDateV2(claim);
+      const datedDay = auditDateV1(claim);
+      const roots = await ctx.db
+        .select()
+        .from(auditRoots)
+        .where(inArray(auditRoots.date, [...new Set([recordedDay, datedDay])]));
+      const rootOn = (date: string) => roots.find((r) => r.date === date);
+      const publish = (r: typeof auditRoots.$inferSelect) => ({
+        date: r.date,
+        merkleRoot: r.merkleRoot,
+        claimCount: r.claimCount,
+        leafVersion: r.leafVersion,
+        computedAt: r.computedAt,
+      });
+
+      const recordedRoot = rootOn(recordedDay);
+      let root = recordedRoot?.leafVersion === 1 ? undefined : recordedRoot;
+      if (!recordedRoot) {
+        // Day D's root is built at 22:00 UTC on D + 1; allow the run 2 hours.
+        const due = utcDayBounds(recordedDay).end.getTime() + 24 * 3_600_000;
+        if (Date.now() < due) {
+          return { status: "awaiting" as const, date: recordedDay };
+        }
+      }
+      if (!root) {
+        const dated = rootOn(datedDay);
+        if (dated?.leafVersion === 1) root = dated;
+      }
+      if (!root) {
+        // A version 1 root on the day it was recorded went by claims' own
+        // dates, so it does not cover a claim dated earlier.
+        return recordedRoot
+          ? {
+              status: "missing" as const,
+              reason: "went_by_date" as const,
+              date: recordedDay,
+              root: publish(recordedRoot),
+            }
+          : { status: "missing" as const, reason: "no_root" as const, date: recordedDay };
+      }
+
+      const published = publish(root);
+      const rebuilt = await recomputeRoot(ctx.db, root);
+      if (!rebuilt) {
+        return { status: "unrecomputable" as const, root: published };
+      }
+      const leafIndex = rebuilt.claimIds.indexOf(claim.id);
+      if (leafIndex < 0) {
+        // Only a version 1 root on the claim's own date gets here: it was
+        // built before this claim was stored.
+        return {
+          status: "missing" as const,
+          reason: "built_before_stored" as const,
+          date: recordedDay,
+          root: published,
+        };
+      }
+
+      return {
+        status: "proven" as const,
+        root: published,
+        leafIndex,
+        leafHash: rebuilt.leaves[leafIndex]!,
+        leafPayload: claimLeafPayload(claim, root.leafVersion),
+        proof: getMerkleProof(rebuilt.leaves, leafIndex),
+      };
+    }),
+
+  /** The published daily Merkle roots, newest first. */
+  auditRoots: memberProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(100).default(30),
+        // The date of the last root on the previous page.
+        cursor: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .nullish(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db
+        .select({
+          date: auditRoots.date,
+          merkleRoot: auditRoots.merkleRoot,
+          claimCount: auditRoots.claimCount,
+          leafVersion: auditRoots.leafVersion,
+          computedAt: auditRoots.computedAt,
+        })
+        .from(auditRoots)
+        .where(input.cursor ? lt(auditRoots.date, input.cursor) : undefined)
+        .orderBy(desc(auditRoots.date))
+        .limit(input.limit + 1);
+      const hasMore = rows.length > input.limit;
+      const items = hasMore ? rows.slice(0, input.limit) : rows;
+      return {
+        items,
+        nextCursor: hasMore ? items[items.length - 1]!.date : null,
       };
     }),
 

@@ -1,5 +1,5 @@
 import { inngest } from "../inngest";
-import { db, eq, and, gte, desc, sql, inArray } from "@deepmint/db";
+import { db, eq, and, gte, desc, sql, inArray, isNull } from "@deepmint/db";
 import {
   entities,
   follows,
@@ -32,7 +32,8 @@ export const digestFunction = inngest.createFunction(
       const since = new Date();
       since.setHours(since.getHours() - 24);
 
-      // Get all entities that follow someone and have digest enabled
+      // Get all entities that follow someone and have digest enabled. A
+      // deleted account gets nothing: it has no one to send to.
       const followers = await db
         .select({
           entityId: entities.id,
@@ -40,7 +41,12 @@ export const digestFunction = inngest.createFunction(
           clerkUserId: entities.clerkUserId,
         })
         .from(entities)
-        .where(sql`${entities.id} IN (SELECT DISTINCT follower_id FROM follows)`);
+        .where(
+          and(
+            sql`${entities.id} IN (SELECT DISTINCT follower_id FROM follows)`,
+            isNull(entities.deletedAt),
+          ),
+        );
 
       let sent = 0;
       let skipped = 0;
@@ -135,7 +141,7 @@ export const digestFunction = inngest.createFunction(
         // Build plain-text email (React Email template can be added later)
         const claimsSection =
           newClaims.length > 0
-            ? `NEW PREDICTIONS FROM PEOPLE YOU FOLLOW\n${newClaims
+            ? `NEW CLAIMS FROM PEOPLE YOU FOLLOW\n${newClaims
                 .map(
                   (c: { entity: { displayName: string }; instrument: { ticker: string }; claim: { direction: string } }) =>
                     `  ${c.entity.displayName} — ${c.claim.direction.toUpperCase()} ${c.instrument.ticker}`,
@@ -163,7 +169,7 @@ export const digestFunction = inngest.createFunction(
             await resend.emails.send({
               from: "Deepmint <digest@deepmint.app>",
               to: `user+${follower.clerkUserId}@deepmint.app`, // placeholder
-              subject: `Deepmint Daily: ${newClaims.length} new predictions, ${newOutcomes.length} outcomes`,
+              subject: `Deepmint Daily: ${newClaims.length} new claims, ${newOutcomes.length} outcomes`,
               text: body,
             });
             sent++;

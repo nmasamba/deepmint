@@ -15,6 +15,7 @@ import { backfillPricesFunction } from "../functions/backfill-prices";
 import { brokerSyncFunction } from "../functions/broker-sync";
 import { backfillFunction } from "../functions/backfill";
 import { regimeSnapshotFunction } from "../functions/regime-snapshot";
+import { paperEquitySnapshotFunction } from "../functions/paper-equity-snapshot";
 
 // Export all Inngest functions for the serve handler
 export const inngestFunctions = [
@@ -35,6 +36,7 @@ export const inngestFunctions = [
   brokerSyncFunction,
   backfillFunction,
   regimeSnapshotFunction,
+  paperEquitySnapshotFunction,
 ];
 
 // Re-export the Inngest client

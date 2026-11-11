@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **34 open issues: no high, 7 medium and 27 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **22 open issues: no high, 2 medium and 20 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,29 +26,19 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 1 | 1 | 2 |
-| [Product (web app)](#area-product) | 0 | 3 | 6 | 9 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 1 | 2 | 3 |
-| [Workers and schedules](#area-workers) | 0 | 1 | 4 | 5 |
+| [Scoring and ranking](#area-scoring) | 0 | 0 | 1 | 1 |
+| [Product (web app)](#area-product) | 0 | 0 | 2 | 2 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 3 | 3 |
+| [Workers and schedules](#area-workers) | 0 | 1 | 3 | 4 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
-| [Data model and shared code](#area-data) | 0 | 0 | 4 | 4 |
+| [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **7** | **27** | **34** |
+| **All** | **0** | **2** | **20** | **22** |
 
 <a id="area-scoring"></a>
 
 ## Scoring and ranking
-
-<a id="eiv-not-regime-aware"></a>
-
-### "Regime-aware" EIV is never regime-aware
-
-**Medium** · feature-gap · `eiv-not-regime-aware`
-
-- **What's wrong:** `score.ts` passes an empty regime history to `computeRegimeAwareEIV`. Every entity therefore gets the fallback with a fixed 0.4 penalty, and `eiv` always equals `eiv_overall`. The current regime only sets the `regime_tag` string. `leaderboard.bestInCurrentConditions` returns the `eiv` rows from the latest scoring date with a matching tag, with no age limit, and does not return that date.
-- **User impact:** "Best in Current Conditions" is the plain overall-EIV top 5 from whichever scoring run last had that regime label, which may be weeks old. The 0.4 factor also shrinks every EIV, so the profile labels Strong Edge (≥60) and Moderate Edge (≥30) are harder to reach.
-- **Evidence:** [`apps/worker/functions/score.ts:188-199`](../apps/worker/functions/score.ts#L188-L199) · [`apps/worker/functions/score.ts:228-239`](../apps/worker/functions/score.ts#L228-L239) · [`packages/scoring/src/eiv.ts:34`](../packages/scoring/src/eiv.ts#L34) · [`packages/scoring/src/eiv.ts:52`](../packages/scoring/src/eiv.ts#L52) · [`packages/api/routers/leaderboard.ts:181-196`](../packages/api/routers/leaderboard.ts#L181-L196)
 
 <a id="dead-scoring-code"></a>
 
@@ -63,76 +53,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 <a id="area-product"></a>
 
 ## Product (web app)
-
-<a id="guide-signup-path-missing"></a>
-
-### "Sign Up as a Guide" creates a Player; there is no way to become or claim a Guide
-
-**Medium** · feature-gap · `guide-signup-path-missing`
-
-- **What's wrong:** Both landing-page buttons, "Sign Up as a Guide" and "Sign Up as a Player", go to plain `/sign-up`, and every new user is created as type `player`. No code changes `entities.type`, and the profile-claiming flow mentioned in a resolver comment does not exist.
-- **User impact:** An analyst who signs up as a Guide becomes a Player: scored with Player metrics (no Brier, z-score or target precision), listed with Players, without the ×1.2 Guide consensus weight or an Influence tab. An analyst already ingested as a Guide ends up with two unlinked entities.
-- **Evidence:** [`apps/web/components/landing/ChoosePath.tsx:69-75`](../apps/web/components/landing/ChoosePath.tsx#L69-L75) · [`apps/web/components/landing/ChoosePath.tsx:123-129`](../apps/web/components/landing/ChoosePath.tsx#L123-L129) · [`packages/db/queries/ensureEntityForClerkUser.ts:58`](../packages/db/queries/ensureEntityForClerkUser.ts#L58) · [`packages/ingestion/src/sources/resolver.ts:34-35`](../packages/ingestion/src/sources/resolver.ts#L34-L35)
-
-<a id="profile-edit-and-clerk-sync"></a>
-
-### Deleting a Clerk account leaves the public profile in place
-
-**Medium** · feature-gap · `profile-edit-and-clerk-sync`
-
-- **What's wrong:** The Clerk webhook handles `user.created` and `user.updated`, not `user.deleted`, and nothing ever sets `entities.deleted_at`. (Since wave 5 Clerk's name and avatar sync on `user.updated`, once the endpoint subscribes to it, the slug never changes, and users edit their bio and style tags in Settings.)
-- **User impact:** Deleting a Clerk account leaves the public profile, claims and leaderboard rows in place.
-- **Evidence:** [`apps/web/app/api/webhooks/clerk/route.ts`](../apps/web/app/api/webhooks/clerk/route.ts)
-
-<a id="claim-provenance-not-visible"></a>
-
-### The "audited" track record cannot be checked against an audit root
-
-**Medium** · feature-gap · `claim-provenance-not-visible`
-
-- **What's wrong:** Nothing reads `audit_roots`, and no Merkle proof is ever generated. (Since wave 3 each claim has a page, `/claims/[id]`, with its source link, publisher, dates, verified quote, content hash and outcome, and claim cards carry a source chip that links to it.)
-- **User impact:** Users can trace a call to its source, but not check it against an audit root, so the "audited performance" and "verified track records" copy has only half of its evidence behind it.
-- **Evidence:** [`apps/worker/functions/audit.ts:56-62`](../apps/worker/functions/audit.ts#L56-L62)
-
-<a id="instrument-universe-inconsistent"></a>
-
-### Each surface uses a different instrument universe
-
-**Low** · feature-gap · `instrument-universe-inconsistent`
-
-- **What's wrong:** Ingestion and ticker pages accept only the 7 Mag-7 tickers. Claim submission, search and the consensus worker accept any active instrument. Paper trades accept any instrument, even an inactive one. (Since wave 3 the MCP ticker tools accept only the Mag 7, though `search_instruments` still lists any instrument.)
-- **User impact:** Latent while only the Mag 7 exist, as in production since 2026-08-11, and Mag-7 only is the deliberate scope for now. Once an admin adds instruments (for example with the S&P button), users can claim and trade tickers whose pages say "Coming soon", and ingestion never produces Guide claims for them. Make every surface agree before expanding.
-- **Evidence:** [`packages/ingestion/src/extractor.ts:461-472`](../packages/ingestion/src/extractor.ts#L461-L472) · [`apps/web/app/(app)/ticker/[symbol]/page.tsx:18-30`](../apps/web/app/%28app%29/ticker/%5Bsymbol%5D/page.tsx#L18-L30) · [`packages/api/routers/claims.ts:73-91`](../packages/api/routers/claims.ts#L73-L91) · [`packages/api/routers/paper.ts:138-150`](../packages/api/routers/paper.ts#L138-L150)
-
-<a id="equity-curve-placeholder"></a>
-
-### Paper "Equity Curve" is a two-point placeholder
-
-**Low** · feature-gap · `equity-curve-placeholder`
-
-- **What's wrong:** The chart plots only Start and Now; no equity history is stored. Learn describes it as a way to "track your performance".
-- **User impact:** A straight line that tells users nothing the Total Return card does not.
-- **Evidence:** [`apps/web/components/paper/EquityCurve.tsx:21-26`](../apps/web/components/paper/EquityCurve.tsx#L21-L26) · [`apps/web/components/paper/PortfolioDetail.tsx:105-111`](../apps/web/components/paper/PortfolioDetail.tsx#L105-L111) · [`apps/web/lib/learnModules.ts:277`](../apps/web/lib/learnModules.ts#L277)
-
-<a id="terminology-inconsistent"></a>
-
-### EIV and "claim" have several user-facing names
-
-**Low** · docs-drift · `terminology-inconsistent`
-
-- **What's wrong:** EIV is "Expected Information Value" in the scoring code and Learn, but "Earned Information Value" on profiles. "Claim" and "prediction" are used interchangeably, often on one screen ("Make a Prediction" opens "Submit a Claim").
-- **User impact:** Cosmetic confusion; nothing breaks.
-- **Evidence:** [`packages/scoring/src/eiv.ts:2`](../packages/scoring/src/eiv.ts#L2) · [`apps/web/lib/learnModules.ts:218`](../apps/web/lib/learnModules.ts#L218) · [`apps/web/components/EntityProfileTabs.tsx:99`](../apps/web/components/EntityProfileTabs.tsx#L99) · [`apps/web/app/(app)/dashboard/page.tsx:30`](../apps/web/app/%28app%29/dashboard/page.tsx#L30) · [`apps/web/components/claims/SubmitClaimForm.tsx:132`](../apps/web/components/claims/SubmitClaimForm.tsx#L132)
-
-<a id="api-key-ui-scopes"></a>
-
-### Admin API-key page cannot mint write keys or set an expiry
-
-**Low** · feature-gap · `api-key-ui-scopes`
-
-- **What's wrong:** The page offers only `scores:read`, `consensus:read` and `leaderboard:read`, and sends no `expiresAt`, although `apiKeys.create` accepts `claims:write` and an expiry.
-- **User impact:** A key for the MCP write tools needs a hand-made tRPC call or a database edit, and every UI-made key never expires.
-- **Evidence:** [`apps/web/app/(app)/admin/api-keys/page.tsx:34-38`](../apps/web/app/%28app%29/admin/api-keys/page.tsx#L34-L38) · [`apps/web/app/(app)/admin/api-keys/page.tsx:90-94`](../apps/web/app/%28app%29/admin/api-keys/page.tsx#L90-L94) · [`packages/api/routers/apiKeys.ts:8-26`](../packages/api/routers/apiKeys.ts#L8-L26)
 
 <a id="api-docs-nav-for-all"></a>
 
@@ -158,16 +78,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 ## API: tRPC, REST v1, MCP, auth
 
-<a id="consensus-mag7-returns-all-instruments"></a>
-
-### Dashboard "Consensus — Mag 7" grid lists every active instrument
-
-**Medium** · bug · `consensus-mag7-returns-all-instruments`
-
-- **What's wrong:** `consensus.mag7` selects every active instrument, with no ticker filter or ordering, and runs one sequential query per instrument. Each tile links to `/ticker/{ticker}`. A correctly filtered `instruments.mag7` exists, but nothing calls it and its response shape differs.
-- **User impact:** Latent while only the Mag 7 exist. After an admin presses "Seed S&P 500 Top 50", every dashboard shows 57 tiles in no set order under the Mag 7 heading, 50 of them leading to "Coming soon", and each load runs 57 sequential queries.
-- **Evidence:** [`packages/api/routers/consensus.ts:26-49`](../packages/api/routers/consensus.ts#L26-L49) · [`apps/web/components/dashboard/Mag7Grid.tsx:31-34`](../apps/web/components/dashboard/Mag7Grid.tsx#L31-L34) · [`apps/web/app/(app)/dashboard/page.tsx:38-41`](../apps/web/app/%28app%29/dashboard/page.tsx#L38-L41) · [`packages/api/routers/instruments.ts:193-233`](../packages/api/routers/instruments.ts#L193-L233)
-
 <a id="snaptrade-secret-plaintext"></a>
 
 ### SnapTrade user secrets are stored in plaintext
@@ -178,14 +88,24 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** None today: no secrets are stored. Once enabled, database or Inngest read access exposes them; using them also needs the partner consumer key, which lives in Vercel env.
 - **Evidence:** [`packages/api/routers/broker.ts:110-127`](../packages/api/routers/broker.ts#L110-L127) · [`apps/worker/functions/broker-sync.ts:36-46`](../apps/worker/functions/broker-sync.ts#L36-L46)
 
+<a id="linked-guide-keeps-broker-link"></a>
+
+### A linked Guide keeps the user's broker link
+
+**Low** · data-integrity · `linked-guide-keeps-broker-link`
+
+- **What's wrong:** Approving a Guide application with a link moves the user's broker links, link status and SnapTrade user to the ingested Guide (`linkAccountToGuide`, 2026-11-10). Broker verification is otherwise for Players only: `broker.initLink` refuses any other type, so the Guide can never link a broker again once its link is disconnected, and consensus weights a verified Guide's claims ×1.2 as a Guide and ×1.5 as broker-verified, ×1.8 in all, which no other Guide can reach.
+- **User impact:** None today: no broker links exist while SnapTrade is not configured. Once it is, a linked analyst with a broker link counts for more in consensus than any other Guide.
+- **Evidence:** [`packages/api/lib/guideLink.ts`](../packages/api/lib/guideLink.ts) (`linkAccountToGuide`) · [`packages/api/routers/broker.ts`](../packages/api/routers/broker.ts) (`initLink`) · [`packages/scoring/src/consensus.ts`](../packages/scoring/src/consensus.ts) (`computeConsensusSignal`)
+
 <a id="unused-trpc-procedures"></a>
 
-### 16 of 75 tRPC procedures have no UI caller
+### 15 of 82 tRPC procedures have no UI caller
 
 **Low** · dead-code · `unused-trpc-procedures`
 
-- **What's wrong:** 13 are called nowhere: `entity.search`, `instruments.detail`, `.list`, `.mag7`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
-- **User impact:** Maintenance cost; 5 of the 13 answer signed-out callers.
+- **What's wrong:** 12 are called nowhere: `entity.search`, `instruments.detail`, `.list`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
+- **User impact:** Maintenance cost; 4 of the 12 answer signed-out callers.
 - **Evidence:** [`packages/api/routers/instruments.ts:401`](../packages/api/routers/instruments.ts#L401) · [`packages/api/routers/leaderboard.ts:104`](../packages/api/routers/leaderboard.ts#L104) · [`packages/api/routers/influence.ts:124`](../packages/api/routers/influence.ts#L124)
 
 <a id="area-workers"></a>
@@ -211,16 +131,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Both sync paths pick only links with `sync_status='active'`, so a link stays in `error` once a run's retries are spent, and the error state's Retry button only refetches. (Since wave 5 a retry that succeeds restores the link, the first sync reads back past the moment of linking, and the error state offers Reconnect.)
 - **User impact:** Dormant while SnapTrade is unconfigured. Once enabled, one lasting error ends syncing for that Player, and the Verified badge and ×1.5 weight stay off until they reconnect by hand, even if SnapTrade recovers.
 - **Evidence:** [`apps/worker/functions/broker-sync.ts`](../apps/worker/functions/broker-sync.ts) · [`packages/api/routers/broker.ts`](../packages/api/routers/broker.ts) · [`apps/web/components/settings/BrokerVerification.tsx`](../apps/web/components/settings/BrokerVerification.tsx)
-
-<a id="merkle-audit-gaps"></a>
-
-### Merkle roots are stored but never published, and older claims have gaps
-
-**Low** · data-integrity · `merkle-audit-gaps`
-
-- **What's wrong:** `bitcoin_tx_id` is never written and nothing reads `audit_roots`, so a root proves nothing to anyone outside the database. Claims stored before migration 0012 have no `recorded_at`: those dated earlier than they were stored (ratings, backfill, retried extractions) are in no root, and those that are in a root were hashed by leaf version 1, which leaves out target, entry price, confidence and rationale. (Since wave 5 each day's root covers every claim recorded that day, whatever its date, hashes every column but the review status, and a re-run for a stored date changes nothing.)
-- **User impact:** No visible effect today, because roots are neither published nor anchored. Once published, older history would be only partly covered.
-- **Evidence:** [`apps/worker/functions/audit.ts`](../apps/worker/functions/audit.ts) · [`packages/db/schema/audit.ts`](../packages/db/schema/audit.ts)
 
 <a id="leaderboard-refresh-noop"></a>
 
@@ -248,13 +158,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 <a id="feed-first-read-dates-old-posts"></a>
 
-### A feed's first read dates old posts the day they are stored
+### An undated feed's first read dates its posts the day they are stored
 
 **Low** · data-integrity · `feed-first-read-dates-old-posts`
 
-- **What's wrong:** The RSS lane stores every Mag-7 item a feed still lists, with no age limit, and `extract-claims` dates each claim by when its post was stored, unless the post states a rating date. A three-month-old post first read today becomes a claim dated today, and markout scores it from the next close. (Mirrors and follower notices read the post's own date, so they skip it.)
-- **User impact:** Latent until an admin switches a feed on at `/admin/guides`, which warns about it. The claims cannot be removed afterwards, and an old call is scored against a market its author never saw. What the first read should do is a product choice: skip old posts, or date them as published, as a backfill does.
-- **Evidence:** [`packages/ingestion/src/sources/rss.ts`](../packages/ingestion/src/sources/rss.ts) · [`apps/worker/functions/extract.ts`](../apps/worker/functions/extract.ts)
+- **What's wrong:** Since 2026-11-10 a feed read skips posts published more than 7 days earlier (`FEED_MAX_AGE_DAYS`), but an item with no date cannot be judged: a feed without dates still turns every Mag-7 post it lists into a claim dated the day it is stored, on its first read. A post from the last 7 days that a backfill also stored becomes two claims with different dates, since the archive's text differs from the feed's title and summary and the extractor's dedupe compares dates.
+- **User impact:** Latent until an admin switches on a feed without dates, or backfills a Guide whose feed is on; `/admin/guides` says both. The claims cannot be removed afterwards.
+- **Evidence:** [`packages/ingestion/src/sources/rss.ts`](../packages/ingestion/src/sources/rss.ts) · [`apps/worker/functions/backfill.ts`](../apps/worker/functions/backfill.ts) · [`apps/worker/functions/extract.ts`](../apps/worker/functions/extract.ts)
 
 <a id="r2-snapshot-capture-dead"></a>
 
@@ -280,45 +190,15 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 ## Data model and shared code
 
-<a id="soft-delete-half-implemented"></a>
-
-### Soft delete is read in some places but never set
-
-**Low** · data-integrity · `soft-delete-half-implemented`
-
-- **What's wrong:** `entities.deleted_at` is checked by five procedures but written by nothing. Most reads (profiles, search, REST v1, consensus, scoring, influence, MCP) ignore it, and a comment wrongly says consensus excludes deleted entities.
-- **User impact:** No effect today. A user cannot be removed, and a manual SQL soft-delete would hide an entity from only some surfaces.
-- **Evidence:** [`packages/db/schema/entities.ts:22`](../packages/db/schema/entities.ts#L22) · [`packages/api/routers/entities.ts:109-114`](../packages/api/routers/entities.ts#L109-L114) · [`apps/worker/functions/consensus-signal.ts:57-66`](../apps/worker/functions/consensus-signal.ts#L57-L66)
-
-<a id="two-verified-flags"></a>
-
-### Two "verified" flags are read inconsistently
-
-**Low** · bug · `two-verified-flags`
-
-- **What's wrong:** Profile headers and the ticker Top Entities panel show Verified if `entities.is_verified` or `broker_link_status='verified'`. The leaderboard page, Settings, REST v1 and consensus read only `broker_link_status`. Only the seed sets `is_verified`. No UI reads `broker_links.is_verified`.
-- **User impact:** None in production, where neither flag is set. In a seeded local database the badge differs between surfaces.
-- **Evidence:** [`apps/web/components/EntityProfileHeader.tsx:45-46`](../apps/web/components/EntityProfileHeader.tsx#L45-L46) · [`apps/web/components/ticker/TopEntitiesPanel.tsx:54-56`](../apps/web/components/ticker/TopEntitiesPanel.tsx#L54-L56) · [`apps/web/app/(app)/leaderboard/page.tsx:191-192`](../apps/web/app/%28app%29/leaderboard/page.tsx#L191-L192) · [`apps/web/app/api/v1/leaderboard/route.ts:107`](../apps/web/app/api/v1/leaderboard/route.ts#L107)
-
 <a id="dead-and-duplicated-shared-code"></a>
 
 ### Dead and duplicated shared code
 
 **Low** · dead-code · `dead-and-duplicated-shared-code`
 
-- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `CLAIM_RATE_LIMIT`, `Mag7Ticker`, `historicalCacheKey` with `TTL_HISTORICAL`, and four `components/ui` files. Duplicated: the claims rate limit (hard-coded 10/h), a 7-ticker list in `instruments.mag7`, and two local copies of the shared `formatBps`. (Since wave 2 there is one `slugify`, in `@deepmint/shared`.)
+- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `historicalCacheKey` with `TTL_HISTORICAL`, and four `components/ui` files. Duplicated: two local copies of the shared `formatBps`. (Since wave 2 there is one `slugify`, in `@deepmint/shared`, and since wave 7 the claims rate limit reads `CLAIM_RATE_LIMIT` and the only Mag-7 list is `MAG7_TICKERS`.)
 - **User impact:** None for users; noise for maintainers.
-- **Evidence:** [`packages/shared/src/errors.ts:1-45`](../packages/shared/src/errors.ts#L1-L45) · [`packages/shared/src/polygonCache.ts:80-85`](../packages/shared/src/polygonCache.ts#L80-L85) · [`packages/api/routers/claims.ts:34`](../packages/api/routers/claims.ts#L34)
-
-<a id="asset-class-unpriceable"></a>
-
-### Non-equity asset classes are accepted but cannot be priced
-
-**Low** · feature-gap · `asset-class-unpriceable`
-
-- **What's wrong:** The schema and the admin API accept equity, etf, crypto, forex, commodity and index, but pricing never reads `asset_class` and always calls Polygon stocks endpoints. ETFs work, because they trade as stocks; crypto, forex, commodity and index instruments cannot be priced, so claims and paper trades on them fail. The only UI create path hard-codes `equity`.
-- **User impact:** None today: reachable only with a hand-made admin tRPC call.
-- **Evidence:** [`packages/db/schema/instruments.ts:3-4`](../packages/db/schema/instruments.ts#L3-L4) · [`packages/api/routers/instruments.ts:19-39`](../packages/api/routers/instruments.ts#L19-L39) · [`packages/shared/src/polygon.ts:125`](../packages/shared/src/polygon.ts#L125) · [`packages/shared/src/polygon.ts:180`](../packages/shared/src/polygon.ts#L180)
+- **Evidence:** [`packages/shared/src/errors.ts:1-45`](../packages/shared/src/errors.ts#L1-L45) · [`packages/shared/src/polygonCache.ts:80-85`](../packages/shared/src/polygonCache.ts#L80-L85)
 
 <a id="area-infra"></a>
 

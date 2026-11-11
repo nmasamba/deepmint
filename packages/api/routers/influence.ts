@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { memberProcedure, protectedProcedure, router } from "../trpc";
-import { db, desc, eq, and, gt, sql, isNull } from "@deepmint/db";
+import { db, desc, eq, and, gt, sql } from "@deepmint/db";
 import { influenceScores, entities, follows, instruments } from "@deepmint/db/schema";
 
 /**
@@ -46,8 +46,7 @@ export const influenceRouter = router({
             eq(influenceScores.asOfDate, latestDate.asOfDate),
             // A Guide whose 30-day window has emptied keeps a zero row.
             gt(influenceScores.influenceEvents30d, 0),
-            // Soft-deleted entities must not be publicly ranked.
-            isNull(entities.deletedAt),
+            // A deleted account stays ranked, as "Deleted user" (D18).
             input.entityType ? eq(entities.type, input.entityType) : undefined,
           ),
         )

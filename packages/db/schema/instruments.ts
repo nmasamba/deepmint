@@ -1,6 +1,10 @@
 import { pgTable, uuid, varchar, pgEnum, boolean } from 'drizzle-orm/pg-core';
 
 export const assetClassEnum = pgEnum('asset_class', ['equity', 'etf', 'crypto', 'forex', 'commodity', 'index']);
+// The asset classes that can be priced: pricing always calls Polygon's stocks
+// endpoints, which serve shares and ETFs only. The admin API creates only
+// these; the other enum values stay because dropping one needs a migration.
+export const PRICEABLE_ASSET_CLASSES = ['equity', 'etf'] as const;
 export const exchangeEnum = pgEnum('exchange', ['NYSE', 'NASDAQ', 'AMEX']);
 
 export const instruments = pgTable('instruments', {

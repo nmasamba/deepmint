@@ -93,8 +93,8 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - `leaderboard`, `consensus` and `scores` routers; the leaderboard page; profile Overview and Stats tabs; the dashboard consensus grid.
 - **Status today:**
   - No job calls `maeAndMfe`, `calmarRatio`, `continuousBrierScore` or `timeDecayedBrierScore`. `checkAntiGaming` was never applied, and wave 4 deleted it in favour of a 10-outcome floor. `outcomes.brier_slices` (migration 0001) is never written.
-  - "Regime-aware" EIV is not regime-aware in practice. The worker always passes an empty regime history, so the 0.4 penalty always applies and `eiv` equals `eiv_overall`.
-  - Player metrics treat each claim's outcome as one daily return, whatever its horizon.
+  - "Regime-aware" EIV was not regime-aware in practice until wave 7: the worker passed an empty regime history, so a 0.4 penalty always applied and `eiv` equalled `eiv_overall`. Each outcome now counts in the regime of its entry date, and `eiv` is written only for an entity with 5 outcomes in the current regime.
+  - Player metrics treated each claim's outcome as one daily return, whatever its horizon, until PR #17; they now come from a daily mark-to-market book of the Player's claims.
   - `polygonCache.ts` was meant to cache prices (1 h historical, 5 min current). In fact only regime indicators are cached (1 h, and only when Upstash is set); prices are never cached.
   - Consensus covers every active instrument, not just the Mag 7. It used active claims from the last 90 days, and every run failed on a bound date; since wave 1 it counts the claims whose horizon has not passed, and runs.
   - `leaderboard-refresh` only writes a log line.
@@ -162,7 +162,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - Those tickers are added only when an admin presses "Seed S&P 500 Top 50". Whether that happened in production is not recorded.
   - Extraction and ticker pages stay Mag-7 only.
   - No UI calls `instruments.requestTicker`, and approving a request does not create an instrument.
-  - **Expansion is deferred by design.** Deepmint stays Mag-7 only until the core product has matured; this tooling is dormant groundwork for that later step (maintainer decision, 2026-10-05). The surfaces that would disagree once more stocks exist are listed in [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md#instrument-universe-inconsistent).
+  - **Expansion is deferred by design.** Deepmint stays Mag-7 only until the core product has matured; this tooling is dormant groundwork for that later step (maintainer decision, 2026-10-05). Since wave 7 claims, search, paper trades and consensus accept only `COVERED_TICKERS` (the Mag 7), as ticker pages, ingestion and MCP already did through `MAG7_TICKERS`, so stocks added early stay out of every surface.
   - Superseded: the default model `google/gemma-4-31B-it:fastest` (see Sprint 2).
 
 ## Sprint 7 — Hardening + mobile PWA
@@ -179,7 +179,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - PWA manifest, Serwist service worker and an `/offline` page.
 - **Status today:**
   - Since 2026-10-06 the regime is a stored daily snapshot (`market_regimes`, migration 0008), written on weekdays at 17:30 US Eastern; pages read it instead of recomputing. The plan has no index data (`I:VIX` and `I:SPX` return 403), so the S&P 500 30-day return is measured on SPY and VIX is recorded as defaulted, never as a made-up value.
-  - The web suite has 67 tests in 6 files (18 before wave 1, 26 before wave 2, 33 before wave 3, 58 before wave 5); an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
+  - The web suite has 72 tests in 6 files (18 before wave 1, 26 before wave 2, 33 before wave 3, 58 before wave 5, 67 before wave 7); an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
   - `/docs/api` is shown to every signed-in user, but only admins can mint keys.
   - Until wave 1, `/manifest.json` and `/offline` sat behind sign-in: the manifest returned 404 and the offline page was never precached, so neither worked. Both are public now, and the service worker precaches `/offline`.
 
@@ -284,7 +284,7 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 - **Ingestion:** the weekday ingest does nothing unless one of the two lanes is configured:
   - RSS needs Guides with `is_allowlisted=true` and a `source_url`, set by hand in SQL;
   - the Polygon news lane needs `INGEST_POLYGON_NEWS=1`.
-- **Tests without keys** (since wave 6): scoring 127, shared 69 (2 live Polygon tests skip), api 32 (39 database tests skip), ingestion 83 (6 live LLM and 5 database tests skip), web 67 skipped.
+- **Tests without keys** (since wave 8): scoring 135, shared 74 (2 live Polygon tests skip), api 35 (55 database tests skip), ingestion 85 (6 live LLM and 7 database tests skip), web 72 skipped.
 - **Open issues to know first:**
   - `claims/created` fires only for self-logged claims.
   - Sentry and R2 are inert.

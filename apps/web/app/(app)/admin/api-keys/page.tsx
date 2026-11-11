@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Copy, KeyRound, Plus, ShieldOff, Check } from "lucide-react";
 
@@ -35,9 +36,30 @@ const ALL_SCOPES = [
   { id: "scores:read", label: "scores:read" },
   { id: "consensus:read", label: "consensus:read" },
   { id: "leaderboard:read", label: "leaderboard:read" },
+  { id: "claims:write", label: "claims:write" },
 ] as const;
 
 type ScopeId = (typeof ALL_SCOPES)[number]["id"];
+
+const DEFAULT_SCOPES: ScopeId[] = [
+  "scores:read",
+  "consensus:read",
+  "leaderboard:read",
+];
+
+/** Expiry choices, in days; null never expires. */
+const EXPIRY_OPTIONS = [
+  { value: "never", label: "Never", days: null },
+  { value: "30", label: "30 days", days: 30 },
+  { value: "90", label: "90 days", days: 90 },
+  { value: "365", label: "1 year", days: 365 },
+] as const;
+
+type ExpiryValue = (typeof EXPIRY_OPTIONS)[number]["value"];
+
+/** A native select styled like the dialog's inputs. */
+const selectClass =
+  "h-9 w-full rounded-md border border-border bg-bg-primary px-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/40";
 
 export default function AdminApiKeysPage() {
   const utils = trpc.useUtils();
@@ -46,11 +68,13 @@ export default function AdminApiKeysPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
   const [rateLimit, setRateLimit] = useState(60);
-  const [scopes, setScopes] = useState<ScopeId[]>([
-    "scores:read",
-    "consensus:read",
-    "leaderboard:read",
-  ]);
+  const [scopes, setScopes] = useState<ScopeId[]>(DEFAULT_SCOPES);
+  const [expiry, setExpiry] = useState<ExpiryValue>("never");
+  // A claims:write key acts as an agent Player: a new one by name, or an
+  // existing one by id (to give it a fresh key). Never as the admin.
+  const [agentMode, setAgentMode] = useState<"new" | "existing">("new");
+  const [agentName, setAgentName] = useState("");
+  const [agentEntityId, setAgentEntityId] = useState("");
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -72,6 +96,17 @@ export default function AdminApiKeysPage() {
       toast.error("Revoke failed", { description: err.message }),
   });
 
+  // Agents that already hold a key, for giving one a new key. A deleted
+  // agent cannot write, so it is not offered.
+  const agents = [
+    ...new Map(
+      (keys ?? [])
+        .filter((k) => k.entityId && k.agentName && !k.agentDeleted)
+        .map((k) => [k.entityId!, k.agentName!]),
+    ),
+  ].map(([id, displayName]) => ({ id, displayName }));
+  const writes = scopes.includes("claims:write");
+
   const toggleScope = (scope: ScopeId) => {
     setScopes((prev) =>
       prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope],
@@ -87,10 +122,24 @@ export default function AdminApiKeysPage() {
       toast.error("At least one scope is required");
       return;
     }
+    if (writes && agentMode === "new" && !agentName.trim()) {
+      toast.error("Name the agent this key writes as");
+      return;
+    }
+    if (writes && agentMode === "existing" && !agentEntityId) {
+      toast.error("Choose the agent this key writes as");
+      return;
+    }
+    const days = EXPIRY_OPTIONS.find((o) => o.value === expiry)?.days ?? null;
     createMutation.mutate({
       name: name.trim(),
       rateLimit,
       scopes: scopes as [ScopeId, ...ScopeId[]],
+      expiresAt: days ? new Date(Date.now() + days * 86_400_000) : undefined,
+      // Only a writing key is bound to an agent; a read key acts as no one.
+      agentName: writes && agentMode === "new" ? agentName.trim() : undefined,
+      agentEntityId:
+        writes && agentMode === "existing" ? agentEntityId : undefined,
     });
   };
 
@@ -106,7 +155,11 @@ export default function AdminApiKeysPage() {
     if (!open) {
       setName("");
       setRateLimit(60);
-      setScopes(["scores:read", "consensus:read", "leaderboard:read"]);
+      setScopes(DEFAULT_SCOPES);
+      setExpiry("never");
+      setAgentMode("new");
+      setAgentName("");
+      setAgentEntityId("");
       setNewKey(null);
       setCopied(false);
     }
@@ -161,70 +214,96 @@ export default function AdminApiKeysPage() {
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Prefix</th>
                 <th className="px-4 py-3 font-medium">Scopes</th>
+                <th className="px-4 py-3 font-medium">Acts as</th>
                 <th className="px-4 py-3 font-medium">Rate limit</th>
+                <th className="px-4 py-3 font-medium">Expires</th>
                 <th className="px-4 py-3 font-medium">Last used</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {(keys ?? []).map((k) => (
-                <tr key={k.id} className="hover:bg-bg-tertiary/50">
-                  <td className="px-4 py-3 font-medium text-text-primary">
-                    {k.name}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">
-                    {k.keyPrefix}…
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {(k.scopes ?? []).map((s) => (
-                        <Badge
-                          key={s}
-                          variant="outline"
-                          className="border-border text-xs text-text-secondary"
+              {(keys ?? []).map((k) => {
+                const expired =
+                  k.expiresAt !== null && new Date(k.expiresAt) < new Date();
+                return (
+                  <tr key={k.id} className="hover:bg-bg-tertiary/50">
+                    <td className="px-4 py-3 font-medium text-text-primary">
+                      {k.name}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-text-secondary">
+                      {k.keyPrefix}…
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {(k.scopes ?? []).map((s) => (
+                          <Badge
+                            key={s}
+                            variant="outline"
+                            className="border-border text-xs text-text-secondary"
+                          >
+                            {s}
+                          </Badge>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary">
+                      {k.agentSlug ? (
+                        <Link
+                          href={`/player/${k.agentSlug}`}
+                          className="text-text-primary hover:text-accent"
                         >
-                          {s}
-                        </Badge>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-text-secondary">
-                    {k.rateLimit}/min
-                  </td>
-                  <td className="px-4 py-3 text-text-secondary">
-                    {k.lastUsedAt
-                      ? relativeTime(new Date(k.lastUsedAt))
-                      : "Never"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      variant="outline"
-                      className={
-                        k.isActive
-                          ? "border-green-500/30 text-green-500"
-                          : "border-red-500/30 text-red-500"
-                      }
-                    >
-                      {k.isActive ? "Active" : "Revoked"}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {k.isActive && (
-                      <Button
-                        size="sm"
+                          {k.agentName}
+                        </Link>
+                      ) : (k.scopes ?? []).includes("claims:write") ? (
+                        // Minted before agents existed: it cannot write.
+                        "No agent (cannot write)"
+                      ) : (
+                        "No one (read only)"
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-text-secondary">
+                      {k.rateLimit}/min
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary">
+                      {k.expiresAt
+                        ? new Date(k.expiresAt).toISOString().slice(0, 10)
+                        : "Never"}
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary">
+                      {k.lastUsedAt
+                        ? relativeTime(new Date(k.lastUsedAt))
+                        : "Never"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge
                         variant="outline"
-                        onClick={() => handleRevoke(k.id, k.name)}
-                        disabled={revokeMutation.isPending}
-                        className="border-red-500/30 text-red-500 hover:bg-red-500/10"
+                        className={
+                          k.isActive && !expired
+                            ? "border-green-500/30 text-green-500"
+                            : "border-red-500/30 text-red-500"
+                        }
                       >
-                        <ShieldOff className="mr-1 h-3 w-3" />
-                        Revoke
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                        {!k.isActive ? "Revoked" : expired ? "Expired" : "Active"}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {k.isActive && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRevoke(k.id, k.name)}
+                          disabled={revokeMutation.isPending}
+                          className="border-red-500/30 text-red-500 hover:bg-red-500/10"
+                        >
+                          <ShieldOff className="mr-1 h-3 w-3" />
+                          Revoke
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -283,7 +362,8 @@ export default function AdminApiKeysPage() {
                   Create API key
                 </DialogTitle>
                 <DialogDescription className="text-text-secondary">
-                  Issue a new Bearer token for B2B REST API access.
+                  Issue a new Bearer token for the REST API and the MCP
+                  server.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -333,6 +413,70 @@ export default function AdminApiKeysPage() {
                       </label>
                     ))}
                   </div>
+                </div>
+                {writes && (
+                  <div className="space-y-2 rounded-md border border-border p-3">
+                    <Label className="text-text-primary">Writes as</Label>
+                    <p className="text-xs text-text-secondary">
+                      A claims:write key submits claims and notes as an AI
+                      agent: a Player of its own, scored like anyone, never as
+                      you.
+                    </p>
+                    <select
+                      aria-label="Agent"
+                      value={agentMode}
+                      onChange={(e) =>
+                        setAgentMode(e.target.value as "new" | "existing")
+                      }
+                      className={selectClass}
+                    >
+                      <option value="new">A new agent</option>
+                      {agents.length > 0 && (
+                        <option value="existing">An existing agent</option>
+                      )}
+                    </select>
+                    {agentMode === "new" ? (
+                      <Input
+                        aria-label="Agent name"
+                        value={agentName}
+                        onChange={(e) => setAgentName(e.target.value)}
+                        placeholder="Agent name, shown on its profile"
+                        maxLength={100}
+                        className="bg-bg-primary border-border"
+                      />
+                    ) : (
+                      <select
+                        aria-label="Existing agent"
+                        value={agentEntityId}
+                        onChange={(e) => setAgentEntityId(e.target.value)}
+                        className={selectClass}
+                      >
+                        <option value="">Choose an agent</option>
+                        {agents.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="expiry" className="text-text-primary">
+                    Expires
+                  </Label>
+                  <select
+                    id="expiry"
+                    value={expiry}
+                    onChange={(e) => setExpiry(e.target.value as ExpiryValue)}
+                    className={selectClass}
+                  >
+                    {EXPIRY_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <DialogFooter>

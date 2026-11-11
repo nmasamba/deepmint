@@ -13,7 +13,7 @@ export default function MyClaimsPage() {
         <div>
           <h1 className="text-2xl font-bold text-text-primary">My Claims</h1>
           <p className="mt-1 text-text-secondary">
-            Your immutable prediction history.
+            Your immutable claim history.
           </p>
         </div>
         <SubmitClaimForm />

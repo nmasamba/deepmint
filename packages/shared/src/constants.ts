@@ -10,6 +10,20 @@ export const MAG7_TICKERS = [
 
 export type Mag7Ticker = (typeof MAG7_TICKERS)[number];
 
+/**
+ * The tickers claims, paper trades, instrument search and consensus accept:
+ * the Mag 7, the deliberate scope until the core product has matured. An
+ * instrument an admin adds stays out of all four until this list widens.
+ * Ticker pages, ingestion and the MCP ticker tools read MAG7_TICKERS, so
+ * widening coverage means changing them too.
+ */
+export const COVERED_TICKERS: readonly string[] = MAG7_TICKERS;
+
+/** Whether a ticker is in COVERED_TICKERS. */
+export function isCoveredTicker(ticker: string): boolean {
+  return COVERED_TICKERS.includes(ticker);
+}
+
 export const VALID_HORIZONS = [1, 7, 30, 90, 180, 365] as const;
 export type ValidHorizon = (typeof VALID_HORIZONS)[number];
 

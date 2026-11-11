@@ -3,6 +3,8 @@ import { z } from "zod";
 import { and, desc, eq, ilike, asc, ne, sql, isNull } from "@deepmint/db";
 import { entities, claims, outcomes } from "@deepmint/db/schema";
 import { publicEntityColumns } from "@deepmint/db/queries/publicEntity";
+import { anonymiseEntity, clearSnaptradeUser } from "@deepmint/db/queries/anonymiseEntity";
+import { deleteUser, getSnapTradeClient } from "../lib/snaptrade";
 import {
   PROFILE_BIO_MAX,
   PROFILE_STYLE_TAG_MAX,
@@ -70,6 +72,7 @@ export const entityRouter = router({
         });
       }
 
+      // Not on a deleted account, even one deleted since this request began.
       const [updated] = await ctx.db
         .update(entities)
         .set({
@@ -77,10 +80,16 @@ export const entityRouter = router({
           ...(input.styleTags !== undefined && { styleTags: input.styleTags }),
           updatedAt: new Date(),
         })
-        .where(eq(entities.id, ctx.entity.id))
+        .where(and(eq(entities.id, ctx.entity.id), isNull(entities.deletedAt)))
         .returning();
+      if (!updated) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "This account has been deleted",
+        });
+      }
 
-      return updated!;
+      return updated;
     }),
 
   /** Search entities by display name */
@@ -97,11 +106,71 @@ export const entityRouter = router({
       const results = await ctx.db
         .select(publicEntityColumns)
         .from(entities)
-        .where(ilike(entities.displayName, `%${pattern}%`))
+        // A deleted account has no name left to find.
+        .where(
+          and(
+            ilike(entities.displayName, `%${pattern}%`),
+            isNull(entities.deletedAt),
+          ),
+        )
         .orderBy(asc(entities.displayName))
         .limit(input.limit);
 
       return results;
+    }),
+
+  /**
+   * Admin: delete an account (D18 option 1), for a user whose deletion never
+   * arrived from Clerk or who asked an admin, or for an agent. It is
+   * anonymised and stays ranked as "Deleted user" (see anonymiseEntity).
+   * Clerk is not touched: while the person's Clerk account exists, their
+   * signed-in requests act as no one. An ingested Guide is not an account and
+   * cannot be deleted this way, and an admin cannot delete themself here.
+   */
+  adminDelete: adminProcedure
+    .input(z.object({ entityId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.entityId === ctx.entity.id) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "You cannot delete your own account here",
+        });
+      }
+      const [target] = await ctx.db
+        .select({
+          id: entities.id,
+          clerkUserId: entities.clerkUserId,
+          isAgent: entities.isAgent,
+        })
+        .from(entities)
+        .where(eq(entities.id, input.entityId))
+        .limit(1);
+      if (!target) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
+      }
+      if (!target.clerkUserId && !target.isAgent) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only a user's account or an agent can be deleted, not an ingested Guide",
+        });
+      }
+
+      const result = (await anonymiseEntity(target.id))!;
+      // As broker.disconnect does: remove the user at SnapTrade too. Its id
+      // stays on the row until that succeeds.
+      if (result.snaptradeUserId && getSnapTradeClient()) {
+        try {
+          await deleteUser(result.snaptradeUserId);
+          await clearSnaptradeUser(result.snaptradeEntityId!);
+        } catch (err) {
+          console.error("[entity.adminDelete] SnapTrade deleteUser failed", err);
+        }
+      }
+      return {
+        slug: result.slug,
+        alreadyDeleted: result.alreadyDeleted,
+        keysRevoked: result.keysRevoked,
+      };
     }),
 
   /** Admin: every Guide with its feed, those switched on first. */
@@ -172,7 +241,13 @@ export const entityRouter = router({
           isAllowlisted: input.enabled,
           updatedAt: new Date(),
         })
-        .where(and(eq(entities.id, input.entityId), eq(entities.type, "guide")))
+        .where(
+          and(
+            eq(entities.id, input.entityId),
+            eq(entities.type, "guide"),
+            isNull(entities.deletedAt),
+          ),
+        )
         .returning({
           id: entities.id,
           sourceUrl: entities.sourceUrl,
@@ -204,8 +279,8 @@ export const entityRouter = router({
           .from(outcomes)
           .innerJoin(claims, eq(outcomes.claimId, claims.id))
           .where(eq(claims.status, "active")),
-        // Soft-deleted entities are excluded everywhere else (leaderboard,
-        // consensus); the public headcount must match.
+        // A deleted account stays ranked as "Deleted user" (D18), but the
+        // headcount counts only the people and Guides still here.
         ctx.db
           .select({ count: sql<number>`count(*)::int` })
           .from(entities)

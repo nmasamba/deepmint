@@ -14,6 +14,7 @@ import { influenceRouter } from "./routers/influence";
 import { notificationsRouter } from "./routers/notifications";
 import { brokerRouter } from "./routers/broker";
 import { apiKeysRouter } from "./routers/apiKeys";
+import { guidesRouter } from "./routers/guides";
 
 export const appRouter = router({
   entity: entityRouter,
@@ -31,6 +32,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   broker: brokerRouter,
   apiKeys: apiKeysRouter,
+  guides: guidesRouter,
 });
 
 export type AppRouter = typeof appRouter;

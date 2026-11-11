@@ -9,7 +9,8 @@
     "./lib/snaptrade": "./lib/snaptrade.ts",
     "./lib/brokerSync": "./lib/brokerSync.ts",
     "./lib/inngestEnv": "./lib/inngestEnv.ts",
-    "./lib/paperAccounting": "./lib/paperAccounting.ts"
+    "./lib/paperAccounting": "./lib/paperAccounting.ts",
+    "./lib/auditWindow": "./lib/auditWindow.ts"
   },
   "scripts": {
     "check": "tsc --noEmit",
