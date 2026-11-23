@@ -92,7 +92,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - `entity-scoring` (on `markouts/completed`); `consensus-signal` and `leaderboard-refresh` (on `scoring/completed`).
   - `leaderboard`, `consensus` and `scores` routers; the leaderboard page; profile Overview and Stats tabs; the dashboard consensus grid.
 - **Status today:**
-  - No job calls `maeAndMfe`, `calmarRatio`, `continuousBrierScore` or `timeDecayedBrierScore`. `checkAntiGaming` was never applied, and wave 4 deleted it in favour of a 10-outcome floor. `outcomes.brier_slices` (migration 0001) is never written.
+  - No job ever called `maeAndMfe`, `continuousBrierScore` or `timeDecayedBrierScore`; wave 9 deleted them. `checkAntiGaming` was never applied, and wave 4 deleted it in favour of a 10-outcome floor. `outcomes.brier_slices` (migration 0001) is never written.
   - "Regime-aware" EIV was not regime-aware in practice until wave 7: the worker passed an empty regime history, so a 0.4 penalty always applied and `eiv` equalled `eiv_overall`. Each outcome now counts in the regime of its entry date, and `eiv` is written only for an entity with 5 outcomes in the current regime.
   - Player metrics treated each claim's outcome as one daily return, whatever its horizon, until PR #17; they now come from a daily mark-to-market book of the Player's claims.
   - `polygonCache.ts` was meant to cache prices (1 h historical, 5 min current). It caches the regime indicators (1 h) and, since wave 1, the latest closes (5 min), only when Upstash is set; until wave 9 its reads never hit.

@@ -15,6 +15,7 @@ import {
   brierScore,
   targetPrecision,
   targetCoverage,
+  targetHitRate,
   dailyBookReturns,
   playerRiskMetrics,
   computeOverallEIV,
@@ -349,6 +350,8 @@ export const scoreFunction = inngest.createFunction(
           const tp = targetPrecision(targetsData);
           if (tp !== null) addScore("target_precision", tp);
           addScore("target_coverage", targetCoverage(targetsData));
+          const thr = targetHitRate(entityOutcomes);
+          if (thr !== null) addScore("target_hit_rate", thr);
 
           // Hit rate by horizon
           for (const [h, hOutcomes] of byHorizon) {

@@ -1,6 +1,6 @@
 /**
- * Guide scoring metrics (build_spec §2.3 + §2.5).
- * Includes hit rate, Brier scoring, z-test significance, and continuous Brier.
+ * Guide scoring metrics (build_spec §2.3).
+ * Includes hit rate, Brier scoring, z-test significance and price targets.
  */
 
 import { avg, normalCDF } from "./utils";
@@ -146,65 +146,32 @@ export function targetPrecision(
   return avg(precisions);
 }
 
-// ---------------------------------------------------------------------------
-// Continuous Brier scoring (§2.5)
-// ---------------------------------------------------------------------------
-
-export interface BrierTimeSlice {
-  daysBeforeResolution: number;
-  priceCents: number;
-  directionCorrect: boolean;
-}
-
 /**
- * Compute direction correctness at a price snapshot point.
+ * Fraction of usable targets (see isUsableTarget) that the price reached by the
+ * claim's exit, or null when there is none, as in targetPrecision.
+ *
+ * A target behind the entry for the claim's direction is left out: the price
+ * had already passed it, so markout calls it hit on the first bar. Neutral
+ * claims have no target outcome.
  */
-export function computeSliceOutcome(slice: {
-  direction: "long" | "short" | "neutral";
-  entryPriceCents: number;
-  snapshotPriceCents: number;
-}): 0 | 1 {
-  const returnPct =
-    (slice.snapshotPriceCents - slice.entryPriceCents) / slice.entryPriceCents;
-  if (slice.direction === "long") return returnPct > 0 ? 1 : 0;
-  if (slice.direction === "short") return returnPct < 0 ? 1 : 0;
-  return Math.abs(returnPct) < 0.02 ? 1 : 0; // neutral: within 2%
-}
-
-/**
- * Continuous Brier score across multiple time slices.
- * Each slice represents a forecast evaluation at a point before resolution.
- */
-export function continuousBrierScore(
-  slices: { forecastProbability: number; outcome: 0 | 1 }[]
-): number {
-  if (slices.length === 0) return 1;
-  const sum = slices.reduce(
-    (acc, s) => acc + (s.forecastProbability - s.outcome) ** 2,
-    0
-  );
-  return sum / slices.length;
-}
-
-/**
- * Time-decayed Brier score — recent slices weighted more heavily.
- * @param lambda Decay rate (default 0.05)
- */
-export function timeDecayedBrierScore(
-  slices: {
-    daysBeforeResolution: number;
-    forecastProbability: number;
-    outcome: 0 | 1;
-  }[],
-  lambda = 0.05
-): number {
-  if (slices.length === 0) return 1;
-  let weightedSum = 0;
-  let totalWeight = 0;
-  for (const s of slices) {
-    const weight = Math.exp(-lambda * s.daysBeforeResolution);
-    weightedSum += weight * (s.forecastProbability - s.outcome) ** 2;
-    totalWeight += weight;
+export function targetHitRate(
+  outcomes: {
+    direction: "long" | "short" | "neutral";
+    targetPriceCents: number | null;
+    entryPriceCents: number;
+    targetHit: boolean | null;
+  }[]
+): number | null {
+  const hits: boolean[] = [];
+  for (const { direction, targetPriceCents, entryPriceCents, targetHit } of outcomes) {
+    if (targetPriceCents === null || targetHit === null) continue;
+    if (!isUsableTarget(targetPriceCents, entryPriceCents)) continue;
+    const ahead =
+      direction === "long"
+        ? targetPriceCents > entryPriceCents
+        : direction === "short" && targetPriceCents < entryPriceCents;
+    if (ahead) hits.push(targetHit);
   }
-  return totalWeight > 0 ? weightedSum / totalWeight : 1;
+  if (hits.length === 0) return null;
+  return hits.filter(Boolean).length / hits.length;
 }

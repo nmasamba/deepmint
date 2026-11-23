@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **15 open issues: no high, 2 medium and 13 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **14 open issues: no high, 2 medium and 12 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,7 +26,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 0 | 1 | 1 |
+| [Scoring and ranking](#area-scoring) | 0 | 0 | 0 | 0 |
 | [Product (web app)](#area-product) | 0 | 0 | 2 | 2 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 3 | 3 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 1 | 2 |
@@ -34,21 +34,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 2 | 3 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **2** | **13** | **15** |
+| **All** | **0** | **2** | **12** | **14** |
 
 <a id="area-scoring"></a>
 
 ## Scoring and ranking
 
-<a id="dead-scoring-code"></a>
-
-### Unused scoring functions and outcome columns
-
-**Low** · dead-code · `dead-scoring-code`
-
-- **What's wrong:** Four exported functions are called only by tests: `maeAndMfe`, `computeSliceOutcome`, `continuousBrierScore` and `timeDecayedBrierScore`. `outcomes.brier_slices` is never written. `outcomes.target_hit` is computed, but no metric or UI uses it.
-- **User impact:** Maintainers may assume continuous Brier and MAE/MFE feed live scores.
-- **Evidence:** [`packages/scoring/src/player.ts:23`](../packages/scoring/src/player.ts#L23) · [`packages/scoring/src/guide.ts:141-189`](../packages/scoring/src/guide.ts#L141-L189) · [`apps/worker/functions/markoutClaim.ts:110-129`](../apps/worker/functions/markoutClaim.ts#L110-L129)
+No open issues.
 
 <a id="area-product"></a>
 

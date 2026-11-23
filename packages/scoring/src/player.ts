@@ -180,26 +180,3 @@ export function playerRiskMetrics(dailyReturns: number[]): {
     consistency: consistencyScore(dailyReturns),
   };
 }
-
-/**
- * Max Adverse Excursion (MAE) and Max Favorable Excursion (MFE) for a trade.
- */
-export function maeAndMfe(trade: {
-  entryPrice: number;
-  exitPrice: number;
-  highPrice: number;
-  lowPrice: number;
-  side: "buy" | "sell";
-}): { mae: number; mfe: number } {
-  if (trade.side === "buy") {
-    return {
-      mae: (trade.entryPrice - trade.lowPrice) / trade.entryPrice,
-      mfe: (trade.highPrice - trade.entryPrice) / trade.entryPrice,
-    };
-  } else {
-    return {
-      mae: (trade.highPrice - trade.entryPrice) / trade.entryPrice,
-      mfe: (trade.entryPrice - trade.lowPrice) / trade.entryPrice,
-    };
-  }
-}
