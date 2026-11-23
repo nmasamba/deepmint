@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **20 open issues: no high, 2 medium and 18 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **19 open issues: no high, 2 medium and 17 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -30,11 +30,11 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Product (web app)](#area-product) | 0 | 0 | 2 | 2 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 3 | 3 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 1 | 2 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 2 | 2 |
 | [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **2** | **18** | **20** |
+| **All** | **0** | **2** | **17** | **19** |
 
 <a id="area-scoring"></a>
 
@@ -155,16 +155,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Nothing imports `capture.ts`, so `captureSnapshot` and the R2 upload never run, and both `events` inserts write `snapshot_path: null`. The dead code also has no `response.ok` check and leaves the browser open on errors.
 - **User impact:** No source snapshots exist, and setting the `CLOUDFLARE_R2_*` keys changes nothing.
 - **Evidence:** [`packages/ingestion/src/capture.ts:17-68`](../packages/ingestion/src/capture.ts#L17-L68) · [`packages/ingestion/src/index.ts:3-4`](../packages/ingestion/src/index.ts#L3-L4) · [`apps/worker/functions/ingest.ts:104`](../apps/worker/functions/ingest.ts#L104) · [`apps/worker/functions/backfill.ts:121`](../apps/worker/functions/backfill.ts#L121)
-
-<a id="bench-providers-stale"></a>
-
-### `bench-providers.ts` is stale and reports fallback answers as successes
-
-**Low** · dead-code · `bench-providers-stale`
-
-- **What's wrong:** The script reads a hard-coded `/Users/nm/Projects/Deepmint/.env.local`, defaults to the deprecated `Qwen/Qwen3-235B-A22B` when `LLM_MODEL` is unset, and its header describes a different argument. It never disables the fallback model, so a failing model is reported `ok: true` with the fallback's results.
-- **User impact:** A developer benchmarking a model can conclude that a dead model works.
-- **Evidence:** [`packages/ingestion/scripts/bench-providers.ts:4-9`](../packages/ingestion/scripts/bench-providers.ts#L4-L9) · [`packages/ingestion/scripts/bench-providers.ts:15`](../packages/ingestion/scripts/bench-providers.ts#L15) · [`packages/ingestion/scripts/bench-providers.ts:24-40`](../packages/ingestion/scripts/bench-providers.ts#L24-L40) · [`packages/ingestion/src/extractor.ts:418-436`](../packages/ingestion/src/extractor.ts#L418-L436)
 
 <a id="area-data"></a>
 
