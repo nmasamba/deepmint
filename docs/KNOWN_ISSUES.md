@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **16 open issues: no high, 2 medium and 14 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **15 open issues: no high, 2 medium and 13 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -32,9 +32,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Workers and schedules](#area-workers) | 0 | 1 | 1 | 2 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 2 | 2 |
 | [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
-| [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 3 | 4 |
+| [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 2 | 3 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **2** | **14** | **16** |
+| **All** | **0** | **2** | **13** | **15** |
 
 <a id="area-scoring"></a>
 
@@ -204,16 +204,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** None visible today: the digest skips without a Resend key, and the R2 code is never called. `deepmint.app` does not resolve.
 - **Evidence:** [`apps/worker/functions/digest.ts:156-165`](../apps/worker/functions/digest.ts#L156-L165) · [`packages/ingestion/src/r2.ts:53`](../packages/ingestion/src/r2.ts#L53)
 
-<a id="redis-compose-unused"></a>
-
-### docker-compose Redis is unused, so local rate limits and caches are off
-
-**Low** · config · `redis-compose-unused`
-
-- **What's wrong:** Compose starts Redis 7 on 6379, but all Redis access is Upstash REST, and no repo code reads `REDIS_URL`. With the Upstash variables blank, every rate limit and both caches are no-ops. `@deepmint/shared` imports `@upstash/redis` without declaring it, so outside the Next build (vitest, tsx) the regime cache silently disables itself.
-- **User impact:** Contributors run a container nothing uses, and local rate limiting never runs, though v1 still sends `X-RateLimit-*` headers.
-- **Evidence:** [`docker-compose.yml:13-16`](../docker-compose.yml#L13-L16) · [`packages/shared/src/polygonCache.ts:21-42`](../packages/shared/src/polygonCache.ts#L21-L42) · [`packages/shared/package.json`](../packages/shared/package.json)
-
 <a id="area-docs"></a>
 
 ## Code comments
@@ -242,4 +232,4 @@ These verified issues were docs drift. The 2026-10-05 docs update fixed them in 
 | `llm-model-docs-drift` | Low | [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) named the old pinned `openai/gpt-oss-120b:cerebras` and listed the model overrides as configured; [SPRINT_LOG.md](../SPRINT_LOG.md) and [CHANGELOG.md](CHANGELOG.md) stopped at older defaults. | All three now give the code defaults, `openai/gpt-oss-120b:fastest` with fallback `meta-llama/Llama-3.3-70B-Instruct:fastest`. The stale demo-adapter docstring in code was corrected in wave 9, when the adapter was deleted. |
 | `readme-clerk-providers` | Low | The README's tech-stack line listed sign-in providers that production does not offer. | [README.md](../README.md) gives what the production Clerk development instance offered on 2026-10-05: Google, Apple, and username plus password. Still in code: a styling comment at [`apps/web/app/(auth)/sign-in/[[...sign-in]]/page.tsx:31-33`](../apps/web/app/%28auth%29/sign-in/%5B%5B...sign-in%5D%5D/page.tsx#L31-L33) (and the sign-up page) names Facebook and X. |
 
-The docs part of [gitignored-doc-references](#gitignored-doc-references) is fixed too: [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) no longer tells sessions to read a gitignored spec, though older [DEVLOG.md](DEVLOG.md) entries still cite them as history. The doc statements behind several open entries were also corrected, including [sentry-inert](#sentry-inert), `mcp-unreachable-basepath` (since fixed), [polygon-throttle-not-serialized](#polygon-throttle-not-serialized), and [redis-compose-unused](#redis-compose-unused); their code issues stay open above.
+The docs part of [gitignored-doc-references](#gitignored-doc-references) is fixed too: [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) no longer tells sessions to read a gitignored spec, though older [DEVLOG.md](DEVLOG.md) entries still cite them as history. The doc statements behind several open entries were also corrected, including [sentry-inert](#sentry-inert), `mcp-unreachable-basepath` (since fixed), [polygon-throttle-not-serialized](#polygon-throttle-not-serialized) and `redis-compose-unused` (since fixed); the code issues of the other two stay open above.

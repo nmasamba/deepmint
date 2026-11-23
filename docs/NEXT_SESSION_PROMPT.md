@@ -91,8 +91,9 @@ A. Done: self-logged and undated claims are stored with entry_price_cents = null
 
 B. Upstash Redis (priority 1 in docs/EXTERNAL_KEYS.md).
    - It switches on rate limits (claims.submit 10/h, broker sync 1/h, v1 and MCP per key per
-     minute) and the follower-count cache. It does NOT cache prices. The leaderboard's regime no
-     longer needs it: since 2026-10-06 it is a stored daily snapshot (market_regimes).
+     minute), the follower-count cache and a shared 5-minute cache of latest closes. Claim, mirror
+     and markout prices are never cached. The leaderboard's regime no longer needs it: since
+     2026-10-06 it is a stored daily snapshot (market_regimes).
    - Steps:
      1. I run `vercel login`. You list env var NAMES, never values, to refresh
         docs/EXTERNAL_KEYS.md.
@@ -102,8 +103,6 @@ B. Upstash Redis (priority 1 in docs/EXTERNAL_KEYS.md).
         see new env after a fresh production deploy; ask me before triggering one.
      3. Verify: X-RateLimit-* headers are sent even without Upstash, so check that
         X-RateLimit-Remaining drops between two /api/v1 calls with the same key.
-     4. @deepmint/shared does not declare @upstash/redis, so outside the Next build (vitest, tsx)
-        its cache silently disables itself.
 
 Everything else is in docs/KNOWN_ISSUES.md.
 ```

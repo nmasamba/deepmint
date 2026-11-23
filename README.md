@@ -183,7 +183,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 | Auth | Clerk (`@clerk/nextjs` 7) |
 | Market data | Polygon.io through `@massive.com/client-js` (US stock endpoints only) |
 | Extraction LLM | OpenAI SDK pointed at the Hugging Face router: `openai/gpt-oss-120b:fastest`, with fallback `meta-llama/Llama-3.3-70B-Instruct:fastest` |
-| Optional services | Upstash Redis (rate limits, two small caches), Resend (email), SnapTrade (broker linking) |
+| Optional services | Upstash Redis (rate limits, three small caches), Resend (email), SnapTrade (broker linking) |
 | Tests | Vitest |
 
 ### Repo map
@@ -216,7 +216,7 @@ pnpm install
 docker compose up -d
 ```
 
-This starts Postgres 16 on **localhost:5433**; the user, password and database are all `deepmint`. It also starts Redis 7 on port 6379, which no code uses: all Redis access goes to Upstash over REST.
+This starts Postgres 16 on **localhost:5433**; the user, password and database are all `deepmint`. It also starts Redis 7 on port 6379 and, on port 8079, a proxy that gives it Upstash's REST API, the only one the app speaks. Nothing uses them until you set the two Upstash variables below.
 
 **2. Create the env files**
 
@@ -253,7 +253,7 @@ What happens when an optional key is missing:
 |---|---|
 | `POLYGON_API_KEY` | The Mag-7 get fixed dev "current" prices and any other ticker fails. Dated entry prices are left empty rather than faked, and markout writes no outcomes. No market-regime snapshot is stored. New instruments added by an admin are deactivated, because no price history comes back. |
 | `HF_API_KEY` | Every extraction throws, so posts never get claims. |
-| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | No rate limits, and no follower-count or regime cache. Prices are never cached either way. |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | No rate limits, no follower-count cache, and no shared cache of the latest closes (5 minutes) or regime indicators (1 hour). To test them locally, set `http://localhost:8079` and `deepmint`, the compose proxy. |
 | `CLERK_WEBHOOK_SECRET` | Not needed locally. Your Player record is created on your first signed-in request. |
 | `RESEND_API_KEY`, `SNAPTRADE_*` | The digest is skipped, and broker linking shows "not configured". |
 | `CLOUDFLARE_R2_*`, `NEXT_PUBLIC_SENTRY_DSN` | Nothing changes: no running code uses them, set or not. |

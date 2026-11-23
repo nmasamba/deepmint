@@ -160,17 +160,18 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
   | `packages/api/routers/claims.ts:28-29` | `claims.submit`: 10 claims per hour per entity, MCP `submit_claim` included. |
   | `packages/api/routers/broker.ts:25-26` | `broker.syncTrades`: 1 per hour per entity. |
   | `packages/api/routers/social.ts:20-21` | Follower-count cache. A cache, not a limit. |
-  | `packages/shared/src/polygonCache.ts:24-25` | 1-hour cache of the **regime indicators only** (`polygon.ts:406-409`). Price lookups are never cached; `historicalCacheKey` and `currentPriceCacheKey` are unused. |
+  | `packages/shared/src/polygonCache.ts` | 1-hour cache of the regime indicators and 5-minute cache of the latest closes (`getLatestClose`), which every instance shares. Claim, mirror and markout prices are never cached. |
 
 - **Required:** no. Priority 1 explains why to set it anyway.
 - **If missing:** no rate limits anywhere, and follower counts come from the database each time. The regime no longer depends on it: it is a stored daily snapshot.
 - **Headers prove nothing.** `/api/v1` sends `X-RateLimit-*` headers on every authenticated response, with or without Upstash (`remaining` equals the limit when it is off).
-- **Silent failure:** `@upstash/redis` is not a declared dependency of `@deepmint/shared`. `polygonCache.ts` imports it dynamically, and if that import fails the regime cache switches itself off without an error.
+- **Fixed in wave 9:** `@deepmint/shared` did not declare `@upstash/redis`, so outside the Next build the Polygon cache switched itself off without an error, and inside it every read missed, because the client had already parsed the JSON that `getCached` parses.
+- **Locally:** `docker compose up -d` serves the same API in front of its Redis (`hiett/serverless-redis-http`). Set `UPSTASH_REDIS_REST_URL=http://localhost:8079` and `UPSTASH_REDIS_REST_TOKEN=deepmint` to use it. It has no `/ping` path, so the first check below works only against Upstash.
 - **Get it:** console.upstash.com → create a Redis database → REST API → URL and token. The code reads only these two names; if a marketplace integration injects other names, add these two as well.
 - **Verify:**
   - Credentials: `curl -s "$UPSTASH_REDIS_REST_URL/ping" -H "Authorization: Bearer $UPSTASH_REDIS_REST_TOKEN"` returns `{"result":"PONG"}`.
   - After a redeploy: call an `/api/v1` endpoint twice with a `dm_live_` key. With Upstash live, `X-RateLimit-Remaining` falls with each call (59, then 58 for a 60/min key); without it, it stays at the limit.
-  - In the Upstash data browser, `regime:indicators` appears after a leaderboard view or a scoring run.
+  - In the Upstash data browser, `price:current:<ticker>` appears after a ticker page view, and `regime:indicators:v2` after a scoring run or the market-regime job that had to compute the day's regime.
 - **Production:** empty (last recorded).
 
 ## SnapTrade
@@ -257,7 +258,7 @@ These are read from the **root** `.env.local` by `apps/web/vitest.config.ts`.
 
 These appear in older templates or docs; setting them has no effect.
 
-- `REDIS_URL`. The docker-compose Redis container is unused: all Redis access is Upstash REST. (`mcp-handler` reads it only for its SSE transport, which this app never reaches.)
+- `REDIS_URL`. All Redis access is Upstash REST, through the compose proxy locally. (`mcp-handler` reads it only for its SSE transport, which this app never reaches.)
 - `SENTRY_AUTH_TOKEN`.
 - `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`.
 - `INNGEST_API_KEY`.

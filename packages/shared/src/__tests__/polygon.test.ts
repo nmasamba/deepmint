@@ -5,11 +5,15 @@ import {
   getEODPrice,
   getLatestClose,
   getLatestCloses,
+  getRegimeIndicators,
   polygonRateLimit,
 } from "../polygon";
 
 // Read before any test deletes it; the live tests put it back.
 const LIVE_POLYGON_KEY = process.env.POLYGON_API_KEY;
+
+// A Redis in .env.local would answer the lookups these tests are about.
+delete process.env.UPSTASH_REDIS_REST_URL;
 
 describe("getCurrentPrice", () => {
   beforeEach(() => {
@@ -64,6 +68,10 @@ describe("without a Polygon key", () => {
   it("getLatestClose rejects, and getLatestCloses leaves the ticker out", async () => {
     await expect(getLatestClose("AAPL")).rejects.toThrow("POLYGON_API_KEY is not set");
     expect((await getLatestCloses(["AAPL"])).size).toBe(0);
+  });
+
+  it("getRegimeIndicators rejects rather than return, and cache, defaults alone", async () => {
+    await expect(getRegimeIndicators()).rejects.toThrow("No regime indicator is available");
   });
 });
 

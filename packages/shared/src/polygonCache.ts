@@ -30,10 +30,10 @@ async function getRedis(): Promise<RedisLike | null> {
   }
 
   try {
-    // Dynamic import — @upstash/redis may not be installed in this package
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = await (import("@upstash/redis" as string) as Promise<{ Redis: new (opts: { url: string; token: string }) => RedisLike }>);
-    redis = new mod.Redis({ url, token });
+    const { Redis } = await import("@upstash/redis");
+    // getCached stores and parses JSON itself. The client would otherwise parse
+    // it on get, and parsing its object again fails, so every read would miss.
+    redis = new Redis({ url, token, automaticDeserialization: false });
     return redis;
   } catch {
     redis = null;

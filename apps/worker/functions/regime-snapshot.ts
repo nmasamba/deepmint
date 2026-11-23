@@ -11,9 +11,10 @@ import { getRegimeIndicators } from "@deepmint/shared";
  * Computing takes ~14 throttled Polygon calls (minutes), which is why it runs
  * here in the background and interactive pages only ever read the row.
  *
- * Throws when every indicator fell back to its default: that is not a market
- * reading, and storing it as one would mislabel the day. A partly-defaulted
- * snapshot is stored with `defaulted_fields` naming what fell back.
+ * Throws when no indicator is available (getRegimeIndicators does): defaults
+ * alone are not a market reading, and storing them would mislabel the day. A
+ * partly-defaulted snapshot is stored with `defaulted_fields` naming what fell
+ * back.
  */
 export async function ensureRegimeSnapshot(asOfDate: string) {
   const [existing] = await db
@@ -24,11 +25,6 @@ export async function ensureRegimeSnapshot(asOfDate: string) {
   if (existing) return existing;
 
   const { defaulted, ...indicators } = await getRegimeIndicators();
-  if (defaulted.length === 3) {
-    throw new Error(
-      `[regime] all indicators unavailable for ${asOfDate}; not storing a snapshot`,
-    );
-  }
 
   await db
     .insert(marketRegimes)

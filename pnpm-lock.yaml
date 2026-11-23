@@ -313,6 +313,9 @@ importers:
       '@massive.com/client-js':
         specifier: ^10.5.0
         version: 10.5.0
+      '@upstash/redis':
+        specifier: ^1.37.0
+        version: 1.37.0
     devDependencies:
       '@deepmint/tsconfig':
         specifier: workspace:*

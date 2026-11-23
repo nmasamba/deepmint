@@ -15,5 +15,18 @@ services:
     ports:
       - "6379:6379"
 
+  # Upstash's REST API in front of that Redis: the app speaks nothing else. It is
+  # used only when the two UPSTASH_REDIS_REST_* variables point at it.
+  redis-rest:
+    image: hiett/serverless-redis-http:0.0.10
+    ports:
+      - "8079:80"
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: deepmint
+      SRH_CONNECTION_STRING: redis://redis:6379
+    depends_on:
+      - redis
+
 volumes:
   pgdata:
