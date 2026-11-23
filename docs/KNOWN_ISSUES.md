@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **22 open issues: no high, 2 medium and 20 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **20 open issues: no high, 2 medium and 18 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -29,12 +29,12 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Scoring and ranking](#area-scoring) | 0 | 0 | 1 | 1 |
 | [Product (web app)](#area-product) | 0 | 0 | 2 | 2 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 3 | 3 |
-| [Workers and schedules](#area-workers) | 0 | 1 | 3 | 4 |
+| [Workers and schedules](#area-workers) | 0 | 1 | 1 | 2 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 3 | 3 |
 | [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **2** | **20** | **22** |
+| **All** | **0** | **2** | **18** | **20** |
 
 <a id="area-scoring"></a>
 
@@ -132,26 +132,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** Dormant while SnapTrade is unconfigured. Once enabled, one lasting error ends syncing for that Player, and the Verified badge and ×1.5 weight stay off until they reconnect by hand, even if SnapTrade recovers.
 - **Evidence:** [`apps/worker/functions/broker-sync.ts`](../apps/worker/functions/broker-sync.ts) · [`packages/api/routers/broker.ts`](../packages/api/routers/broker.ts) · [`apps/web/components/settings/BrokerVerification.tsx`](../apps/web/components/settings/BrokerVerification.tsx)
 
-<a id="leaderboard-refresh-noop"></a>
-
-### `leaderboard-refresh` is a no-op that claims to cache results
-
-**Low** · dead-code · `leaderboard-refresh-noop`
-
-- **What's wrong:** The function only logs and returns `{ refreshed: true }`. Its comments describe pre-computation and Redis caching that do not exist; leaderboards query Postgres live.
-- **User impact:** Misleads operators reading Inngest runs, and uses one run per scoring event.
-- **Evidence:** [`apps/worker/functions/leaderboard-refresh.ts:2-23`](../apps/worker/functions/leaderboard-refresh.ts#L2-L23)
-
-<a id="worker-stale-docstrings"></a>
-
-### Worker docstrings describe behaviour the code no longer has
-
-**Low** · docs-drift · `worker-stale-docstrings`
-
-- **What's wrong:** `getSourceAdapters`' docstring says it falls back to the demo adapter; the body has no fallback, as its own note says, and `DemoSourceAdapter` is used only by a test. `ingest-sources` returns `totalProcessed` as the number of adapters, not captures.
-- **User impact:** Maintainers only.
-- **Evidence:** [`apps/worker/functions/ingest.ts:11-15`](../apps/worker/functions/ingest.ts#L11-L15) · [`apps/worker/functions/ingest.ts:46-49`](../apps/worker/functions/ingest.ts#L46-L49) · [`apps/worker/functions/ingest.ts:133`](../apps/worker/functions/ingest.ts#L133)
-
 <a id="area-ingestion"></a>
 
 ## Ingestion and extraction
@@ -230,8 +210,8 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 **Low** · config · `domain-mismatch`
 
-- **What's wrong:** `deepmint.app` is the digest sender, recipient and links. `deepmint.com` is the R2 public URL default and the demo adapter's URLs. Production is www.deepmint.ai, and the digest values have no env override.
-- **User impact:** None visible today: the digest skips without a Resend key, the R2 code is never called, and the demo adapter runs only in a test. `deepmint.app` does not resolve.
+- **What's wrong:** `deepmint.app` is the digest sender, recipient and links. `deepmint.com` is the R2 public URL default. Production is www.deepmint.ai, and the digest values have no env override. (The demo adapter's `deepmint.com` URLs went with it in wave 9.)
+- **User impact:** None visible today: the digest skips without a Resend key, and the R2 code is never called. `deepmint.app` does not resolve.
 - **Evidence:** [`apps/worker/functions/digest.ts:156-165`](../apps/worker/functions/digest.ts#L156-L165) · [`packages/ingestion/src/r2.ts:53`](../packages/ingestion/src/r2.ts#L53)
 
 <a id="root-vercel-json"></a>
@@ -299,7 +279,7 @@ These verified issues were docs drift. The 2026-10-05 docs update fixed them in 
 | `env-example-db-port` | Low | `.env.example` pointed `DATABASE_URL` at port 5432; docker-compose publishes Postgres on 5433. | [`.env.example`](../.env.example) uses 5433. |
 | `env-example-out-of-sync` | Low | `.env.example` omitted variables the code reads (`INGEST_POLYGON_NEWS`, `NEXT_PUBLIC_APP_URL`, `CLOUDFLARE_R2_PUBLIC_URL`, `INNGEST_DEV`, the `INNGEST_WORKFLOW_*` names, `TEST_*`) and listed some that nothing reads as if they worked. | [`.env.example`](../.env.example) lists every variable the code reads and comments out the unread ones with the reason. Still in code: the web test's default `TEST_ENTITY_SLUG` is `demo-guide`, which no seed creates ([`apps/web/__tests__/api-v1/entities-scores.test.ts:7`](../apps/web/__tests__/api-v1/entities-scores.test.ts#L7)). |
 | `external-keys-upstash-drift` | Low | [EXTERNAL_KEYS.md](EXTERNAL_KEYS.md) said Upstash would cache price lookups (only regime indicators are cached), that `X-RateLimit-*` headers appear only with Upstash (they are always sent), and listed `social.ts` as rate-limited (it uses Redis as a follower-count cache). | [EXTERNAL_KEYS.md](EXTERNAL_KEYS.md) rewritten. |
-| `llm-model-docs-drift` | Low | [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) named the old pinned `openai/gpt-oss-120b:cerebras` and listed the model overrides as configured; [SPRINT_LOG.md](../SPRINT_LOG.md) and [CHANGELOG.md](CHANGELOG.md) stopped at older defaults. | All three now give the code defaults, `openai/gpt-oss-120b:fastest` with fallback `meta-llama/Llama-3.3-70B-Instruct:fastest`. The stale demo-adapter docstring in code is [worker-stale-docstrings](#worker-stale-docstrings). |
+| `llm-model-docs-drift` | Low | [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) named the old pinned `openai/gpt-oss-120b:cerebras` and listed the model overrides as configured; [SPRINT_LOG.md](../SPRINT_LOG.md) and [CHANGELOG.md](CHANGELOG.md) stopped at older defaults. | All three now give the code defaults, `openai/gpt-oss-120b:fastest` with fallback `meta-llama/Llama-3.3-70B-Instruct:fastest`. The stale demo-adapter docstring in code was corrected in wave 9, when the adapter was deleted. |
 | `readme-clerk-providers` | Low | The README's tech-stack line listed sign-in providers that production does not offer. | [README.md](../README.md) gives what the production Clerk development instance offered on 2026-10-05: Google, Apple, and username plus password. Still in code: a styling comment at [`apps/web/app/(auth)/sign-in/[[...sign-in]]/page.tsx:31-33`](../apps/web/app/%28auth%29/sign-in/%5B%5B...sign-in%5D%5D/page.tsx#L31-L33) (and the sign-up page) names Facebook and X. |
 
 The docs part of [gitignored-doc-references](#gitignored-doc-references) is fixed too: [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) no longer tells sessions to read a gitignored spec, though older [DEVLOG.md](DEVLOG.md) entries still cite them as history. The doc statements behind several open entries were also corrected, including [sentry-inert](#sentry-inert), `mcp-unreachable-basepath` (since fixed), [polygon-throttle-not-serialized](#polygon-throttle-not-serialized), and [redis-compose-unused](#redis-compose-unused); their code issues stay open above.

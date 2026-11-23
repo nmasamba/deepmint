@@ -9,9 +9,9 @@ import {
 } from "@deepmint/ingestion";
 
 /**
- * Build the source adapters from allowlisted Guides that expose a public feed
- * URL (their RSS/Atom source). Falls back to the demo adapter (bound to a real
- * guide id) when no real sources are configured — local dev / fresh DB.
+ * Build the source adapters: RSS/Atom feeds of the Guides an admin has switched
+ * on, and the Wall Street ratings lane when INGEST_POLYGON_NEWS is "1". With
+ * neither configured there are none, and the run does nothing.
  */
 async function getSourceAdapters(): Promise<SourceAdapter[]> {
   const allowlisted = await db
@@ -63,6 +63,7 @@ export const ingestFunction = inngest.createFunction(
   async ({ step }) => {
     const adapters = await getSourceAdapters();
     let newEvents = 0;
+    let totalProcessed = 0;
 
     for (const adapter of adapters) {
       const newEventIds: string[] = [];
@@ -70,6 +71,7 @@ export const ingestFunction = inngest.createFunction(
         `fetch-${adapter.name}`,
         async () => adapter.fetchLatest(),
       );
+      totalProcessed += captures.length;
 
       for (const capture of captures) {
         const eventId = await step.run(
@@ -148,7 +150,7 @@ export const ingestFunction = inngest.createFunction(
 
     return {
       newEvents,
-      totalProcessed: adapters.length,
+      totalProcessed,
     };
   },
 );

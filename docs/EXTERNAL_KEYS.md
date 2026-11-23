@@ -33,7 +33,7 @@ Ordered by what each step changes in the running code today.
    - `claims.submit` has no 10-claims-per-hour limit, so a signed-in user can submit claims without bound.
    - `/api/v1` and `/api/mcp` have no per-key limit. This matters once the first `dm_live_` key is issued; production had 0 keys on 2026-08-03 and the count since is not recorded.
 2. **Clerk production instance, before launch.** Production runs on a development instance. That instance allows 100 Backend API requests per 10 seconds. The admin check makes at most one (`users.getUser`) per signed-in user per minute per server instance, and none with the optional session-token claim (see [Clerk](#clerk)). Moving needs the custom domain, Google OAuth credentials and DNS, then new values for both keys and the webhook secret.
-3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 18 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
+3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 17 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
 4. **SnapTrade: when Player broker verification launches,** and only after the gaps listed under [SnapTrade](#snaptrade) are fixed.
 5. **Resend: code first.** The digest sends to placeholder addresses.
 6. **Cloudflare R2: code first, lowest priority.** No code path uploads anything.
@@ -133,13 +133,13 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 
 **Variables:** `INNGEST_EVENT_KEY` (lets the app send events) and `INNGEST_SIGNING_KEY` (lets Inngest Cloud invoke `/api/inngest`). Both are read implicitly by inngest 4.1.0. The Vercel integration provides them as `INNGEST_WORKFLOW_INNGEST_EVENT_KEY` and `INNGEST_WORKFLOW_INNGEST_SIGNING_KEY`. `packages/api/lib/inngestEnv.ts` copies those onto the standard names when the standard names are unset. It runs before any Inngest client is built: `packages/api/trpc.ts` imports it on its first line, so it precedes the clients the claims, social and instruments routers build when they load, and `apps/worker/inngest.ts` and `apps/web/app/api/inngest/inngest-env.ts` (imported first by the route) import it too. An unprefixed `INNGEST_EVENT_KEY` is therefore not needed.
 
-- **Powers:** all 18 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 9 crons (ingest, markout, market regime, broker sync, consensus, influence, paper equity, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
+- **Powers:** all 17 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 9 crons (ingest, markout, market regime, broker sync, consensus, influence, paper equity, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
 - **Required:** yes, in production.
 - **If missing:** the SDK runs in cloud mode unless `INNGEST_DEV` is set. In cloud mode `send()` throws without an event key, and `/api/inngest` cannot verify Inngest's requests without the signing key, so no function runs.
 - **Before wave 1** the tRPC routers' clients never saw the mapping, so with only the prefixed keys their `claims/created` and `social/followed` sends would have failed silently, and a stale compiled `apps/worker/inngest.js` without it shadowed `inngest.ts` in the production bundle. Both are fixed; whether production ever lacked an unprefixed `INNGEST_EVENT_KEY` was not recorded.
 - **Get it:** Vercel → Integrations → Inngest (keys arrive prefixed), or Inngest dashboard → Production → event key and signing key.
 - **Verify:**
-  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job, 17 since `notify-followers-new-claim`, 18 since `paper-equity-snapshot`).
+  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job, 17 since `notify-followers-new-claim`, 18 since `paper-equity-snapshot`, 17 again since `leaderboard-refresh` was deleted).
   - For the routers, follow and then unfollow any profile, and look for a `social/followed` event in the Inngest dashboard's event list. Do not test with a claim: claims are append-only.
 - **Production:** app `deepmint` is synced through the Vercel integration. The route sets `maxDuration = 300`.
 

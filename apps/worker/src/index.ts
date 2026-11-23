@@ -3,7 +3,6 @@ import { extractFunction } from "../functions/extract";
 import { auditFunction } from "../functions/audit";
 import { markoutFunction } from "../functions/markout";
 import { scoreFunction } from "../functions/score";
-import { leaderboardRefreshFunction } from "../functions/leaderboard-refresh";
 import { consensusSignalFunction } from "../functions/consensus-signal";
 import { digestFunction } from "../functions/digest";
 import { signalSimulateFunction } from "../functions/signal-simulate";
@@ -24,7 +23,6 @@ export const inngestFunctions = [
   auditFunction,
   markoutFunction,
   scoreFunction,
-  leaderboardRefreshFunction,
   consensusSignalFunction,
   digestFunction,
   signalSimulateFunction,

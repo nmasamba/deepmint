@@ -76,7 +76,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - The fixed Mag-7 dev prices apply only when `POLYGON_API_KEY` is unset.
   - With a key, a failed lookup throws (PR #4, 2026-08-13).
 - **Snapshot storage** (`r2.ts`) and **Playwright capture** (`capture.ts`) → still in the repo, but nothing calls them; `events.snapshot_path` is always null.
-- **Demo source adapter** (`sources/demo.ts`, 5 hard-coded reports) → only a unit test uses it. Ingest relied on it, later as a fallback, until 2026-08-03. An unconfigured environment now ingests nothing.
+- **Demo source adapter** (`sources/demo.ts`, 5 hard-coded reports) → deleted in wave 9. Ingest relied on it, later as a fallback, until 2026-08-03; after that only a unit test used it. An unconfigured environment ingests nothing.
 
 ## Sprint 3 — Scoring engine
 
@@ -97,7 +97,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - Player metrics treated each claim's outcome as one daily return, whatever its horizon, until PR #17; they now come from a daily mark-to-market book of the Player's claims.
   - `polygonCache.ts` was meant to cache prices (1 h historical, 5 min current). In fact only regime indicators are cached (1 h, and only when Upstash is set); prices are never cached.
   - Consensus covers every active instrument, not just the Mag 7. It used active claims from the last 90 days, and every run failed on a bound date; since wave 1 it counts the claims whose horizon has not passed, and runs.
-  - `leaderboard-refresh` only writes a log line.
+  - `leaderboard-refresh` only wrote a log line; wave 9 deleted it.
   - Regime inputs were placeholders (VIX 18, S&P +1%) until Sprint 7.
 
 ## Sprint 4 — Social + polish
