@@ -59,7 +59,6 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
 - **Decisions that still hold:**
   - The LLM runs through Hugging Face's OpenAI-compatible router (`HF_API_KEY`), not Anthropic.
   - drizzle-orm operators are re-exported from `@deepmint/db`, so there is a single drizzle instance.
-  - `capture.ts` stays out of the ingestion barrel, which keeps Playwright out of the web bundle.
   - Inngest v4: `createFunction` takes its triggers in the options object.
 
 ### Superseded
@@ -75,7 +74,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
 - **Entry price "from Polygon with dev fallback prices"** → the previous trading day's close (`getCurrentPrice`) → since the next-close entry change, no entry price at submission: markout enters a self-logged or undated claim at the close of the first session after it was made, and records it on the outcome.
   - The fixed Mag-7 dev prices apply only when `POLYGON_API_KEY` is unset.
   - With a key, a failed lookup throws (PR #4, 2026-08-13).
-- **Snapshot storage** (`r2.ts`) and **Playwright capture** (`capture.ts`) → still in the repo, but nothing calls them; `events.snapshot_path` is always null.
+- **Snapshot storage** (`r2.ts`) and **Playwright capture** (`capture.ts`) → nothing ever called them, and wave 10 deleted them; `events.snapshot_path` is always null.
 - **Demo source adapter** (`sources/demo.ts`, 5 hard-coded reports) → deleted in wave 9. Ingest relied on it, later as a fallback, until 2026-08-03; after that only a unit test used it. An unconfigured environment ingests nothing.
 
 ## Sprint 3 — Scoring engine
@@ -287,5 +286,5 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 - **Tests without keys** (since wave 8): scoring 135, shared 74 (2 live Polygon tests skip), api 35 (55 database tests skip), ingestion 85 (6 live LLM and 7 database tests skip), web 72 skipped.
 - **Open issues to know first:**
   - `claims/created` fires only for self-logged claims.
-  - Sentry and R2 are inert.
+  - Sentry is inert, and no source snapshots exist.
   - The digest reaches no one.

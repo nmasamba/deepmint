@@ -148,7 +148,8 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - **Daily ingestion.** The daily Guide collection does nothing until an admin switches on a Guide's feed at `/admin/guides` or an operator enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
 - **Not working yet:** Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
-- **Error tracking and snapshots.** Error tracking (Sentry) and source snapshots (Cloudflare R2) are not wired into the app. Setting their keys alone does not turn them on.
+- **Error tracking.** Error tracking (Sentry) is not wired into the app. Setting its key alone does not turn it on.
+- **Snapshots.** Deepmint keeps a source post's text, not a snapshot of the page it came from.
 - **Audit.** The roots are listed at `/audit` for signed-in users and each claim page shows its proof, but nothing anchors the roots outside the database yet. Claims stored with an earlier date before the version 2 audit shipped (PR #17), such as backfilled history, are in no root. Roots from before PR #17 (leaf version 1) cover fewer fields, and a claim page shows no proof when such a root cannot be rebuilt from the ledger.
 - **Missing features.** There is no way to request a new stock.
 
@@ -256,7 +257,7 @@ What happens when an optional key is missing:
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | No rate limits, no follower-count cache, and no shared cache of the latest closes (5 minutes) or regime indicators (1 hour). To test them locally, set `http://localhost:8079` and `deepmint`, the compose proxy. |
 | `CLERK_WEBHOOK_SECRET` | Not needed locally. Your Player record is created on your first signed-in request. |
 | `RESEND_API_KEY`, `SNAPTRADE_*` | The digest is skipped, and broker linking shows "not configured". |
-| `CLOUDFLARE_R2_*`, `NEXT_PUBLIC_SENTRY_DSN` | Nothing changes: no running code uses them, set or not. |
+| `NEXT_PUBLIC_SENTRY_DSN` | Nothing changes: no running code uses it, set or not. |
 
 Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `INNGEST_DEV=1`. Without `INNGEST_DEV`, production keys in those variables would send your local events to production Inngest. `INGEST_POLYGON_NEWS=1` turns on the Wall Street ratings feed, which is off by default.
 

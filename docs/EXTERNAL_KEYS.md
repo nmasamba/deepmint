@@ -22,7 +22,6 @@ Never write a real key value into this file, [`.env.example`](../.env.example) o
 | SnapTrade | `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY` | No | Empty (last recorded) |
 | Resend | `RESEND_API_KEY` | No; **inert** until code changes | Empty (last recorded) |
 | Sentry | `NEXT_PUBLIC_SENTRY_DSN` | No; **inert** until code changes | Empty (last recorded) |
-| Cloudflare R2 | `CLOUDFLARE_R2_*` | No; **inert**, nothing calls it | Empty (last recorded) |
 | Flags | `INGEST_POLYGON_NEWS`, `NEXT_PUBLIC_APP_URL` | No | Not recorded |
 
 ## Priority order
@@ -36,7 +35,6 @@ Ordered by what each step changes in the running code today.
 3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 17 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
 4. **SnapTrade: when Player broker verification launches,** and only after the gaps listed under [SnapTrade](#snaptrade) are fixed.
 5. **Resend: code first.** The digest sends to placeholder addresses.
-6. **Cloudflare R2: code first, lowest priority.** No code path uploads anything.
 
 Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visible effect today). Keep `INGEST_POLYGON_NEWS` unset.
 
@@ -223,16 +221,6 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Verify (only after the code exists):** throw a test error and confirm it appears under Issues.
 - **Production:** empty (last recorded).
 
-## Cloudflare R2
-
-- **Variables** (`packages/ingestion/src/r2.ts`):
-  - `CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCESS_KEY_ID`, `CLOUDFLARE_R2_SECRET_ACCESS_KEY`: `uploadSnapshot` throws without them.
-  - `CLOUDFLARE_R2_BUCKET`: default `deepmint-snapshots`.
-  - `CLOUDFLARE_R2_PUBLIC_URL`: default `https://snapshots.deepmint.com`.
-- **Inert:** the only caller of `uploadSnapshot` is `captureSnapshot` in `packages/ingestion/src/capture.ts`, and nothing imports that file. `getSnapshotUrl` has no callers. Both places that insert events write `snapshot_path = null` (`apps/worker/functions/ingest.ts:104`, `backfill.ts:121`). Keys change nothing until capture is wired in.
-- **Get it:** Cloudflare dashboard → R2 → create a bucket and an API token.
-- **Production:** empty (last recorded).
-
 ## Flags and app variables
 
 | Variable | Read at | Effect | Production |
@@ -260,6 +248,7 @@ These appear in older templates or docs; setting them has no effect.
 
 - `REDIS_URL`. All Redis access is Upstash REST, through the compose proxy locally. (`mcp-handler` reads it only for its SSE transport, which this app never reaches.)
 - `SENTRY_AUTH_TOKEN`.
+- `CLOUDFLARE_R2_*`. The snapshot code that read them never ran, and wave 10 deleted it.
 - `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`.
 - `INNGEST_API_KEY`.
 

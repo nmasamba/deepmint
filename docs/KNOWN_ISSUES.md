@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **14 open issues: no high, 2 medium and 12 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **13 open issues: no high, 2 medium and 11 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -30,11 +30,11 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Product (web app)](#area-product) | 0 | 0 | 2 | 2 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 3 | 3 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 1 | 2 |
-| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 2 | 2 |
+| [Ingestion and extraction](#area-ingestion) | 0 | 0 | 1 | 1 |
 | [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 2 | 3 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **2** | **12** | **14** |
+| **All** | **0** | **2** | **11** | **13** |
 
 <a id="area-scoring"></a>
 
@@ -138,16 +138,6 @@ No open issues.
 - **User impact:** Latent until an admin switches on a feed without dates, or backfills a Guide whose feed is on; `/admin/guides` says both. The claims cannot be removed afterwards.
 - **Evidence:** [`packages/ingestion/src/sources/rss.ts`](../packages/ingestion/src/sources/rss.ts) · [`apps/worker/functions/backfill.ts`](../apps/worker/functions/backfill.ts) · [`apps/worker/functions/extract.ts`](../apps/worker/functions/extract.ts)
 
-<a id="r2-snapshot-capture-dead"></a>
-
-### Snapshot capture and R2 upload are never called
-
-**Low** · inert-integration · `r2-snapshot-capture-dead`
-
-- **What's wrong:** Nothing imports `capture.ts`, so `captureSnapshot` and the R2 upload never run, and both `events` inserts write `snapshot_path: null`. The dead code also has no `response.ok` check and leaves the browser open on errors.
-- **User impact:** No source snapshots exist, and setting the `CLOUDFLARE_R2_*` keys changes nothing.
-- **Evidence:** [`packages/ingestion/src/capture.ts:17-68`](../packages/ingestion/src/capture.ts#L17-L68) · [`packages/ingestion/src/index.ts:3-4`](../packages/ingestion/src/index.ts#L3-L4) · [`apps/worker/functions/ingest.ts:104`](../apps/worker/functions/ingest.ts#L104) · [`apps/worker/functions/backfill.ts:121`](../apps/worker/functions/backfill.ts#L121)
-
 <a id="area-data"></a>
 
 ## Data model and shared code
@@ -188,13 +178,13 @@ No open issues.
 
 <a id="domain-mismatch"></a>
 
-### Code hard-codes `deepmint.app` and `deepmint.com`
+### The daily digest hard-codes `deepmint.app`
 
 **Low** · config · `domain-mismatch`
 
-- **What's wrong:** `deepmint.app` is the digest sender, recipient and links. `deepmint.com` is the R2 public URL default. Production is www.deepmint.ai, and the digest values have no env override. (The demo adapter's `deepmint.com` URLs went with it in wave 9.)
-- **User impact:** None visible today: the digest skips without a Resend key, and the R2 code is never called. `deepmint.app` does not resolve.
-- **Evidence:** [`apps/worker/functions/digest.ts:156-165`](../apps/worker/functions/digest.ts#L156-L165) · [`packages/ingestion/src/r2.ts:53`](../packages/ingestion/src/r2.ts#L53)
+- **What's wrong:** `deepmint.app` is the digest's sender, recipient and link, with no env override. Production is www.deepmint.ai. (The `deepmint.com` defaults are gone: the demo adapter's since wave 9, and the R2 public URL's since wave 10.) Package 21, which waits for the Resend keys, replaces all three.
+- **User impact:** None visible today: the digest skips without a Resend key. `deepmint.app` does not resolve.
+- **Evidence:** [`apps/worker/functions/digest.ts:162-171`](../apps/worker/functions/digest.ts#L162-L171)
 
 <a id="area-docs"></a>
 
