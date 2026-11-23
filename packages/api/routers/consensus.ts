@@ -57,23 +57,4 @@ export const consensusRouter = router({
 
     return result;
   }),
-
-  /**
-   * Daily signal history for charting.
-   */
-  history: publicProcedure
-    .input(
-      z.object({
-        instrumentId: z.string().uuid(),
-        limit: z.number().min(1).max(365).default(30),
-      })
-    )
-    .query(async ({ input }) => {
-      return db
-        .select()
-        .from(consensusSignals)
-        .where(eq(consensusSignals.instrumentId, input.instrumentId))
-        .orderBy(desc(consensusSignals.asOfDate))
-        .limit(input.limit);
-    }),
 });

@@ -179,8 +179,6 @@ describe.skipIf(!process.env.DATABASE_URL)("entity.adminDelete (local DB)", () =
 
     const board = await adminCaller().leaderboard.top({ metric: "hit_rate", limit: 100 });
     expect(board.find((r) => r.entity.id === user.id)?.entity.displayName).toBe("Deleted user");
-    const search = await adminCaller().entity.search({ q: "Deleted user", limit: 50 });
-    expect(search.find((r) => r.id === user.id)).toBeUndefined();
   });
 
   it("refuses a profile save from a session read before the deletion", async () => {

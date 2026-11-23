@@ -31,16 +31,11 @@ const activeClaimId = async () => {
 describe.skipIf(!API_KEY)("leaderboard and profile reads, signed out", () => {
   it.each([
     ["leaderboard.top", { metric: "hit_rate" }],
-    ["leaderboard.byTicker", { ticker: "AAPL" }],
     ["leaderboard.bestInCurrentConditions", {}],
     ["entity.bySlug", { slug: "x" }],
-    ["entity.search", { q: "a" }],
     ["scores.byEntity", { entityId: ANY_ID }],
-    ["scores.history", { entityId: ANY_ID, metric: "hit_rate" }],
     ["influence.topInfluencers", {}],
     ["influence.byGuide", { entityId: ANY_ID }],
-    ["social.followers", { entityId: ANY_ID }],
-    ["social.following", { entityId: ANY_ID }],
     ["social.followerCount", { entityId: ANY_ID }],
   ])("%s answers 401", async (path, input) => {
     const { status, error } = await trpcGet(path, input);

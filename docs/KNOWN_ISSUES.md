@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **13 open issues: no high, 2 medium and 11 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **12 open issues: no high, 2 medium and 10 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -28,13 +28,13 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 |---|---|---|---|---|
 | [Scoring and ranking](#area-scoring) | 0 | 0 | 0 | 0 |
 | [Product (web app)](#area-product) | 0 | 0 | 2 | 2 |
-| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 3 | 3 |
+| [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 2 | 2 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 1 | 2 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 1 | 1 |
 | [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 2 | 3 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **2** | **11** | **13** |
+| **All** | **0** | **2** | **10** | **12** |
 
 <a id="area-scoring"></a>
 
@@ -62,9 +62,9 @@ No open issues.
 
 **Low** · feature-gap · `ticker-requests-no-ui`
 
-- **What's wrong:** `instruments.requestTicker` has no caller, so the admin "User Requests" tab is always empty. `reviewRequest` only updates the request's status: it creates no instrument and starts no price check. The admin UI has no control to add one ticker.
-- **User impact:** The request-to-coverage workflow does nothing end to end. It is dormant groundwork for the planned post-maturity expansion, so it matters only when that work starts.
-- **Evidence:** [`packages/api/routers/instruments.ts:400-454`](../packages/api/routers/instruments.ts#L400-L454) · [`packages/api/routers/instruments.ts:480-507`](../packages/api/routers/instruments.ts#L480-L507) · [`apps/web/app/(app)/admin/instruments/page.tsx:104-115`](../apps/web/app/%28app%29/admin/instruments/page.tsx#L104-L115)
+- **What's wrong:** `instruments.requestTicker` has no caller, so the admin "User Requests" tab is always empty. `reviewRequest` only updates the request's status: it creates no instrument and starts no price check. The admin UI has no control to add one ticker: `instruments.adminCreate` has no caller either.
+- **User impact:** The request-to-coverage workflow does nothing end to end. It is dormant groundwork for the planned post-maturity expansion, so it matters only when that work starts; wave 10 kept both procedures for it.
+- **Evidence:** [`packages/api/routers/instruments.ts`](../packages/api/routers/instruments.ts) (`requestTicker`, `reviewRequest`, `adminCreate`) · [`apps/web/app/(app)/admin/instruments/page.tsx:104-115`](../apps/web/app/%28app%29/admin/instruments/page.tsx#L104-L115)
 
 <a id="area-api"></a>
 
@@ -89,16 +89,6 @@ No open issues.
 - **What's wrong:** Approving a Guide application with a link moves the user's broker links, link status and SnapTrade user to the ingested Guide (`linkAccountToGuide`, 2026-11-10). Broker verification is otherwise for Players only: `broker.initLink` refuses any other type, so the Guide can never link a broker again once its link is disconnected, and consensus weights a verified Guide's claims ×1.2 as a Guide and ×1.5 as broker-verified, ×1.8 in all, which no other Guide can reach.
 - **User impact:** None today: no broker links exist while SnapTrade is not configured. Once it is, a linked analyst with a broker link counts for more in consensus than any other Guide.
 - **Evidence:** [`packages/api/lib/guideLink.ts`](../packages/api/lib/guideLink.ts) (`linkAccountToGuide`) · [`packages/api/routers/broker.ts`](../packages/api/routers/broker.ts) (`initLink`) · [`packages/scoring/src/consensus.ts`](../packages/scoring/src/consensus.ts) (`computeConsensusSignal`)
-
-<a id="unused-trpc-procedures"></a>
-
-### 15 of 82 tRPC procedures have no UI caller
-
-**Low** · dead-code · `unused-trpc-procedures`
-
-- **What's wrong:** 12 are called nowhere: `entity.search`, `instruments.detail`, `.list`, `.adminCreate`, `.requestTicker`, `leaderboard.byTicker`, `consensus.history`, `scores.history`, `social.followers`, `social.following`, `regime.history` and `influence.myInfluencers`. Two more are called only by MCP (`consensus.byInstrument`, `entity.bySlug`), and `entity.stats` only by the hidden landing `SocialProof`.
-- **User impact:** Maintenance cost; 4 of the 12 answer signed-out callers.
-- **Evidence:** [`packages/api/routers/instruments.ts:401`](../packages/api/routers/instruments.ts#L401) · [`packages/api/routers/leaderboard.ts:104`](../packages/api/routers/leaderboard.ts#L104) · [`packages/api/routers/influence.ts:124`](../packages/api/routers/influence.ts#L124)
 
 <a id="area-workers"></a>
 

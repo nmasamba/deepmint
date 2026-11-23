@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { and, desc, eq, ilike, asc, ne, sql, isNull } from "@deepmint/db";
+import { and, desc, eq, asc, ne, sql, isNull } from "@deepmint/db";
 import { entities, claims, outcomes } from "@deepmint/db/schema";
 import { publicEntityColumns } from "@deepmint/db/queries/publicEntity";
 import { anonymiseEntity, clearSnaptradeUser } from "@deepmint/db/queries/anonymiseEntity";
@@ -90,33 +90,6 @@ export const entityRouter = router({
       }
 
       return updated;
-    }),
-
-  /** Search entities by display name */
-  search: memberProcedure
-    .input(
-      z.object({
-        q: z.string().min(1).max(100),
-        limit: z.number().int().min(1).max(50).default(10),
-      }),
-    )
-    .query(async ({ ctx, input }) => {
-      // Escape LIKE wildcards so `%` and `_` match themselves.
-      const pattern = input.q.replace(/[\\%_]/g, "\\$&");
-      const results = await ctx.db
-        .select(publicEntityColumns)
-        .from(entities)
-        // A deleted account has no name left to find.
-        .where(
-          and(
-            ilike(entities.displayName, `%${pattern}%`),
-            isNull(entities.deletedAt),
-          ),
-        )
-        .orderBy(asc(entities.displayName))
-        .limit(input.limit);
-
-      return results;
     }),
 
   /**
