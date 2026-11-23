@@ -190,7 +190,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
 CHANGELOG [0.8.0](docs/CHANGELOG.md#080--logic-error-audit-extraction-hardening-backfill-mcp-production-wiring-2026-07-03); reasoning is in the [DEVLOG](docs/DEVLOG.md). These are git dates; the DEVLOG headings for the June and July work read 2026-05-05.
 
 - **Vercel (2026-05-04/05, `dee6b3a`, `6bafd9a`).** Project `deepmint-web-7ald` builds `apps/web` from `main`. The root `vercel.json` uses `cd ../..`, which only makes sense with Root Directory `apps/web`.
-  - `packages/db/run-migration.mjs` was added in `6bafd9a`. Do not use it: it hard-codes the main-checkout path and exits 0 on failure.
+  - `packages/db/run-migration.mjs` was added in `6bafd9a`. It hard-coded the main checkout's path and exited 0 on failure; wave 9 deleted it.
 - **Logic-error audit (2026-06-26, `875bb08`).** 25 confirmed fixes, among them:
   - the P&L sign for shorts;
   - parsing of Markdown-fenced JSON;

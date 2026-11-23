@@ -373,7 +373,6 @@ Keep in mind:
 
 - The `DATABASE_URL` in the root `.env.local` points at local Docker (port 5433), never at production.
 - Never run `db:seed` against production. It refuses a remote host unless `SEED_ALLOW_REMOTE` names it.
-- Do not use `packages/db/run-migration.mjs`. It hard-codes the main checkout's path and exits 0 even when a migration fails.
 
 **Correcting the ledger.** Since migration 0010, triggers refuse every `UPDATE`, `DELETE` and `TRUNCATE` on `events`, `notes` and `outcomes`, and on `claims` everything but the review decision (`pending_review` to `active` or `rejected`, with no other column changed). Locally, reset with `docker compose down -v`, then migrate and seed again. A deliberate production correction names the trigger, changes the one row and turns the trigger back on, in one transaction, so nothing else gets through while it is off:
 
@@ -392,7 +391,7 @@ The triggers are `claims_review_only`, `claims_no_delete` and `claims_no_truncat
 - **Vercel.**
   - Project `deepmint-web-7ald` (team `nmasambas-projects`) uses Root Directory `apps/web`.
   - The Git integration builds `main` to production on Node 24.x. The latest production deploy is `cd63901`.
-  - Production runs `cd ../.. && pnpm install` and `cd ../.. && pnpm --filter @deepmint/web build`. The root [`vercel.json`](vercel.json) holds the same commands, but Vercel reads `vercel.json` from the Root Directory, so the dashboard settings are probably the ones that apply.
+  - Every build runs the commands in the root [`vercel.json`](vercel.json), `cd ../.. && pnpm install` and `cd ../.. && pnpm --filter @deepmint/web build`. The dashboard overrides nothing (read on 2026-11-23: install, build and output are automatic), so editing that file changes builds.
 - **Domains.**
   - `https://www.deepmint.ai` is canonical, and `deepmint.ai` redirects to it with a 307.
   - `deepmint-web-7ald.vercel.app` also serves the app.

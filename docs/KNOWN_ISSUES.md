@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **19 open issues: no high, 2 medium and 17 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **16 open issues: no high, 2 medium and 14 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -32,9 +32,9 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Workers and schedules](#area-workers) | 0 | 1 | 1 | 2 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 2 | 2 |
 | [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
-| [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 6 | 7 |
+| [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 3 | 4 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **2** | **17** | **19** |
+| **All** | **0** | **2** | **14** | **16** |
 
 <a id="area-scoring"></a>
 
@@ -204,16 +204,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **User impact:** None visible today: the digest skips without a Resend key, and the R2 code is never called. `deepmint.app` does not resolve.
 - **Evidence:** [`apps/worker/functions/digest.ts:156-165`](../apps/worker/functions/digest.ts#L156-L165) · [`packages/ingestion/src/r2.ts:53`](../packages/ingestion/src/r2.ts#L53)
 
-<a id="root-vercel-json"></a>
-
-### Root `vercel.json` only makes sense from `apps/web`
-
-**Low** · config · `root-vercel-json`
-
-- **What's wrong:** Its `cd ../.. && …` commands assume the project's Root Directory (`apps/web`), but Vercel reads `vercel.json` from that directory, where none exists. The identical commands production runs most likely come from dashboard settings.
-- **User impact:** No effect on builds; editing the root file probably changes nothing.
-- **Evidence:** [`vercel.json:1-7`](../vercel.json#L1-L7)
-
 <a id="redis-compose-unused"></a>
 
 ### docker-compose Redis is unused, so local rate limits and caches are off
@@ -223,26 +213,6 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 - **What's wrong:** Compose starts Redis 7 on 6379, but all Redis access is Upstash REST, and no repo code reads `REDIS_URL`. With the Upstash variables blank, every rate limit and both caches are no-ops. `@deepmint/shared` imports `@upstash/redis` without declaring it, so outside the Next build (vitest, tsx) the regime cache silently disables itself.
 - **User impact:** Contributors run a container nothing uses, and local rate limiting never runs, though v1 still sends `X-RateLimit-*` headers.
 - **Evidence:** [`docker-compose.yml:13-16`](../docker-compose.yml#L13-L16) · [`packages/shared/src/polygonCache.ts:21-42`](../packages/shared/src/polygonCache.ts#L21-L42) · [`packages/shared/package.json`](../packages/shared/package.json)
-
-<a id="run-migration-script-unsafe"></a>
-
-### `run-migration.mjs` hard-codes the main checkout and reports success on failure
-
-**Low** · config · `run-migration-script-unsafe`
-
-- **What's wrong:** The unreferenced script migrates from `/Users/nm/Projects/Deepmint/packages/db/drizzle`, forces `ssl: 'require'` (so only a remote database works) and exits 0 after printing "Migration failed".
-- **User impact:** Only if someone runs it: from a worktree it applies the main checkout's migrations and reports success, and real failures still exit 0.
-- **Evidence:** [`packages/db/run-migration.mjs:8`](../packages/db/run-migration.mjs#L8) · [`packages/db/run-migration.mjs:13`](../packages/db/run-migration.mjs#L13) · [`packages/db/run-migration.mjs:15-16`](../packages/db/run-migration.mjs#L15-L16)
-
-<a id="tracked-personal-files"></a>
-
-### Personal config and unreferenced images are tracked
-
-**Low** · config · `tracked-personal-files`
-
-- **What's wrong:** `.claude/launch.json` is tracked despite `/.claude` in `.gitignore` (it predates the rule) and hard-codes `/Users/nm/.nvm/versions/node/v22.17.1/bin`. `deepmint_logo_full.png` (7 MB, the same blob as `apps/web/public/logo.png`) and `docs/upcoming_features.png` are referenced by nothing; `public/logo.png` is unreferenced too and ships with every deploy.
-- **User impact:** Hygiene only.
-- **Evidence:** [`.claude/launch.json:7`](../.claude/launch.json#L7) · [`.gitignore:37-38`](../.gitignore#L37-L38)
 
 <a id="area-docs"></a>
 

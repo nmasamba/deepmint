@@ -64,7 +64,6 @@ WORKING RULES
      Add rows in order. Apply locally from the worktree that holds the migration with
      `DATABASE_URL=postgresql://deepmint:deepmint@localhost:5433/deepmint pnpm --filter @deepmint/db db:migrate`
      (drizzle-kit reads packages/db/.env or the shell, never .env.local).
-     Do not use packages/db/run-migration.mjs.
    - Never run db:seed against production: it writes fictional Guides and 100 fake claims.
 5. The ledger is append-only. claims, events, notes and outcomes are never updated or deleted.
    The only allowed UPDATE is the admin status change pending_review -> active | rejected.
@@ -80,6 +79,9 @@ WORKING RULES
 9. Work one step at a time and check with me before moving on.
 10. Mag-7 only for now. Expanding beyond the Mag 7 is planned only once the core product has
     matured. Don't propose it as a fix, and don't press the admin "Seed S&P 500 Top 50" button.
+11. The preview tool reads .claude/launch.json, which git ignores, so a new worktree has none. Copy
+    one from a checkout that has it, or write one that runs
+    `pnpm --filter @deepmint/web dev --port $PORT`.
 
 NEXT: workstream A is done; B remains. Ask me before starting.
 
