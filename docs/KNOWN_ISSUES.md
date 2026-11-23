@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **12 open issues: no high, 2 medium and 10 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **11 open issues: no high, 2 medium and 9 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -31,10 +31,10 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 2 | 2 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 1 | 2 |
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 1 | 1 |
-| [Data model and shared code](#area-data) | 0 | 0 | 1 | 1 |
+| [Data model and shared code](#area-data) | 0 | 0 | 0 | 0 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 2 | 3 |
 | [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **2** | **10** | **12** |
+| **All** | **0** | **2** | **9** | **11** |
 
 <a id="area-scoring"></a>
 
@@ -132,15 +132,7 @@ No open issues.
 
 ## Data model and shared code
 
-<a id="dead-and-duplicated-shared-code"></a>
-
-### Dead and duplicated shared code
-
-**Low** · dead-code · `dead-and-duplicated-shared-code`
-
-- **What's wrong:** Unused: `errors.ts` (6 error classes), `centsToDollars`, `bpsToPercent`, `percentToBps`, `BPS_PER_PERCENT`, `CENTS_PER_DOLLAR`, `historicalCacheKey` with `TTL_HISTORICAL`, and four `components/ui` files. Duplicated: two local copies of the shared `formatBps`. (Since wave 2 there is one `slugify`, in `@deepmint/shared`, and since wave 7 the claims rate limit reads `CLAIM_RATE_LIMIT` and the only Mag-7 list is `MAG7_TICKERS`.)
-- **User impact:** None for users; noise for maintainers.
-- **Evidence:** [`packages/shared/src/errors.ts:1-45`](../packages/shared/src/errors.ts#L1-L45) · [`packages/shared/src/polygonCache.ts:80-85`](../packages/shared/src/polygonCache.ts#L80-L85)
+No open issues.
 
 <a id="area-infra"></a>
 

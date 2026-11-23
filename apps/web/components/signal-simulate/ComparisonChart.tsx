@@ -10,6 +10,7 @@ import {
   Legend,
   CartesianGrid,
 } from "recharts";
+import { formatBps } from "@deepmint/shared";
 
 interface PerformanceData {
   portfolioId: string;
@@ -35,11 +36,6 @@ function formatCents(cents: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-}
-
-function formatBps(bps: number): string {
-  const sign = bps >= 0 ? "+" : "";
-  return `${sign}${(bps / 100).toFixed(2)}%`;
 }
 
 export function ComparisonChart({ signal, own }: ComparisonChartProps) {

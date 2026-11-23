@@ -26,7 +26,7 @@ function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-function formatBps(bps: number): string {
+function formatDispersion(bps: number): string {
   return `${(bps / 100).toFixed(1)}%`;
 }
 
@@ -166,7 +166,7 @@ export function ConsensusBreakdown({
               Target Dispersion
             </p>
             <span className="font-mono text-lg font-bold text-text-primary">
-              {formatBps(targetDispersionBps)}
+              {formatDispersion(targetDispersionBps)}
             </span>
             <span className="ml-1 text-xs text-text-secondary">
               std dev of targets

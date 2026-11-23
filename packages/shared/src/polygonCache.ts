@@ -3,8 +3,8 @@
  * Uses Upstash Redis when configured, otherwise bypasses cache.
  *
  * TTLs:
- * - Historical prices: 1 hour
- * - Current prices: 5 minutes
+ * - Regime indicators: 1 hour (set by their caller)
+ * - Latest closes: 5 minutes
  */
 
 // ---------------------------------------------------------------------------
@@ -45,7 +45,6 @@ async function getRedis(): Promise<RedisLike | null> {
 // Cache helpers
 // ---------------------------------------------------------------------------
 
-const TTL_HISTORICAL = 3600; // 1 hour
 const TTL_CURRENT = 300; // 5 minutes
 
 export async function getCached<T>(
@@ -77,13 +76,6 @@ export async function getCached<T>(
   return result;
 }
 
-export function historicalCacheKey(
-  ticker: string,
-  date: string
-): { key: string; ttl: number } {
-  return { key: `price:eod:${ticker.toUpperCase()}:${date}`, ttl: TTL_HISTORICAL };
-}
-
 export function currentPriceCacheKey(ticker: string): {
   key: string;
   ttl: number;
@@ -91,4 +83,4 @@ export function currentPriceCacheKey(ticker: string): {
   return { key: `price:current:${ticker.toUpperCase()}`, ttl: TTL_CURRENT };
 }
 
-export { TTL_HISTORICAL, TTL_CURRENT };
+export { TTL_CURRENT };
