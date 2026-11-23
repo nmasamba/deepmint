@@ -1,6 +1,7 @@
 /**
- * Regime-Aware Expected Information Value (build_spec §2.7).
- * Bayesian shrinkage with sample size penalty.
+ * Expected Information Value, 0 to 100: (hit rate - 0.5) × average return in %
+ * × (1 - Brier) × n / (n + 20), scaled so that a raw 5 is 100, and 0 without an
+ * edge (see __tests__/regime-eiv.test.ts).
  */
 
 import type { MarketRegime } from "./regime";

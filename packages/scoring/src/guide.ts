@@ -1,12 +1,12 @@
 /**
- * Guide scoring metrics (build_spec §2.3).
- * Includes hit rate, Brier scoring, z-test significance and price targets.
+ * Guide scoring metrics: hit rate, average return, z-test significance, Brier
+ * calibration and price targets (see __tests__/guide.test.ts).
  */
 
 import { avg, normalCDF } from "./utils";
 
 // ---------------------------------------------------------------------------
-// Basic Guide metrics (§2.3)
+// Basic Guide metrics
 // ---------------------------------------------------------------------------
 
 /**

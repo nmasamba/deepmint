@@ -3,8 +3,9 @@ import { createHash } from "crypto";
 /**
  * Compute SHA-256 content hash for an event.
  * This hash is immutable — computed once at capture time, never recomputed.
- * Follows architecture.md §4.1 exactly. Pass null for an item whose source gave
- * no date: the time it was seen differs on every run, so it cannot be hashed.
+ * It covers the JSON object { url, text, ts }, ts being ISO 8601 or null (see
+ * __tests__/hasher.test.ts). Pass null for an item whose source gave no date:
+ * the time it was seen differs on every run, so it cannot be hashed.
  */
 export function computeContentHash(
   sourceUrl: string,

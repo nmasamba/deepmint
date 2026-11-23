@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **11 open issues: no high, 2 medium and 9 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **10 open issues: no high, 2 medium and 8 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -33,8 +33,8 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Ingestion and extraction](#area-ingestion) | 0 | 0 | 1 | 1 |
 | [Data model and shared code](#area-data) | 0 | 0 | 0 | 0 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 2 | 3 |
-| [Code comments](#area-docs) | 0 | 0 | 1 | 1 |
-| **All** | **0** | **2** | **9** | **11** |
+| [Code comments](#area-docs) | 0 | 0 | 0 | 0 |
+| **All** | **0** | **2** | **8** | **10** |
 
 <a id="area-scoring"></a>
 
@@ -172,15 +172,7 @@ No open issues.
 
 ## Code comments
 
-<a id="gitignored-doc-references"></a>
-
-### Code comments cite spec files that are not in the repo
-
-**Low** · docs-drift · `gitignored-doc-references`
-
-- **What's wrong:** Comments cite gitignored local specs that a clone does not have: `hasher.ts` (an architecture spec, §4.1), seven `packages/scoring/src` files (a build spec, §2.1–§2.8), `snaptrade.ts` (its no-trading invariant) and `globals.css` (design-system rules).
-- **User impact:** A reader cannot follow these citations to the formulas or rules; only the code, its tests and [CHANGELOG.md](CHANGELOG.md) describe them.
-- **Evidence:** [`packages/ingestion/src/hasher.ts:6`](../packages/ingestion/src/hasher.ts#L6) · [`packages/scoring/src/eiv.ts:2`](../packages/scoring/src/eiv.ts#L2) · [`packages/api/lib/snaptrade.ts:6`](../packages/api/lib/snaptrade.ts#L6) · [`apps/web/app/globals.css:4`](../apps/web/app/globals.css#L4)
+No open issues.
 
 ## Fixed by this docs update
 
@@ -196,4 +188,4 @@ These verified issues were docs drift. The 2026-10-05 docs update fixed them in 
 | `llm-model-docs-drift` | Low | [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) named the old pinned `openai/gpt-oss-120b:cerebras` and listed the model overrides as configured; [SPRINT_LOG.md](../SPRINT_LOG.md) and [CHANGELOG.md](CHANGELOG.md) stopped at older defaults. | All three now give the code defaults, `openai/gpt-oss-120b:fastest` with fallback `meta-llama/Llama-3.3-70B-Instruct:fastest`. The stale demo-adapter docstring in code was corrected in wave 9, when the adapter was deleted. |
 | `readme-clerk-providers` | Low | The README's tech-stack line listed sign-in providers that production does not offer. | [README.md](../README.md) gives what the production Clerk development instance offered on 2026-10-05: Google, Apple, and username plus password. Still in code: a styling comment at [`apps/web/app/(auth)/sign-in/[[...sign-in]]/page.tsx:31-33`](../apps/web/app/%28auth%29/sign-in/%5B%5B...sign-in%5D%5D/page.tsx#L31-L33) (and the sign-up page) names Facebook and X. |
 
-The docs part of [gitignored-doc-references](#gitignored-doc-references) is fixed too: [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) no longer tells sessions to read a gitignored spec, though older [DEVLOG.md](DEVLOG.md) entries still cite them as history. The doc statements behind several open entries were also corrected, including [sentry-inert](#sentry-inert), `mcp-unreachable-basepath` (since fixed), [polygon-throttle-not-serialized](#polygon-throttle-not-serialized) and `redis-compose-unused` (since fixed); the code issues of the other two stay open above.
+The docs part of `gitignored-doc-references` (its code comments were fixed in wave 10) is fixed too: [NEXT_SESSION_PROMPT.md](NEXT_SESSION_PROMPT.md) no longer tells sessions to read a gitignored spec, though older [DEVLOG.md](DEVLOG.md) entries still cite them as history. The doc statements behind several open entries were also corrected, including [sentry-inert](#sentry-inert), `mcp-unreachable-basepath` (since fixed), [polygon-throttle-not-serialized](#polygon-throttle-not-serialized) and `redis-compose-unused` (since fixed); the code issues of the other two stay open above.

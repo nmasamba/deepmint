@@ -1,5 +1,6 @@
 /**
- * Player scoring metrics (build_spec §2.1).
+ * Player scoring metrics: Sharpe, Calmar, CVaR, drawdown and consistency of a
+ * daily book of the Player's claims (see __tests__/player.test.ts).
  * All functions are pure — no DB or network access.
  */
 
