@@ -94,13 +94,13 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
   - the opt-in news lane (see [`INGEST_POLYGON_NEWS`](#flags-and-app-variables)).
 - **Required:** yes, in any environment that writes to a shared database.
 - **If missing:**
-  - `getCurrentPrice` (paper trades, Signal Simulate, the ticker page) returns hard-coded dev values for the 7 Mag-7 tickers (AAPL is 22500 cents), and any other ticker throws. `getEODPrice` and the cached `getLatestClose` throw.
-  - Historical bars come back empty, so `backfill-prices` deactivates every newly added instrument.
-  - No market-regime snapshot is stored: every indicator would be a dev constant, so each is marked defaulted and the snapshot job refuses to write one. The leaderboard shows no regime. The news lane returns nothing.
+  - `getCurrentPrice` (mirror trades) returns hard-coded dev values for the 7 Mag-7 tickers (AAPL is 22500 cents), and any other ticker throws. `getEODPrice` and the cached `getLatestClose` throw.
+  - Historical bars come back empty, and `backfill-prices` skips its check of newly added instruments.
+  - No market-regime snapshot is stored: no indicator is available, so the lookup throws. The leaderboard shows no regime. The news lane returns nothing.
   - Markout writes no outcomes without a key (it gets no bars), so it never scores against dev prices.
   - A rating-dated or backfilled claim gets no entry price: `getEODPrice` throws, the claim is stored with a null entry, and markout prices it at the first close after `created_at` once a key is present. (Before wave 1 it stored the dev constant, permanently.)
 - **Behaviour with a key that callers should know about:**
-  - The "current price" is the **previous session's close** (previous-day aggregate first, then the snapshot's `prevDay`; the code notes the snapshot endpoint returns 403 on the current plan). If both calls fail, the lookup throws; it never invents a price. Since the next-close entry change, claims never use it; it prices paper trades and the ticker page.
+  - The "current price" is the **previous session's close** (previous-day aggregate first, then the snapshot's `prevDay`; the code notes the snapshot endpoint returns 403 on the current plan). If both calls fail, the lookup throws; it never invents a price. Since the next-close entry change, claims never use it; it prices mirror trades.
   - The plan has **no index data**: `I:VIX` and `I:SPX` return 403 NOT_AUTHORIZED (checked 2026-10-06). The regime's S&P 500 30-day return is therefore measured on SPY, and VIX is recorded as defaulted in every snapshot (`market_regimes.defaulted_fields`); it is never replaced by a made-up value. A plan with index data fills VIX in with no code change.
   - Every call takes the next slot in a queue spaced 12.5 s apart, sized for a 5-requests-per-minute plan, so calls started together run one after another. The queue is per process: separate serverless instances do not share it. Eight of the nine worker functions that call Polygon share one account-wide Inngest slot (`POLYGON_CONCURRENCY` in `apps/worker/inngest.ts`), so no two of their steps overlap; pages and extraction are outside it. A backfill's steps hold the slot through their model calls, so run one outside the evening jobs (16:30 to 18:30 US Eastern).
   - `getLatestClose` and `getLatestCloses` (in `@deepmint/shared`) return the latest close with its session date, memoised for 5 minutes per process, shared by concurrent callers and cached in Upstash when configured. Paper trades and valuations, Signal Simulate, the ticker page header and the daily paper-equity snapshot use them. `getCurrentPrice` and `getEODPrice` are never cached. The regime indicators are cached only with Upstash.
@@ -236,7 +236,7 @@ The RSS lane has no variable. It reads Guides with `is_allowlisted = true` and a
 
 These are read from the **root** `.env.local` by `apps/web/vitest.config.ts`.
 
-- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 72 tests in 6 files skip. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`. One MCP test also needs `TEST_MCP_WRITES=1`, because it writes a claim that cannot be deleted.
+- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 67 tests in 6 files skip. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`. One MCP test also needs `TEST_MCP_WRITES=1`, because it writes a claim that cannot be deleted.
   - Mint it at `/admin/api-keys` as an admin, in the database used by the server under test. The default read scopes are enough.
   - Admins are the only people who can mint keys; the UI offers the 3 read scopes and `claims:write` for an agent.
 - **`TEST_BASE_URL`**: default `http://localhost:3000`. The server must be running.

@@ -13,12 +13,12 @@ The plan for fixing every open issue in [KNOWN_ISSUES.md](KNOWN_ISSUES.md), agre
 | 4 | 37–44 | 0011 | **Merged**: [#16](https://github.com/nmasamba/deepmint/pull/16) (2026-11-04), with wave 3 |
 | 5 | 45–53 | 0012 | **Merged**: [#17](https://github.com/nmasamba/deepmint/pull/17) (2026-11-09), with wave 6 |
 | 6 | 54–57 | 0013 | **Merged**: [#17](https://github.com/nmasamba/deepmint/pull/17) (2026-11-09), with wave 5 |
-| 7 | 58–63 | 0014 | **PR open**: [#18](https://github.com/nmasamba/deepmint/pull/18) (2026-11-10), with wave 8 |
-| 8 | 64–67 | 0015 | **PR open**: [#18](https://github.com/nmasamba/deepmint/pull/18) (2026-11-10), with wave 7 |
-| 9 | 68–72: dead code and tooling | – | Not started |
-| 10 | 73–77: last cleanup | – | Not started |
+| 7 | 58–63 | 0014 | **Merged**: [#18](https://github.com/nmasamba/deepmint/pull/18) (2026-11-11), with wave 8 |
+| 8 | 64–67 | 0015 | **Merged**: [#18](https://github.com/nmasamba/deepmint/pull/18) (2026-11-11), with wave 7 |
+| 9 | 68–72: dead code and tooling | – | **PR open**: [#19](https://github.com/nmasamba/deepmint/pull/19) (2026-11-23), with wave 10 |
+| 10 | 73–77: last cleanup | – | **PR open**: [#19](https://github.com/nmasamba/deepmint/pull/19) (2026-11-23), with wave 9 |
 
-From wave 3 the waves ship in pairs, one PR each: 3+4, 5+6, 7+8 and 9+10 (see [How it is delivered](#how-it-is-delivered)). Wave 2's packages 21, 22 and 25 go into the first of those PRs after their keys are in `.env.local`; their keys were still missing when the 7+8 PR opened.
+From wave 3 the waves ship in pairs, one PR each: 3+4, 5+6, 7+8 and 9+10 (see [How it is delivered](#how-it-is-delivered)). Wave 2's packages 21, 22 and 25 were to go into the first of those PRs after their keys arrived. On 2026-11-23 the maintainer chose to leave them out for now: `RESEND_API_KEY`, `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY` and `NEXT_PUBLIC_SENTRY_DSN` are empty, and `DIGEST_FROM_EMAIL` and `BROKER_CREDENTIALS_KEY` missing. They are the only packages left to build.
 
 Waves 7 and 8 were built with four more maintainer choices (2026-11-10):
 - **Linking a user to an ingested Guide (58): link anyway.** Approval moves the user's account to the Guide; their claims so far, which cannot move, stay on their old Player profile under their name, and deleting the account anonymises both.
@@ -27,6 +27,14 @@ Waves 7 and 8 were built with four more maintainer choices (2026-11-10):
 - **Admin deletion (64)** anonymises a user's or an agent's record and leaves Clerk alone; ingested Guides cannot be deleted that way.
 
 tRPC reserves `apply` as a router key, so package 58's `guides.apply` is `guides.submitApplication`.
+
+Waves 9 and 10 were built with four more maintainer choices (2026-11-23):
+- **`vercel.json` (70) stays at the repo root.** The Vercel dashboard, read that day, has Root Directory `apps/web` and no command overrides, and production is built with that file's values, so the register's `root-vercel-json` was a wrong diagnosis.
+- **Local Redis (71): the plan's choice,** `hiett/serverless-redis-http` in compose.
+- **`instruments.requestTicker` and `instruments.adminCreate` (74) stay,** as groundwork for the expansion; `ticker-requests-no-ui` covers both.
+- **Inngest's step checkpointing is off** (owned by no package): SDK 4 runs a run's steps in one request by default, so they shared the 300 s each is sized for. An extra commit.
+
+Package 77 put its key on eight functions, two more than planned (mirror trades and paper equity), and left `extract-claims` out, whose steps hold a model call of up to four minutes. It narrows `polygon-throttle-not-serialized` instead of closing it: pages call Polygon outside Inngest, and the key stops overlap, not bursts.
 
 After wave 0 (`main` at `c86b730`), KNOWN_ISSUES lists 98 open issues: 0 high, 26 medium and 72 low. The [Coverage](#coverage) section places every one of them.
 
@@ -1021,7 +1029,7 @@ Not excluded: 98 issues. Excluded (open PRs): self-logged-claim-lookahead (NCE),
 | Issue | Where it went |
 |---|---|
 | trpc-inngest-prefixed-keys | 3 |
-| polygon-throttle-not-serialized | 2, 77 [D23] |
+| polygon-throttle-not-serialized | 2, 77 [D23]; what remains needs D23 option 2 |
 | sentry-inert | 25 |
 | db-seed-unsafe | 32 |
 | stale-worker-build-artifacts | 3 |
@@ -1029,7 +1037,7 @@ Not excluded: 98 issues. Excluded (open PRs): self-logged-claim-lookahead (NCE),
 | domain-mismatch | 9, 21, 68, 73 |
 | lint-broken | 16 |
 | worker-scripts-broken | 3 |
-| root-vercel-json | 70 |
+| root-vercel-json | 70: a wrong diagnosis, the file is live |
 | redis-compose-unused | 71 |
 | ci-coverage-narrow | 16 |
 | run-migration-script-unsafe | 70 |
@@ -1046,38 +1054,46 @@ Not excluded: 98 issues. Excluded (open PRs): self-logged-claim-lookahead (NCE),
 
 ## To-do, by priority
 
-What is left, kept by each remediation PR; last updated by the waves 7 and 8 PR on 2026-11-10. Everything here is for the maintainer unless it says "session". It replaces the keys table and step list this section used to hold.
+What is left, kept by each remediation PR; last updated by the waves 9 and 10 PR on 2026-11-23. Everything here is for the maintainer unless it says "session". It replaces the keys table and step list this section used to hold. Waves 9 and 10 have no migration.
 
-### P0. Waves 7 and 8 (before and right after merging their PR)
+### P0. Waves 9 and 10 (before and right after merging their PR)
 
-1. In the Supabase SQL editor, run 0014's preflight, migration and check, then 0015's, from the PR. Both can be pasted while today's code is deployed.
-2. Merge the PR.
-3. Subscribe the Clerk webhook endpoint to `user.deleted`, and to `user.updated` if that is not done yet (from #17). Until then a deleted Clerk account keeps its profile, and name and avatar changes do not sync.
-4. Send one `markouts/completed` from the Inngest dashboard. That run writes the regime rows behind "Best in Current Conditions", raises every EIV 2.5-fold (the 0.4 penalty is gone, which also shifts consensus weights) and, if #17's run has not happened, writes `position_count` for the Sharpe and Avg Return boards. Its `regime`, `bars-*` and `compute-scores` steps should each finish well under 300 s.
-5. At 07:00 US Eastern on the next Tuesday to Saturday, check the first `paper-equity-snapshot` run: it should store the previous session's date, and its `closes` step took 75 s locally with all seven stocks held.
-6. Delete a test user in Clerk and check that its profile reads "Deleted user", and change a test user's name and check the profile follows: no real `user.deleted` or `user.updated` delivery has been seen yet.
-7. Check that production sets no `NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL`: it would send "Apply as a Guide" sign-ups past the Settings form.
+1. In every other checkout, copy `.claude/launch.json` before pulling the merge: the pull deletes the tracked copy.
+2. If anything outside the repo links to `https://www.deepmint.ai/logo.png` (the Clerk dashboard, say), point it at another file: it is gone.
+3. Merge the PR.
+4. In Inngest, check that the app synced with 17 functions, that `leaderboard-refresh` is gone, and that eight functions show the account key `"polygon"` with limit 1.
+5. On the first weekday evening after the deploy, check that the 16:30 ingest, the 17:00 markout, the scoring it starts and the 17:30 market regime all finish, and that each step is its own request. Locally the longest wait for the shared slot was 158 s, behind scoring's 163 s regime step.
 
-### P1. Owed checks
+### P1. Owed checks from earlier waves (none confirmed done)
 
-8. The read-only MCP calls on www, owed since #16.
+6. Migrations 0014 and 0015 on Supabase. This one statement should return `true`, `true` and `16`:
+   `SELECT to_regclass('public.guide_applications') IS NOT NULL AS has_0014, to_regclass('public.paper_equity_snapshots') IS NOT NULL AS has_0015, (SELECT count(*) FROM drizzle.__drizzle_migrations) AS journal_rows;`
+7. Subscribe the Clerk webhook endpoint to `user.deleted`, and to `user.updated` if that is not done yet (from #17). Until then a deleted Clerk account keeps its profile, and name and avatar changes do not sync.
+8. Send one `markouts/completed` from the Inngest dashboard. That run writes the regime rows behind "Best in Current Conditions", raises every EIV 2.5-fold (the 0.4 penalty is gone, which also shifts consensus weights), writes the first `target_hit_rate` rows and, if #17's run has not happened, writes `position_count` for the Sharpe and Avg Return boards. Its `regime`, `bars-*` and `compute-scores` steps should each finish well under 300 s.
+9. At 07:00 US Eastern on a Tuesday to Saturday, check a `paper-equity-snapshot` run: it should store the previous session's date, and its `closes` step took 75 s locally with all seven stocks held.
+10. Delete a test user in Clerk and check that its profile reads "Deleted user", and change a test user's name and check the profile follows: no real `user.deleted` or `user.updated` delivery has been seen yet.
+11. Check that production sets no `NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL`: it would send "Apply as a Guide" sign-ups past the Settings form.
+12. The read-only MCP calls on www, owed since #16.
 
-### P2. Keys that unblock held packages
+### P2. Keys that unblock held packages (left out for now, 2026-11-23)
 
-9. SnapTrade sandbox keys and `BROKER_CREDENTIALS_KEY`: package 22, the first live run of package 49, and the SnapTrade side of account deletion (package 64), none of which has run against SnapTrade. Needed before SnapTrade's production keys.
-10. `RESEND_API_KEY` and `DIGEST_FROM_EMAIL`: package 21, the daily digest.
-11. `NEXT_PUBLIC_SENTRY_DSN`, and optionally `SENTRY_AUTH_TOKEN`: package 25.
+13. SnapTrade sandbox keys and `BROKER_CREDENTIALS_KEY`: package 22, the first live run of package 49, and the SnapTrade side of account deletion (package 64), none of which has run against SnapTrade. Needed before SnapTrade's production keys.
+14. `RESEND_API_KEY` and `DIGEST_FROM_EMAIL`: package 21, the daily digest, and the last of `domain-mismatch`.
+15. `NEXT_PUBLIC_SENTRY_DSN`, and optionally `SENTRY_AUTH_TOKEN`: package 25.
 
 ### P3. Next PR (session)
 
-12. Waves 9 and 10, packages 68–77, as one PR, with 21, 22 and 25 if their keys have arrived.
+16. Packages 21, 22 and 25, once their keys arrive.
+17. Optional: space Polygon calls across instances too. Holding the shared slot for 12.5 s after a step's last call would cover the jobs; a slot in Upstash (D23 option 2) would cover pages as well.
 
 ### P4. Housekeeping
 
-13. Report whether production has an unprefixed `INNGEST_EVENT_KEY` (package 3).
-14. Confirm the Vercel plan, for `maxDuration` 300 s (package 31), and the Root Directory (package 70).
-15. Optional: add the Clerk session-token claim (package 13).
-16. Optional: a contact address for API Docs (`api-docs-nav-for-all`).
+18. Report whether production has an unprefixed `INNGEST_EVENT_KEY` (package 3).
+19. Optional: add the Clerk session-token claim (package 13).
+20. Optional: a contact address for API Docs (`api-docs-nav-for-all`).
+21. Optional: the local, gitignored `CLAUDE.md` still points to `packages/shared/errors.ts`, which package 75 deleted.
+
+Settled on 2026-11-23, read from the Vercel dashboard: Root Directory `apps/web`, Hobby plan with Fluid compute on, Node 24.x (packages 31 and 70).
 
 ### Keys asked for so far
 
@@ -1086,3 +1102,4 @@ What is left, kept by each remediation PR; last updated by the waves 7 and 8 PR 
 | W1 | POLYGON_API_KEY, HF_API_KEY, TEST_API_KEY, Clerk dev keys |
 | W2 | Resend API key (21), SnapTrade sandbox keys (22, later 49), Sentry DSN (25), CLERK_WEBHOOK_SECRET (24) |
 | W8 | None beyond those: packages 64 and 67 were tested with signed webhook payloads and local stand-ins |
+| W9–W10 | None beyond those |

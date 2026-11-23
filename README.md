@@ -252,7 +252,7 @@ What happens when an optional key is missing:
 
 | Variable | Effect when unset |
 |---|---|
-| `POLYGON_API_KEY` | The Mag-7 get fixed dev "current" prices and any other ticker fails. Dated entry prices are left empty rather than faked, and markout writes no outcomes. No market-regime snapshot is stored. New instruments added by an admin are deactivated, because no price history comes back. |
+| `POLYGON_API_KEY` | The Mag-7 get fixed dev "current" prices and any other ticker fails. Dated entry prices are left empty rather than faked, and markout writes no outcomes. No market-regime snapshot is stored. New instruments added by an admin are not checked. |
 | `HF_API_KEY` | Every extraction throws, so posts never get claims. |
 | `UPSTASH_REDIS_REST_URL` / `_TOKEN` | No rate limits, no follower-count cache, and no shared cache of the latest closes (5 minutes) or regime indicators (1 hour). To test them locally, set `http://localhost:8079` and `deepmint`, the compose proxy. |
 | `CLERK_WEBHOOK_SECRET` | Not needed locally. Your Player record is created on your first signed-in request. |
@@ -333,15 +333,15 @@ In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`.
 
 ### Tests
 
-These results were measured on 2026-11-10 with no `.env.local`.
+These results were measured on 2026-11-23 with no `.env.local`.
 
 | Command | Result without keys | What enables more |
 |---|---|---|
-| `pnpm --filter @deepmint/scoring test` | 135 passed (6 files) | Nothing needed |
-| `pnpm --filter @deepmint/shared test` | 74 passed, 2 skipped (6 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
-| `pnpm --filter @deepmint/api test` | 35 passed, 55 skipped (11 files) | `DATABASE_URL` in the root `.env.local` runs the 55 database tests. They read, write inside a transaction they roll back, or create their own `zz-` rows and delete them afterwards. |
-| `pnpm --filter @deepmint/ingestion test` | 85 passed, 13 skipped (12 files) | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 7 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
-| `pnpm --filter @deepmint/web test` | 72 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
+| `pnpm --filter @deepmint/scoring test` | 129 passed (6 files) | Nothing needed |
+| `pnpm --filter @deepmint/shared test` | 75 passed, 2 skipped (6 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
+| `pnpm --filter @deepmint/api test` | 30 passed, 48 skipped (11 files) | `DATABASE_URL` in the root `.env.local` runs the 48 database tests. They read, write inside a transaction they roll back, or create their own `zz-` rows and delete them afterwards. |
+| `pnpm --filter @deepmint/ingestion test` | 79 passed, 13 skipped (11 files) | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 7 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
+| `pnpm --filter @deepmint/web test` | 67 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
 
 The worker has no tests.
 
@@ -391,7 +391,7 @@ The triggers are `claims_review_only`, `claims_no_delete` and `claims_no_truncat
 
 - **Vercel.**
   - Project `deepmint-web-7ald` (team `nmasambas-projects`) uses Root Directory `apps/web`.
-  - The Git integration builds `main` to production on Node 24.x. The latest production deploy is `cd63901`.
+  - The Git integration builds `main` to production on Node 24.x. The latest production deploy is `1dbbd11` (2026-11-11).
   - Every build runs the commands in the root [`vercel.json`](vercel.json), `cd ../.. && pnpm install` and `cd ../.. && pnpm --filter @deepmint/web build`. The dashboard overrides nothing (read on 2026-11-23: install, build and output are automatic), so editing that file changes builds.
 - **Domains.**
   - `https://www.deepmint.ai` is canonical, and `deepmint.ai` redirects to it with a 307.
