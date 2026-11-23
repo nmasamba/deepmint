@@ -140,13 +140,16 @@ No open issues.
 
 <a id="polygon-throttle-not-serialized"></a>
 
-### The Polygon throttle queues calls only within one process
+### Polygon calls outside the shared job slot can still exceed the plan's rate
 
 **Low** · bug · `polygon-throttle-not-serialized`
 
-- **What's wrong:** Since wave 1, `polygonRateLimit` reserves each caller's slot before it sleeps, so calls within one process run 12.5 s apart, `Promise.all` pairs included. The queue is still per serverless instance, not per account: two instances calling Polygon at the same time (for example scoring computing the day's regime while a page view or a markout prices) together exceed the 5 req/min plan.
-- **User impact:** Overlapping jobs can still draw 429s. Regime detection hides them behind fallbacks (dropped sector ETFs, default dispersion 0.08) that can mislabel the regime, and an interactive price lookup that gets one fails.
-- **Evidence:** [`packages/shared/src/polygon.ts:76-96`](../packages/shared/src/polygon.ts#L76-L96) · [`packages/shared/src/polygon.ts:442-445`](../packages/shared/src/polygon.ts#L442-L445) · [`packages/shared/src/polygon.ts:527-537`](../packages/shared/src/polygon.ts#L527-L537)
+- **What's wrong:** `polygonRateLimit` spaces calls 12.5 s apart within one process only. Since wave 10 eight of the nine worker functions that call Polygon share one account-wide Inngest slot (`POLYGON_CONCURRENCY`), so two of their steps never run at once. Three gaps remain:
+  - the ticker page and the `paper` and `signalSimulate` routers call Polygon outside Inngest, where no concurrency key reaches (each close is memoised for 5 minutes per instance);
+  - `extract-claims` takes no slot, because its steps hold a model call of up to four minutes, and looks up one close for a claim with a stated rating date;
+  - the slot stops overlap, not bursts: two short steps in a row on different instances are not 12.5 s apart.
+- **User impact:** A page view during a job, or a burst of short steps, can still draw a 429. Regime detection hides one behind fallbacks (dropped sector ETFs, default dispersion 0.08) that can mislabel the regime, a markout waits for the next day's run, a mirror trade is retried, and a page says the price is unavailable. Closing it takes a slot every caller shares, in Upstash (D23 option 2), which production does not have.
+- **Evidence:** [`apps/worker/inngest.ts`](../apps/worker/inngest.ts) (`POLYGON_CONCURRENCY`) · [`packages/shared/src/polygon.ts`](../packages/shared/src/polygon.ts) (`polygonRateLimit`, `getLatestClose`) · [`packages/ingestion/src/extractor.ts`](../packages/ingestion/src/extractor.ts) (`processExtraction`)
 
 <a id="sentry-inert"></a>
 

@@ -1,4 +1,4 @@
-import { inngest } from "../inngest";
+import { inngest, POLYGON_CONCURRENCY } from "../inngest";
 import { db, eq, isNull } from "@deepmint/db";
 import {
   instruments,
@@ -30,6 +30,7 @@ export const paperEquitySnapshotFunction = inngest.createFunction(
   {
     id: "paper-equity-snapshot",
     retries: RETRIES,
+    concurrency: POLYGON_CONCURRENCY,
     triggers: [{ cron: "TZ=America/New_York 0 7 * * 2-6" }],
   },
   async ({ step, attempt }) => {

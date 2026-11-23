@@ -1,4 +1,4 @@
-import { inngest } from "../inngest";
+import { inngest, POLYGON_CONCURRENCY } from "../inngest";
 import { db, eq, and, isNotNull } from "@deepmint/db";
 import { events, entities } from "@deepmint/db/schema";
 import {
@@ -58,6 +58,7 @@ export const ingestFunction = inngest.createFunction(
   {
     id: "ingest-sources",
     retries: 3,
+    concurrency: POLYGON_CONCURRENCY,
     triggers: [{ cron: "TZ=America/New_York 30 16 * * 1-5" }],
   },
   async ({ step }) => {

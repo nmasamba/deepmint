@@ -1,4 +1,4 @@
-import { inngest } from "../inngest";
+import { inngest, POLYGON_CONCURRENCY } from "../inngest";
 import { db, eq, and, ne, sql, desc, asc, lte } from "@deepmint/db";
 import {
   entities,
@@ -48,7 +48,7 @@ export const scoreFunction = inngest.createFunction(
     retries: 2,
     // One run at a time: two runs replacing the same day's scores would
     // otherwise interleave their deletes and inserts.
-    concurrency: { limit: 1 },
+    concurrency: [{ limit: 1 }, POLYGON_CONCURRENCY],
     triggers: [{ event: "markouts/completed" }],
   },
   async ({ step }) => {

@@ -1,4 +1,4 @@
-import { inngest } from "../inngest";
+import { inngest, POLYGON_CONCURRENCY } from "../inngest";
 import { db, eq, and, gt, sql } from "@deepmint/db";
 import {
   claims,
@@ -68,6 +68,7 @@ export const signalSimulateFunction = inngest.createFunction(
   {
     id: "signal-simulate",
     retries: 2,
+    concurrency: POLYGON_CONCURRENCY,
     triggers: [{ event: "claims/created" }],
   },
   async ({ event, step }) => {

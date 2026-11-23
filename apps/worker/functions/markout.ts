@@ -1,4 +1,4 @@
-import { inngest } from "../inngest";
+import { inngest, POLYGON_CONCURRENCY } from "../inngest";
 import { db, eq, and, asc, isNull, sql } from "@deepmint/db";
 import { claims, outcomes, instruments, paperTrades } from "@deepmint/db/schema";
 import { createNotification } from "@deepmint/db/queries/createNotification";
@@ -20,6 +20,7 @@ export const markoutFunction = inngest.createFunction(
   {
     id: "markout-computation",
     retries: 2,
+    concurrency: POLYGON_CONCURRENCY,
     triggers: [{ cron: "TZ=America/New_York 0 17 * * 1-5" }],
   },
   async ({ step }) => {
