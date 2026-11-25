@@ -8,12 +8,8 @@ import {
   type SourceAdapter,
 } from "@deepmint/ingestion";
 
-/**
- * Build the source adapters: RSS/Atom feeds of the Guides an admin has switched
- * on, and the Wall Street ratings lane when INGEST_POLYGON_NEWS is "1". With
- * neither configured there are none, and the run does nothing.
- */
-async function getSourceAdapters(): Promise<SourceAdapter[]> {
+/** RSS/Atom feeds of the Guides an admin has switched on. */
+async function getFeeds() {
   const allowlisted = await db
     .select({ id: entities.id, sourceUrl: entities.sourceUrl })
     .from(entities)
@@ -25,10 +21,17 @@ async function getSourceAdapters(): Promise<SourceAdapter[]> {
       ),
     );
 
-  const feeds = allowlisted
+  return allowlisted
     .filter((g): g is { id: string; sourceUrl: string } => !!g.sourceUrl)
     .map((g) => ({ feedUrl: g.sourceUrl, entityId: g.id }));
+}
 
+/**
+ * Build the source adapters: the feeds, and the Wall Street ratings lane when
+ * INGEST_POLYGON_NEWS is "1". With neither configured there are none, and the
+ * run does nothing.
+ */
+function getSourceAdapters(feeds: Awaited<ReturnType<typeof getFeeds>>) {
   const adapters: SourceAdapter[] = [];
 
   if (feeds.length > 0) {
@@ -62,7 +65,9 @@ export const ingestFunction = inngest.createFunction(
     triggers: [{ cron: "TZ=America/New_York 30 16 * * 1-5" }],
   },
   async ({ step }) => {
-    const adapters = await getSourceAdapters();
+    // In a step, so read once per run: every request replays this code, and a
+    // feed switched off mid-run must not drop its adapter before the send below.
+    const adapters = getSourceAdapters(await step.run("load-feeds", getFeeds));
     let newEvents = 0;
     let totalProcessed = 0;
 
