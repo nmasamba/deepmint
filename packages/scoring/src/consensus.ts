@@ -1,6 +1,7 @@
 /**
- * Consensus signal computation (build_spec §2.6).
- * Computes weighted directional signal from active claims.
+ * Consensus signal computation: each live claim votes for its direction with a
+ * weight of max(score, 1) × 1.2 (Guide) × 1.5 (broker-verified) × exp(-0.03 ×
+ * days old) × confidenceMultiplier (see __tests__/consensus.test.ts).
  */
 
 export type ConsensusDirection = "bullish" | "bearish" | "neutral";

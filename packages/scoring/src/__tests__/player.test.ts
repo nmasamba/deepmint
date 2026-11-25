@@ -6,7 +6,6 @@ import {
   maxDrawdown,
   consistencyScore,
   dailyBookReturns,
-  maeAndMfe,
   playerRiskMetrics,
   RISK_FREE_ANNUAL,
   type BookClaim,
@@ -107,32 +106,6 @@ describe("consistencyScore", () => {
     const score = consistencyScore(returns);
     expect(score).toBeGreaterThan(5); // Consistent returns → high consistency
     expect(score).toBeLessThanOrEqual(10);
-  });
-});
-
-describe("maeAndMfe", () => {
-  it("computes correctly for buy trade", () => {
-    const result = maeAndMfe({
-      entryPrice: 100,
-      exitPrice: 110,
-      highPrice: 115,
-      lowPrice: 95,
-      side: "buy",
-    });
-    expect(result.mae).toBeCloseTo(0.05); // (100-95)/100
-    expect(result.mfe).toBeCloseTo(0.15); // (115-100)/100
-  });
-
-  it("computes correctly for sell trade", () => {
-    const result = maeAndMfe({
-      entryPrice: 100,
-      exitPrice: 90,
-      highPrice: 105,
-      lowPrice: 88,
-      side: "sell",
-    });
-    expect(result.mae).toBeCloseTo(0.05); // (105-100)/100
-    expect(result.mfe).toBeCloseTo(0.12); // (100-88)/100
   });
 });
 

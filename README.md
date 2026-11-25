@@ -66,7 +66,7 @@ flowchart TD
    - the return, in basis points (a neutral call takes no position, so its return is 0 and it counts only toward hit rate);
    - whether the direction was right (a neutral call is right if the price moved 2% or less either way);
    - whether the target price was reached.
-6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures. Players also get risk measures such as the Sharpe ratio and maximum drawdown, worked out from a daily book: each claim is held from its entry close to its exit close and marked at every close in between, which takes at most one Polygon request per stock.
+6. **Scoring.** Straight after the markout, each author's statistics are recalculated from their outcomes. Everyone gets a hit rate, an average return and an EIV score. Guides also get calibration and significance measures, and how often their price targets are reached. Players also get risk measures such as the Sharpe ratio and maximum drawdown, worked out from a daily book: each claim is held from its entry close to its exit close and marked at every close in between, which takes at most one Polygon request per stock.
 7. **Leaderboard and consensus.** The leaderboard ranks authors by the new scores. For each stock, Deepmint recalculates the consensus: a weighted vote (bullish, bearish or neutral) of the active claims whose horizon has not yet passed, plus the average of their price targets and how widely those targets spread. Claims count for more when their author has a higher EIV, is a Guide or is a broker-verified Player, when they are newer and when their confidence is higher.
 8. **Nightly fingerprint.** Every night a job hashes the claims recorded the previous day, whatever date they carry, into a single Merkle root and stores it in the database. Signed-in users can read every root at `/audit`, and each claim's page shows its proof against its day's root, which the browser checks. The roots are not anchored outside the database.
 
@@ -111,7 +111,7 @@ A claim's end date is its entry date plus the horizon in calendar days. (For old
 | REST API | `https://www.deepmint.ai/api/v1`: `GET /entities/{slug}/scores`, `GET /instruments/{ticker}/consensus`, `GET /leaderboard?metric=…`, plus the spec at `/openapi.json` | The three data endpoints need an API key (`Authorization: Bearer dm_live_…`), and only admins can create keys. The spec needs no key; signed-in users can also browse it at `/docs/api`. |
 | AI-agent server (MCP) | `/api/mcp` | AI agents with an admin-issued API key. Each tool checks its own scope: `consensus:read` for regime and consensus, `leaderboard:read` for the leaderboard, `scores:read` for a track record (profile, scores, and claims with outcomes). Instrument search needs only a valid key. The write tools (`submit_claim`, `add_note`) need `claims:write` and a key bound to an agent. An agent is a Player of its own, marked "AI agent" on its profile, so its claims are scored like anyone's and never land on the admin who minted the key. |
 | App API (tRPC) | `/api/trpc` | Used by the web app itself. Ticker, claim and market reads answer without sign-in; leaderboard and profile reads need a signed-in user. |
-| Background jobs | 18 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
+| Background jobs | 17 Inngest functions, served by the web app at `/api/inngest`. Inngest Cloud calls them on schedule. There is no separate worker server. | Run automatically |
 | Database | PostgreSQL on Supabase | Operators only |
 | Outside services | Clerk (sign-in), Polygon (end-of-day stock prices), Hugging Face router (the extraction model) | — |
 
@@ -148,7 +148,8 @@ Deepmint is a **pre-launch MVP**. As of 2026-10-05:
 - **Daily ingestion.** The daily Guide collection does nothing until an admin switches on a Guide's feed at `/admin/guides` or an operator enables the Wall Street ratings feed (off by default). Whether any feed is switched on in production is not recorded.
 - **Not working yet:** Daily digest emails. They are addressed to a placeholder, and Resend was last recorded as not configured.
 - **Rate limits.** Rate limits need Upstash, which was last recorded as not configured.
-- **Error tracking and snapshots.** Error tracking (Sentry) and source snapshots (Cloudflare R2) are not wired into the app. Setting their keys alone does not turn them on.
+- **Error tracking.** Error tracking (Sentry) is not wired into the app. Setting its key alone does not turn it on.
+- **Snapshots.** Deepmint keeps a source post's text, not a snapshot of the page it came from.
 - **Audit.** The roots are listed at `/audit` for signed-in users and each claim page shows its proof, but nothing anchors the roots outside the database yet. Claims stored with an earlier date before the version 2 audit shipped (PR #17), such as backfilled history, are in no root. Roots from before PR #17 (leaf version 1) cover fewer fields, and a claim page shows no proof when such a root cannot be rebuilt from the ledger.
 - **Missing features.** There is no way to request a new stock.
 
@@ -177,13 +178,13 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 |---|---|
 | Monorepo | pnpm 10.32.1 workspaces, Turborepo 2 |
 | Web | Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui components, Serwist (PWA) |
-| API | tRPC v11 (16 routers, 82 procedures), REST `/api/v1`, MCP via `mcp-handler` |
+| API | tRPC v11 (16 routers, 72 procedures), REST `/api/v1`, MCP via `mcp-handler` |
 | Database | PostgreSQL (16 in Docker locally, Supabase in production) with Drizzle ORM 0.41 |
-| Background jobs | Inngest 4 (18 functions) |
+| Background jobs | Inngest 4 (17 functions) |
 | Auth | Clerk (`@clerk/nextjs` 7) |
 | Market data | Polygon.io through `@massive.com/client-js` (US stock endpoints only) |
 | Extraction LLM | OpenAI SDK pointed at the Hugging Face router: `openai/gpt-oss-120b:fastest`, with fallback `meta-llama/Llama-3.3-70B-Instruct:fastest` |
-| Optional services | Upstash Redis (rate limits, two small caches), Resend (email), SnapTrade (broker linking) |
+| Optional services | Upstash Redis (rate limits, three small caches), Resend (email), SnapTrade (broker linking) |
 | Tests | Vitest |
 
 ### Repo map
@@ -191,7 +192,7 @@ The full list is in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 ```
 apps/
   web/         Next.js app: pages, /api/trpc, /api/v1, /api/mcp, Clerk webhook, /api/inngest
-  worker/      The 18 Inngest functions (served by apps/web) and the backfill CLI
+  worker/      The 17 Inngest functions (served by apps/web) and the backfill CLI
 packages/
   api/         tRPC routers
   db/          Drizzle schema, migrations (drizzle/0000–0015), seed scripts
@@ -216,7 +217,7 @@ pnpm install
 docker compose up -d
 ```
 
-This starts Postgres 16 on **localhost:5433**; the user, password and database are all `deepmint`. It also starts Redis 7 on port 6379, which no code uses: all Redis access goes to Upstash over REST.
+This starts Postgres 16 on **localhost:5433**; the user, password and database are all `deepmint`. It also starts Redis 7 on port 6379 and, on port 8079, a proxy that gives it Upstash's REST API, the only one the app speaks. Nothing uses them until you set the two Upstash variables below.
 
 **2. Create the env files**
 
@@ -251,12 +252,12 @@ What happens when an optional key is missing:
 
 | Variable | Effect when unset |
 |---|---|
-| `POLYGON_API_KEY` | The Mag-7 get fixed dev "current" prices and any other ticker fails. Dated entry prices are left empty rather than faked, and markout writes no outcomes. No market-regime snapshot is stored. New instruments added by an admin are deactivated, because no price history comes back. |
+| `POLYGON_API_KEY` | The Mag-7 get fixed dev "current" prices and any other ticker fails. Dated entry prices are left empty rather than faked, and markout writes no outcomes. No market-regime snapshot is stored. New instruments added by an admin are not checked. |
 | `HF_API_KEY` | Every extraction throws, so posts never get claims. |
-| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | No rate limits, and no follower-count or regime cache. Prices are never cached either way. |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | No rate limits, no follower-count cache, and no shared cache of the latest closes (5 minutes) or regime indicators (1 hour). To test them locally, set `http://localhost:8079` and `deepmint`, the compose proxy. |
 | `CLERK_WEBHOOK_SECRET` | Not needed locally. Your Player record is created on your first signed-in request. |
 | `RESEND_API_KEY`, `SNAPTRADE_*` | The digest is skipped, and broker linking shows "not configured". |
-| `CLOUDFLARE_R2_*`, `NEXT_PUBLIC_SENTRY_DSN` | Nothing changes: no running code uses them, set or not. |
+| `NEXT_PUBLIC_SENTRY_DSN` | Nothing changes: no running code uses it, set or not. |
 
 Locally, leave `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` empty and rely on `INNGEST_DEV=1`. Without `INNGEST_DEV`, production keys in those variables would send your local events to production Inngest. `INGEST_POLYGON_NEWS=1` turns on the Wall Street ratings feed, which is off by default.
 
@@ -332,15 +333,15 @@ In the Clerk dashboard, set your user's private metadata to `{"role": "admin"}`.
 
 ### Tests
 
-These results were measured on 2026-11-10 with no `.env.local`.
+These results were measured on 2026-11-23 with no `.env.local`.
 
 | Command | Result without keys | What enables more |
 |---|---|---|
-| `pnpm --filter @deepmint/scoring test` | 135 passed (6 files) | Nothing needed |
-| `pnpm --filter @deepmint/shared test` | 74 passed, 2 skipped (6 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
-| `pnpm --filter @deepmint/api test` | 35 passed, 55 skipped (11 files) | `DATABASE_URL` in the root `.env.local` runs the 55 database tests. They read, write inside a transaction they roll back, or create their own `zz-` rows and delete them afterwards. |
-| `pnpm --filter @deepmint/ingestion test` | 85 passed, 13 skipped (12 files) | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 7 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
-| `pnpm --filter @deepmint/web test` | 72 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
+| `pnpm --filter @deepmint/scoring test` | 129 passed (6 files) | Nothing needed |
+| `pnpm --filter @deepmint/shared test` | 75 passed, 2 skipped (6 files) | `POLYGON_API_KEY` in the root `.env.local` runs the 2 live Polygon tests (about 40 s, as they wait out the 12.5 s throttle). |
+| `pnpm --filter @deepmint/api test` | 30 passed, 48 skipped (11 files) | `DATABASE_URL` in the root `.env.local` runs the 48 database tests. They read, write inside a transaction they roll back, or create their own `zz-` rows and delete them afterwards. |
+| `pnpm --filter @deepmint/ingestion test` | 79 passed, 13 skipped (11 files) | `HF_API_KEY` in the root `.env.local` runs the 6 live LLM tests. They make real Hugging Face calls, with a 420 s timeout each. `DATABASE_URL` runs the 7 resolver database tests, which create and then delete their own `zz-resolver-*` entities. |
+| `pnpm --filter @deepmint/web test` | 67 skipped (6 files) | `TEST_API_KEY` (a `dm_live_` key), a running server at `TEST_BASE_URL` (default `http://localhost:3000`) and a database. `TEST_ENTITY_SLUG` defaults to `demo-guide`, which no seed creates; use, for example, `sarah-chen`. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`, which they sign their payloads with. |
 
 The worker has no tests.
 
@@ -373,7 +374,6 @@ Keep in mind:
 
 - The `DATABASE_URL` in the root `.env.local` points at local Docker (port 5433), never at production.
 - Never run `db:seed` against production. It refuses a remote host unless `SEED_ALLOW_REMOTE` names it.
-- Do not use `packages/db/run-migration.mjs`. It hard-codes the main checkout's path and exits 0 even when a migration fails.
 
 **Correcting the ledger.** Since migration 0010, triggers refuse every `UPDATE`, `DELETE` and `TRUNCATE` on `events`, `notes` and `outcomes`, and on `claims` everything but the review decision (`pending_review` to `active` or `rejected`, with no other column changed). Locally, reset with `docker compose down -v`, then migrate and seed again. A deliberate production correction names the trigger, changes the one row and turns the trigger back on, in one transaction, so nothing else gets through while it is off:
 
@@ -391,8 +391,8 @@ The triggers are `claims_review_only`, `claims_no_delete` and `claims_no_truncat
 
 - **Vercel.**
   - Project `deepmint-web-7ald` (team `nmasambas-projects`) uses Root Directory `apps/web`.
-  - The Git integration builds `main` to production on Node 24.x. The latest production deploy is `cd63901`.
-  - Production runs `cd ../.. && pnpm install` and `cd ../.. && pnpm --filter @deepmint/web build`. The root [`vercel.json`](vercel.json) holds the same commands, but Vercel reads `vercel.json` from the Root Directory, so the dashboard settings are probably the ones that apply.
+  - The Git integration builds `main` to production on Node 24.x. The latest production deploy is `1dbbd11` (2026-11-11).
+  - Every build runs the commands in the root [`vercel.json`](vercel.json), `cd ../.. && pnpm install` and `cd ../.. && pnpm --filter @deepmint/web build`. The dashboard overrides nothing (read on 2026-11-23: install, build and output are automatic), so editing that file changes builds.
 - **Domains.**
   - `https://www.deepmint.ai` is canonical, and `deepmint.ai` redirects to it with a 307.
   - `deepmint-web-7ald.vercel.app` also serves the app.

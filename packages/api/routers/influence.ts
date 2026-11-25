@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { memberProcedure, protectedProcedure, router } from "../trpc";
+import { memberProcedure, router } from "../trpc";
 import { db, desc, eq, and, gt, sql } from "@deepmint/db";
-import { influenceScores, entities, follows, instruments } from "@deepmint/db/schema";
+import { influenceScores, entities, instruments } from "@deepmint/db/schema";
 
 /**
  * Influence router — exposes ONLY aggregated influence_scores.
@@ -131,57 +131,4 @@ export const influenceRouter = router({
         topInstruments: topInstrumentTickers,
       };
     }),
-
-  /** For a Player: which Guides have influenced their actions. Protected endpoint. */
-  myInfluencers: protectedProcedure.query(async ({ ctx }) => {
-    // Get guides the player follows
-    const guidesFollowed = await db
-      .select({ followedId: follows.followedId })
-      .from(follows)
-      .where(eq(follows.followerId, ctx.entity.id));
-
-    if (guidesFollowed.length === 0) return [];
-
-    const guideIds = guidesFollowed.map((f) => f.followedId);
-
-    // Get latest influence scores for these guides
-    const rows = await db
-      .select({
-        guideEntityId: influenceScores.guideEntityId,
-        influenceEvents30d: influenceScores.influenceEvents30d,
-        avgLagHours: influenceScores.avgLagHours,
-        entityName: entities.displayName,
-        entitySlug: entities.slug,
-        entityAvatar: entities.avatarUrl,
-      })
-      .from(influenceScores)
-      .innerJoin(entities, eq(influenceScores.guideEntityId, entities.id))
-      .where(
-        sql`${influenceScores.guideEntityId} IN (${sql.join(guideIds.map(id => sql`${id}`), sql`, `)})`,
-      )
-      // Order by date so the first row seen per guide (after dedup) is the
-      // most recent score, not the all-time peak influenceEvents30d.
-      .orderBy(desc(influenceScores.asOfDate));
-
-    // Deduplicate to latest per guide
-    const seen = new Set<string>();
-    return rows
-      .filter((row) => {
-        if (seen.has(row.guideEntityId)) return false;
-        seen.add(row.guideEntityId);
-        return true;
-      })
-      .map((row) => ({
-        entity: {
-          id: row.guideEntityId,
-          displayName: row.entityName,
-          slug: row.entitySlug,
-          avatarUrl: row.entityAvatar,
-        },
-        influenceEvents30d: row.influenceEvents30d,
-        avgLagHours: row.avgLagHours ? parseFloat(row.avgLagHours) : null,
-      }))
-      // Present most-influential first for display.
-      .sort((a, b) => b.influenceEvents30d - a.influenceEvents30d);
-  }),
 });

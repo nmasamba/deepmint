@@ -22,7 +22,6 @@ Never write a real key value into this file, [`.env.example`](../.env.example) o
 | SnapTrade | `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY` | No | Empty (last recorded) |
 | Resend | `RESEND_API_KEY` | No; **inert** until code changes | Empty (last recorded) |
 | Sentry | `NEXT_PUBLIC_SENTRY_DSN` | No; **inert** until code changes | Empty (last recorded) |
-| Cloudflare R2 | `CLOUDFLARE_R2_*` | No; **inert**, nothing calls it | Empty (last recorded) |
 | Flags | `INGEST_POLYGON_NEWS`, `NEXT_PUBLIC_APP_URL` | No | Not recorded |
 
 ## Priority order
@@ -33,10 +32,9 @@ Ordered by what each step changes in the running code today.
    - `claims.submit` has no 10-claims-per-hour limit, so a signed-in user can submit claims without bound.
    - `/api/v1` and `/api/mcp` have no per-key limit. This matters once the first `dm_live_` key is issued; production had 0 keys on 2026-08-03 and the count since is not recorded.
 2. **Clerk production instance, before launch.** Production runs on a development instance. That instance allows 100 Backend API requests per 10 seconds. The admin check makes at most one (`users.getUser`) per signed-in user per minute per server instance, and none with the optional session-token claim (see [Clerk](#clerk)). Moving needs the custom domain, Google OAuth credentials and DNS, then new values for both keys and the webhook secret.
-3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 18 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
+3. **Sentry: code first, then the DSN.** A DSN alone does nothing (see [Sentry](#sentry)). It ranks first among the code-blocked items because 17 Inngest functions run unattended, and their failures are visible only in Inngest run history and Vercel logs.
 4. **SnapTrade: when Player broker verification launches,** and only after the gaps listed under [SnapTrade](#snaptrade) are fixed.
 5. **Resend: code first.** The digest sends to placeholder addresses.
-6. **Cloudflare R2: code first, lowest priority.** No code path uploads anything.
 
 Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visible effect today). Keep `INGEST_POLYGON_NEWS` unset.
 
@@ -46,7 +44,7 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 
 - **Variable:** `DATABASE_URL`.
 - **Powers:** every read and write. Production is Supabase; local development is the docker-compose Postgres.
-- **Read by:** `packages/db/index.ts:9` (lazy client used by the app, the API and the workers), `packages/db/drizzle.config.ts:8` (drizzle-kit), `packages/db/seed.ts:5`, `packages/db/run-migration.mjs:5`.
+- **Read by:** `packages/db/index.ts:9` (lazy client used by the app, the API and the workers), `packages/db/drizzle.config.ts:8` (drizzle-kit), `packages/db/seed.ts:5`.
 - **Required:** yes, for anything that touches data.
 - **If missing:** the first query throws `DATABASE_URL environment variable is not set`. `next build` still succeeds, because the client is a lazy proxy. `db:seed` throws at start.
 - **Get it:** production: Supabase dashboard → project → Connect → connection string. Local: `postgresql://deepmint:deepmint@localhost:5433/deepmint`. docker-compose publishes Postgres on host port **5433**, not 5432.
@@ -55,7 +53,6 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Schema changes reach Supabase by hand:**
   1. Paste the migration's SQL into the Supabase SQL editor.
   2. Insert its journal row: `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('<sha256 hex of the .sql file>', <the migration's "when" from meta/_journal.json>);`. Add rows in order: drizzle compares only the newest row's `created_at` with each migration's `when`.
-  3. Do not use `packages/db/run-migration.mjs`: it hard-codes the main checkout's migrations folder and exits 0 on failure.
 - **Never:** put the production URL in a local env file (the root `.env.local` points at local Docker), or run `db:seed` against production. The seed writes 5 fictional Guides, 3 fictional Players and 100 fake active claims into the append-only ledger. It refuses a non-local host unless `SEED_ALLOW_REMOTE` names that host exactly, so never set that variable for production.
 
 ## Clerk (auth)
@@ -97,15 +94,15 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
   - the opt-in news lane (see [`INGEST_POLYGON_NEWS`](#flags-and-app-variables)).
 - **Required:** yes, in any environment that writes to a shared database.
 - **If missing:**
-  - `getCurrentPrice` (paper trades, Signal Simulate, the ticker page) returns hard-coded dev values for the 7 Mag-7 tickers (AAPL is 22500 cents), and any other ticker throws. `getEODPrice` and the cached `getLatestClose` throw.
-  - Historical bars come back empty, so `backfill-prices` deactivates every newly added instrument.
-  - No market-regime snapshot is stored: every indicator would be a dev constant, so each is marked defaulted and the snapshot job refuses to write one. The leaderboard shows no regime. The news lane returns nothing.
+  - `getCurrentPrice` (mirror trades) returns hard-coded dev values for the 7 Mag-7 tickers (AAPL is 22500 cents), and any other ticker throws. `getEODPrice` and the cached `getLatestClose` throw.
+  - Historical bars come back empty, and `backfill-prices` skips its check of newly added instruments.
+  - No market-regime snapshot is stored: no indicator is available, so the lookup throws. The leaderboard shows no regime. The news lane returns nothing.
   - Markout writes no outcomes without a key (it gets no bars), so it never scores against dev prices.
   - A rating-dated or backfilled claim gets no entry price: `getEODPrice` throws, the claim is stored with a null entry, and markout prices it at the first close after `created_at` once a key is present. (Before wave 1 it stored the dev constant, permanently.)
 - **Behaviour with a key that callers should know about:**
-  - The "current price" is the **previous session's close** (previous-day aggregate first, then the snapshot's `prevDay`; the code notes the snapshot endpoint returns 403 on the current plan). If both calls fail, the lookup throws; it never invents a price. Since the next-close entry change, claims never use it; it prices paper trades and the ticker page.
+  - The "current price" is the **previous session's close** (previous-day aggregate first, then the snapshot's `prevDay`; the code notes the snapshot endpoint returns 403 on the current plan). If both calls fail, the lookup throws; it never invents a price. Since the next-close entry change, claims never use it; it prices mirror trades.
   - The plan has **no index data**: `I:VIX` and `I:SPX` return 403 NOT_AUTHORIZED (checked 2026-10-06). The regime's S&P 500 30-day return is therefore measured on SPY, and VIX is recorded as defaulted in every snapshot (`market_regimes.defaulted_fields`); it is never replaced by a made-up value. A plan with index data fills VIX in with no code change.
-  - Every call takes the next slot in a queue spaced 12.5 s apart, sized for a 5-requests-per-minute plan, so calls started together run one after another. The queue is per process: separate serverless instances do not share it.
+  - Every call takes the next slot in a queue spaced 12.5 s apart, sized for a 5-requests-per-minute plan, so calls started together run one after another. The queue is per process: separate serverless instances do not share it. Eight of the nine worker functions that call Polygon share one account-wide Inngest slot (`POLYGON_CONCURRENCY` in `apps/worker/inngest.ts`), so no two of their steps overlap; pages and extraction are outside it. A backfill's steps hold the slot through their model calls, so run one outside the evening jobs (16:30 to 18:30 US Eastern).
   - `getLatestClose` and `getLatestCloses` (in `@deepmint/shared`) return the latest close with its session date, memoised for 5 minutes per process, shared by concurrent callers and cached in Upstash when configured. Paper trades and valuations, Signal Simulate, the ticker page header and the daily paper-equity snapshot use them. `getCurrentPrice` and `getEODPrice` are never cached. The regime indicators are cached only with Upstash.
 - **Get it:** Massive (polygon.io) dashboard → API keys.
 - **Verify:** with the key exported in your shell, run `pnpm --filter @deepmint/worker exec tsx -e 'import("@deepmint/shared").then(async (m) => console.log(await m.getCurrentPrice("AAPL")))'`. It prints AAPL's previous close in cents; `22500` means the key was not read.
@@ -133,13 +130,13 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 
 **Variables:** `INNGEST_EVENT_KEY` (lets the app send events) and `INNGEST_SIGNING_KEY` (lets Inngest Cloud invoke `/api/inngest`). Both are read implicitly by inngest 4.1.0. The Vercel integration provides them as `INNGEST_WORKFLOW_INNGEST_EVENT_KEY` and `INNGEST_WORKFLOW_INNGEST_SIGNING_KEY`. `packages/api/lib/inngestEnv.ts` copies those onto the standard names when the standard names are unset. It runs before any Inngest client is built: `packages/api/trpc.ts` imports it on its first line, so it precedes the clients the claims, social and instruments routers build when they load, and `apps/worker/inngest.ts` and `apps/web/app/api/inngest/inngest-env.ts` (imported first by the route) import it too. An unprefixed `INNGEST_EVENT_KEY` is therefore not needed.
 
-- **Powers:** all 18 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 9 crons (ingest, markout, market regime, broker sync, consensus, influence, paper equity, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
+- **Powers:** all 17 worker functions, served by the Next.js app at `/api/inngest`; there is no separate worker service. That covers 9 crons (ingest, markout, market regime, broker sync, consensus, influence, paper equity, Merkle audit, daily digest) and the event chain behind extraction, scoring, consensus and influence.
 - **Required:** yes, in production.
 - **If missing:** the SDK runs in cloud mode unless `INNGEST_DEV` is set. In cloud mode `send()` throws without an event key, and `/api/inngest` cannot verify Inngest's requests without the signing key, so no function runs.
 - **Before wave 1** the tRPC routers' clients never saw the mapping, so with only the prefixed keys their `claims/created` and `social/followed` sends would have failed silently, and a stale compiled `apps/worker/inngest.js` without it shadowed `inngest.ts` in the production bundle. Both are fixed; whether production ever lacked an unprefixed `INNGEST_EVENT_KEY` was not recorded.
 - **Get it:** Vercel → Integrations → Inngest (keys arrive prefixed), or Inngest dashboard → Production → event key and signing key.
 - **Verify:**
-  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job, 17 since `notify-followers-new-claim`, 18 since `paper-equity-snapshot`).
+  - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job, 17 since `notify-followers-new-claim`, 18 since `paper-equity-snapshot`, 17 again since `leaderboard-refresh` was deleted).
   - For the routers, follow and then unfollow any profile, and look for a `social/followed` event in the Inngest dashboard's event list. Do not test with a claim: claims are append-only.
 - **Production:** app `deepmint` is synced through the Vercel integration. The route sets `maxDuration = 300`.
 
@@ -161,17 +158,18 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
   | `packages/api/routers/claims.ts:28-29` | `claims.submit`: 10 claims per hour per entity, MCP `submit_claim` included. |
   | `packages/api/routers/broker.ts:25-26` | `broker.syncTrades`: 1 per hour per entity. |
   | `packages/api/routers/social.ts:20-21` | Follower-count cache. A cache, not a limit. |
-  | `packages/shared/src/polygonCache.ts:24-25` | 1-hour cache of the **regime indicators only** (`polygon.ts:406-409`). Price lookups are never cached; `historicalCacheKey` and `currentPriceCacheKey` are unused. |
+  | `packages/shared/src/polygonCache.ts` | 1-hour cache of the regime indicators and 5-minute cache of the latest closes (`getLatestClose`), which every instance shares. Claim, mirror and markout prices are never cached. |
 
 - **Required:** no. Priority 1 explains why to set it anyway.
 - **If missing:** no rate limits anywhere, and follower counts come from the database each time. The regime no longer depends on it: it is a stored daily snapshot.
 - **Headers prove nothing.** `/api/v1` sends `X-RateLimit-*` headers on every authenticated response, with or without Upstash (`remaining` equals the limit when it is off).
-- **Silent failure:** `@upstash/redis` is not a declared dependency of `@deepmint/shared`. `polygonCache.ts` imports it dynamically, and if that import fails the regime cache switches itself off without an error.
+- **Fixed in wave 9:** `@deepmint/shared` did not declare `@upstash/redis`, so outside the Next build the Polygon cache switched itself off without an error, and inside it every read missed, because the client had already parsed the JSON that `getCached` parses.
+- **Locally:** `docker compose up -d` serves the same API in front of its Redis (`hiett/serverless-redis-http`). Set `UPSTASH_REDIS_REST_URL=http://localhost:8079` and `UPSTASH_REDIS_REST_TOKEN=deepmint` to use it. It has no `/ping` path, so the first check below works only against Upstash.
 - **Get it:** console.upstash.com → create a Redis database → REST API → URL and token. The code reads only these two names; if a marketplace integration injects other names, add these two as well.
 - **Verify:**
   - Credentials: `curl -s "$UPSTASH_REDIS_REST_URL/ping" -H "Authorization: Bearer $UPSTASH_REDIS_REST_TOKEN"` returns `{"result":"PONG"}`.
   - After a redeploy: call an `/api/v1` endpoint twice with a `dm_live_` key. With Upstash live, `X-RateLimit-Remaining` falls with each call (59, then 58 for a 60/min key); without it, it stays at the limit.
-  - In the Upstash data browser, `regime:indicators` appears after a leaderboard view or a scoring run.
+  - In the Upstash data browser, `price:current:<ticker>` appears after a ticker page view, and `regime:indicators:v2` after a scoring run or the market-regime job that had to compute the day's regime.
 - **Production:** empty (last recorded).
 
 ## SnapTrade
@@ -223,16 +221,6 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **Verify (only after the code exists):** throw a test error and confirm it appears under Issues.
 - **Production:** empty (last recorded).
 
-## Cloudflare R2
-
-- **Variables** (`packages/ingestion/src/r2.ts`):
-  - `CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCESS_KEY_ID`, `CLOUDFLARE_R2_SECRET_ACCESS_KEY`: `uploadSnapshot` throws without them.
-  - `CLOUDFLARE_R2_BUCKET`: default `deepmint-snapshots`.
-  - `CLOUDFLARE_R2_PUBLIC_URL`: default `https://snapshots.deepmint.com`.
-- **Inert:** the only caller of `uploadSnapshot` is `captureSnapshot` in `packages/ingestion/src/capture.ts`, and nothing imports that file. `getSnapshotUrl` has no callers. Both places that insert events write `snapshot_path = null` (`apps/worker/functions/ingest.ts:104`, `backfill.ts:121`). Keys change nothing until capture is wired in.
-- **Get it:** Cloudflare dashboard → R2 → create a bucket and an API token.
-- **Production:** empty (last recorded).
-
 ## Flags and app variables
 
 | Variable | Read at | Effect | Production |
@@ -248,7 +236,7 @@ The RSS lane has no variable. It reads Guides with `is_allowlisted = true` and a
 
 These are read from the **root** `.env.local` by `apps/web/vitest.config.ts`.
 
-- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 72 tests in 6 files skip. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`. One MCP test also needs `TEST_MCP_WRITES=1`, because it writes a claim that cannot be deleted.
+- **`TEST_API_KEY`**: a `dm_live_` key. Without it the web suite's 67 tests in 6 files skip. The 11 Clerk webhook tests also need `CLERK_WEBHOOK_SECRET`. One MCP test also needs `TEST_MCP_WRITES=1`, because it writes a claim that cannot be deleted.
   - Mint it at `/admin/api-keys` as an admin, in the database used by the server under test. The default read scopes are enough.
   - Admins are the only people who can mint keys; the UI offers the 3 read scopes and `claims:write` for an agent.
 - **`TEST_BASE_URL`**: default `http://localhost:3000`. The server must be running.
@@ -258,8 +246,9 @@ These are read from the **root** `.env.local` by `apps/web/vitest.config.ts`.
 
 These appear in older templates or docs; setting them has no effect.
 
-- `REDIS_URL`. The docker-compose Redis container is unused: all Redis access is Upstash REST. (`mcp-handler` reads it only for its SSE transport, which this app never reaches.)
+- `REDIS_URL`. All Redis access is Upstash REST, through the compose proxy locally. (`mcp-handler` reads it only for its SSE transport, which this app never reaches.)
 - `SENTRY_AUTH_TOKEN`.
+- `CLOUDFLARE_R2_*`. The snapshot code that read them never ran, and wave 10 deleted it.
 - `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`.
 - `INNGEST_API_KEY`.
 

@@ -1,8 +1,7 @@
 /**
- * Influence detection (build_spec §2.8).
- *
- * Detects when a Player acts on the same instrument + direction
- * within a time window after a Guide's claim.
+ * Influence detection: a Player acts on an instrument within 48 hours after a
+ * Guide they follow made a claim on it. Whether the direction matched is
+ * recorded, not required (see __tests__/influence.test.ts).
  */
 
 export interface GuideClaimWindow {

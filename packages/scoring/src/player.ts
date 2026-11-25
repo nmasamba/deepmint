@@ -1,5 +1,6 @@
 /**
- * Player scoring metrics (build_spec §2.1).
+ * Player scoring metrics: Sharpe, Calmar, CVaR, drawdown and consistency of a
+ * daily book of the Player's claims (see __tests__/player.test.ts).
  * All functions are pure — no DB or network access.
  */
 
@@ -179,27 +180,4 @@ export function playerRiskMetrics(dailyReturns: number[]): {
     cvar5: cvar5(dailyReturns),
     consistency: consistencyScore(dailyReturns),
   };
-}
-
-/**
- * Max Adverse Excursion (MAE) and Max Favorable Excursion (MFE) for a trade.
- */
-export function maeAndMfe(trade: {
-  entryPrice: number;
-  exitPrice: number;
-  highPrice: number;
-  lowPrice: number;
-  side: "buy" | "sell";
-}): { mae: number; mfe: number } {
-  if (trade.side === "buy") {
-    return {
-      mae: (trade.entryPrice - trade.lowPrice) / trade.entryPrice,
-      mfe: (trade.highPrice - trade.entryPrice) / trade.entryPrice,
-    };
-  } else {
-    return {
-      mae: (trade.highPrice - trade.entryPrice) / trade.entryPrice,
-      mfe: (trade.entryPrice - trade.lowPrice) / trade.entryPrice,
-    };
-  }
 }

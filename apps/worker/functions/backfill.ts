@@ -1,4 +1,4 @@
-import { inngest } from "../inngest";
+import { inngest, POLYGON_CONCURRENCY } from "../inngest";
 import { db, eq, and, isNull } from "@deepmint/db";
 import { events, claims, outcomes, instruments } from "@deepmint/db/schema";
 import {
@@ -63,6 +63,7 @@ export const backfillFunction = inngest.createFunction(
   {
     id: "historical-backfill",
     retries: 2,
+    concurrency: POLYGON_CONCURRENCY,
     triggers: [{ event: "backfill/requested" }],
   },
   async ({ event, step }) => {

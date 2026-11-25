@@ -3,7 +3,7 @@ import { Snaptrade } from "snaptrade-typescript-sdk";
 /**
  * SnapTrade SDK wrapper — READ-ONLY access.
  *
- * CRITICAL INVARIANT (from CLAUDE.md §6): Deepmint never places trades.
+ * CRITICAL INVARIANT: Deepmint never places trades.
  * This wrapper deliberately exposes only read methods (registerUser,
  * loginLink, listAccounts, getAccountActivities). The SDK's trading APIs
  * are NEVER imported here.

@@ -59,7 +59,6 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
 - **Decisions that still hold:**
   - The LLM runs through Hugging Face's OpenAI-compatible router (`HF_API_KEY`), not Anthropic.
   - drizzle-orm operators are re-exported from `@deepmint/db`, so there is a single drizzle instance.
-  - `capture.ts` stays out of the ingestion barrel, which keeps Playwright out of the web bundle.
   - Inngest v4: `createFunction` takes its triggers in the options object.
 
 ### Superseded
@@ -75,8 +74,8 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
 - **Entry price "from Polygon with dev fallback prices"** → the previous trading day's close (`getCurrentPrice`) → since the next-close entry change, no entry price at submission: markout enters a self-logged or undated claim at the close of the first session after it was made, and records it on the outcome.
   - The fixed Mag-7 dev prices apply only when `POLYGON_API_KEY` is unset.
   - With a key, a failed lookup throws (PR #4, 2026-08-13).
-- **Snapshot storage** (`r2.ts`) and **Playwright capture** (`capture.ts`) → still in the repo, but nothing calls them; `events.snapshot_path` is always null.
-- **Demo source adapter** (`sources/demo.ts`, 5 hard-coded reports) → only a unit test uses it. Ingest relied on it, later as a fallback, until 2026-08-03. An unconfigured environment now ingests nothing.
+- **Snapshot storage** (`r2.ts`) and **Playwright capture** (`capture.ts`) → nothing ever called them, and wave 10 deleted them; `events.snapshot_path` is always null.
+- **Demo source adapter** (`sources/demo.ts`, 5 hard-coded reports) → deleted in wave 9. Ingest relied on it, later as a fallback, until 2026-08-03; after that only a unit test used it. An unconfigured environment ingests nothing.
 
 ## Sprint 3 — Scoring engine
 
@@ -92,12 +91,12 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - `entity-scoring` (on `markouts/completed`); `consensus-signal` and `leaderboard-refresh` (on `scoring/completed`).
   - `leaderboard`, `consensus` and `scores` routers; the leaderboard page; profile Overview and Stats tabs; the dashboard consensus grid.
 - **Status today:**
-  - No job calls `maeAndMfe`, `calmarRatio`, `continuousBrierScore` or `timeDecayedBrierScore`. `checkAntiGaming` was never applied, and wave 4 deleted it in favour of a 10-outcome floor. `outcomes.brier_slices` (migration 0001) is never written.
+  - No job ever called `maeAndMfe`, `continuousBrierScore` or `timeDecayedBrierScore`; wave 9 deleted them. `checkAntiGaming` was never applied, and wave 4 deleted it in favour of a 10-outcome floor. `outcomes.brier_slices` (migration 0001) is never written.
   - "Regime-aware" EIV was not regime-aware in practice until wave 7: the worker passed an empty regime history, so a 0.4 penalty always applied and `eiv` equalled `eiv_overall`. Each outcome now counts in the regime of its entry date, and `eiv` is written only for an entity with 5 outcomes in the current regime.
   - Player metrics treated each claim's outcome as one daily return, whatever its horizon, until PR #17; they now come from a daily mark-to-market book of the Player's claims.
-  - `polygonCache.ts` was meant to cache prices (1 h historical, 5 min current). In fact only regime indicators are cached (1 h, and only when Upstash is set); prices are never cached.
+  - `polygonCache.ts` was meant to cache prices (1 h historical, 5 min current). It caches the regime indicators (1 h) and, since wave 1, the latest closes (5 min), only when Upstash is set; until wave 9 its reads never hit.
   - Consensus covers every active instrument, not just the Mag 7. It used active claims from the last 90 days, and every run failed on a bound date; since wave 1 it counts the claims whose horizon has not passed, and runs.
-  - `leaderboard-refresh` only writes a log line.
+  - `leaderboard-refresh` only wrote a log line; wave 9 deleted it.
   - Regime inputs were placeholders (VIX 18, S&P +1%) until Sprint 7.
 
 ## Sprint 4 — Social + polish
@@ -179,7 +178,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
   - PWA manifest, Serwist service worker and an `/offline` page.
 - **Status today:**
   - Since 2026-10-06 the regime is a stored daily snapshot (`market_regimes`, migration 0008), written on weekdays at 17:30 US Eastern; pages read it instead of recomputing. The plan has no index data (`I:VIX` and `I:SPX` return 403), so the S&P 500 30-day return is measured on SPY and VIX is recorded as defaulted, never as a made-up value.
-  - The web suite has 72 tests in 6 files (18 before wave 1, 26 before wave 2, 33 before wave 3, 58 before wave 5, 67 before wave 7); an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
+  - The web suite has 67 tests in 6 files (18 before wave 1, 26 before wave 2, 33 before wave 3, 58 before wave 5, 67 before wave 7, 72 before wave 10); an MCP test file was added in June. All of them skip without `TEST_API_KEY`, and CI does not run them.
   - `/docs/api` is shown to every signed-in user, but only admins can mint keys.
   - Until wave 1, `/manifest.json` and `/offline` sat behind sign-in: the manifest returned 404 and the offline page was never precached, so neither worked. Both are public now, and the service worker precaches `/offline`.
 
@@ -190,7 +189,7 @@ An index of the project's phases, oldest first. Each entry gives the dates, the 
 CHANGELOG [0.8.0](docs/CHANGELOG.md#080--logic-error-audit-extraction-hardening-backfill-mcp-production-wiring-2026-07-03); reasoning is in the [DEVLOG](docs/DEVLOG.md). These are git dates; the DEVLOG headings for the June and July work read 2026-05-05.
 
 - **Vercel (2026-05-04/05, `dee6b3a`, `6bafd9a`).** Project `deepmint-web-7ald` builds `apps/web` from `main`. The root `vercel.json` uses `cd ../..`, which only makes sense with Root Directory `apps/web`.
-  - `packages/db/run-migration.mjs` was added in `6bafd9a`. Do not use it: it hard-codes the main-checkout path and exits 0 on failure.
+  - `packages/db/run-migration.mjs` was added in `6bafd9a`. It hard-coded the main checkout's path and exited 0 on failure; wave 9 deleted it.
 - **Logic-error audit (2026-06-26, `875bb08`).** 25 confirmed fixes, among them:
   - the P&L sign for shorts;
   - parsing of Markdown-fenced JSON;
@@ -284,8 +283,8 @@ PRs #6, #8, #9 and #7 were merged in that order on 2026-10-05; detail is in CHAN
 - **Ingestion:** the weekday ingest does nothing unless one of the two lanes is configured:
   - RSS needs Guides with `is_allowlisted=true` and a `source_url`, set by hand in SQL;
   - the Polygon news lane needs `INGEST_POLYGON_NEWS=1`.
-- **Tests without keys** (since wave 8): scoring 135, shared 74 (2 live Polygon tests skip), api 35 (55 database tests skip), ingestion 85 (6 live LLM and 7 database tests skip), web 72 skipped.
+- **Tests without keys** (since wave 10): scoring 129, shared 75 (2 live Polygon tests skip), api 30 (48 database tests skip), ingestion 79 (6 live LLM and 7 database tests skip), web 67 skipped.
 - **Open issues to know first:**
   - `claims/created` fires only for self-logged claims.
-  - Sentry and R2 are inert.
+  - Sentry is inert, and no source snapshots exist.
   - The digest reaches no one.

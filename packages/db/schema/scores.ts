@@ -7,13 +7,15 @@ export const scores = pgTable('scores', {
   metric: varchar('metric', { length: 50 }).notNull(),
   // Metrics written by the scoring worker (apps/worker/functions/score.ts),
   // all with horizon 'all' unless noted:
-  //   every entity: hit_rate, avg_return_bps, eiv_overall
+  //   every entity: hit_rate, avg_return_bps, eiv_overall, position_count,
+  //                 z_significant, and outcome_count, per horizon too
   //   by regime:    eiv and regime_outcome_count, tagged with the current
   //                 regime, for an entity with at least 5 outcomes entered
   //                 in it
   //   Guides:       z_score, target_coverage, calibration_brier (when any
   //                 claim has a confidence), target_precision (when any claim
-  //                 has a target), and hit_rate per horizon
+  //                 has a usable target), target_hit_rate (when one is ahead
+  //                 of its entry), and hit_rate per horizon
   //   Players:      sharpe, max_drawdown, calmar, cvar5, consistency
   value: numeric('value', { precision: 18, scale: 6 }).notNull(),
   horizon: varchar('horizon', { length: 10 }),                       // 'all', '1d', '1w', '1m', '3m', '6m', '1y'

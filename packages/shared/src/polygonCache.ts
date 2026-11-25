@@ -3,8 +3,8 @@
  * Uses Upstash Redis when configured, otherwise bypasses cache.
  *
  * TTLs:
- * - Historical prices: 1 hour
- * - Current prices: 5 minutes
+ * - Regime indicators: 1 hour (set by their caller)
+ * - Latest closes: 5 minutes
  */
 
 // ---------------------------------------------------------------------------
@@ -30,10 +30,10 @@ async function getRedis(): Promise<RedisLike | null> {
   }
 
   try {
-    // Dynamic import — @upstash/redis may not be installed in this package
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = await (import("@upstash/redis" as string) as Promise<{ Redis: new (opts: { url: string; token: string }) => RedisLike }>);
-    redis = new mod.Redis({ url, token });
+    const { Redis } = await import("@upstash/redis");
+    // getCached stores and parses JSON itself. The client would otherwise parse
+    // it on get, and parsing its object again fails, so every read would miss.
+    redis = new Redis({ url, token, automaticDeserialization: false });
     return redis;
   } catch {
     redis = null;
@@ -45,7 +45,6 @@ async function getRedis(): Promise<RedisLike | null> {
 // Cache helpers
 // ---------------------------------------------------------------------------
 
-const TTL_HISTORICAL = 3600; // 1 hour
 const TTL_CURRENT = 300; // 5 minutes
 
 export async function getCached<T>(
@@ -77,13 +76,6 @@ export async function getCached<T>(
   return result;
 }
 
-export function historicalCacheKey(
-  ticker: string,
-  date: string
-): { key: string; ttl: number } {
-  return { key: `price:eod:${ticker.toUpperCase()}:${date}`, ttl: TTL_HISTORICAL };
-}
-
 export function currentPriceCacheKey(ticker: string): {
   key: string;
   ttl: number;
@@ -91,4 +83,4 @@ export function currentPriceCacheKey(ticker: string): {
   return { key: `price:current:${ticker.toUpperCase()}`, ttl: TTL_CURRENT };
 }
 
-export { TTL_HISTORICAL, TTL_CURRENT };
+export { TTL_CURRENT };

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Deepmint Design System — AGENTS.md §4 */
+  /* Deepmint design tokens: dark only, with a mint-green accent */
 
   /* Background — deepened to match logo's dark field */
   --color-bg-primary: #080C14;

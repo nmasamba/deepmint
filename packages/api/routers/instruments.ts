@@ -1,8 +1,7 @@
 import { z } from "zod";
-import { eq, ilike, or, desc, asc, and, lt, sql, inArray } from "@deepmint/db";
+import { eq, ilike, or, desc, and, lt, sql, inArray } from "@deepmint/db";
 import {
   instruments,
-  consensusSignals,
   tickerRequests,
   PRICEABLE_ASSET_CLASSES,
 } from "@deepmint/db/schema";
@@ -44,17 +43,6 @@ const marketCapOrder = sql`CASE
   ELSE 6
 END`;
 
-// JS mirror of marketCapOrder, used to build the composite pagination cursor.
-const BUCKET_RANK: Record<string, number> = {
-  mega: 1,
-  large: 2,
-  mid: 3,
-  small: 4,
-  micro: 5,
-};
-const bucketRank = (bucket: string | null): number =>
-  (bucket && BUCKET_RANK[bucket]) || 6;
-
 export const instrumentRouter = router({
   /** Search covered instruments by ticker or name */
   search: publicProcedure
@@ -83,110 +71,6 @@ export const instrumentRouter = router({
         .orderBy(marketCapOrder)
         .limit(10);
       return results;
-    }),
-
-  /** Get instrument details by ID or ticker, with latest consensus signal */
-  detail: publicProcedure
-    .input(
-      z.object({
-        id: z.string().uuid().optional(),
-        ticker: z.string().optional(),
-      }),
-    )
-    .query(async ({ ctx, input }) => {
-      if (!input.id && !input.ticker) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Either id or ticker must be provided",
-        });
-      }
-
-      const condition = input.id
-        ? eq(instruments.id, input.id)
-        : eq(instruments.ticker, input.ticker!);
-
-      const [instrument] = await ctx.db
-        .select()
-        .from(instruments)
-        .where(condition)
-        .limit(1);
-
-      if (!instrument) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Instrument not found",
-        });
-      }
-
-      // Fetch latest consensus signal
-      const [consensus] = await ctx.db
-        .select()
-        .from(consensusSignals)
-        .where(eq(consensusSignals.instrumentId, instrument.id))
-        .orderBy(desc(consensusSignals.asOfDate))
-        .limit(1);
-
-      return {
-        ...instrument,
-        consensusSignal: consensus ?? null,
-      };
-    }),
-
-  /** Paginated list with filters */
-  list: publicProcedure
-    .input(
-      z.object({
-        assetClass: z
-          .enum(["equity", "etf", "crypto", "forex", "commodity", "index"])
-          .optional(),
-        sector: z.string().optional(),
-        exchange: z.enum(["NYSE", "NASDAQ", "AMEX"]).optional(),
-        limit: z.number().min(1).max(100).default(20),
-        // Composite keyset cursor: "<bucketRank>:<id>" (matches the ORDER BY).
-        cursor: z.string().nullish(),
-      }),
-    )
-    .query(async ({ ctx, input }) => {
-      const conditions = [eq(instruments.isActive, true)];
-
-      if (input.assetClass) {
-        conditions.push(eq(instruments.assetClass, input.assetClass));
-      }
-      if (input.sector) {
-        conditions.push(eq(instruments.sector, input.sector));
-      }
-      if (input.exchange) {
-        conditions.push(eq(instruments.exchange, input.exchange));
-      }
-      if (input.cursor) {
-        // Keyset on the same (marketCapOrder, id) tuple the query is ordered
-        // by — a plain id cursor would be incoherent with a marketCap sort.
-        const sep = input.cursor.indexOf(":");
-        const cursorRank = Number(input.cursor.slice(0, sep));
-        const cursorId = input.cursor.slice(sep + 1);
-        conditions.push(
-          sql`(${marketCapOrder}, ${instruments.id}) > (${cursorRank}, ${cursorId})`,
-        );
-      }
-
-      const results = await ctx.db
-        .select()
-        .from(instruments)
-        .where(and(...conditions))
-        .orderBy(marketCapOrder, asc(instruments.id))
-        .limit(input.limit + 1);
-
-      const hasMore = results.length > input.limit;
-      const items = hasMore ? results.slice(0, -1) : results;
-      const last = items[items.length - 1];
-
-      return {
-        items,
-        nextCursor:
-          hasMore && last
-            ? `${bucketRank(last.marketCapBucket)}:${last.id}`
-            : null,
-      };
     }),
 
   /** Admin: paginated list including inactive instruments */

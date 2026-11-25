@@ -1,18 +1,22 @@
 /**
- * Benchmark the multi-claim extraction across HuggingFace inference providers.
+ * Benchmark the multi-claim extraction on one model.
  *
- * Usage: tsx scripts/bench-providers.ts <provider>   (e.g. cerebras, nebius, default)
+ * Usage: tsx scripts/bench-providers.ts [model]
  *
- * Routes the base LLM_MODEL to the given provider via the HF router's
- * `model:provider` syntax, runs the exact production extractClaims() path
- * (JSON mode, max_tokens, timeout) on a 2-claim prompt twice, and prints one
- * JSON line: { provider, model, runs, minMs, ok, claims }.
+ * `model` is a full Hugging Face router id, with an optional provider or policy
+ * suffix (e.g. "openai/gpt-oss-120b:fastest", "openai/gpt-oss-120b:cerebras").
+ * The default is LLM_MODEL, else the extractor's DEFAULT_MODEL.
+ *
+ * Runs the exact production extractClaims() path (JSON mode, max_tokens,
+ * timeout) on a 2-claim prompt twice, with the fallback model off so that only
+ * `model` can answer, and prints one JSON line:
+ * { provider, model, runs, minMs, ok, claims }.
  */
 import { readFileSync } from "node:fs";
 
-// Load root .env.local (absolute path — script may run from any cwd).
+// Load this checkout's root .env.local, wherever the script is run from.
 try {
-  const txt = readFileSync("/Users/nm/Projects/Deepmint/.env.local", "utf8");
+  const txt = readFileSync(new URL("../../../.env.local", import.meta.url), "utf8");
   for (const line of txt.split("\n")) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
     if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
@@ -21,17 +25,17 @@ try {
   // env may already be present
 }
 
-// Arg is the FULL model id, optionally with a `:provider` suffix
-// (e.g. "Qwen/Qwen3-235B-A22B-Instruct-2507:cerebras").
-const model = process.argv[2] ?? process.env.LLM_MODEL ?? "Qwen/Qwen3-235B-A22B";
+const { DEFAULT_MODEL, extractClaims } = await import("../src/extractor");
+
+const model = process.argv[2] || process.env.LLM_MODEL || DEFAULT_MODEL;
 const provider = model.includes(":") ? model.split(":").pop()! : "default";
 process.env.LLM_MODEL = model;
+// Empty turns the fallback off; unset would let it answer for a dead model.
+process.env.LLM_MODEL_FALLBACK = "";
 
 const TEXT = `Market outlook for Q2 2026:
 - NVDA: Strongly bullish, AI demand continuing to surge. Target $1100 in 90 days.
 - META: Slightly bearish, ad revenue slowing. Short-term target $480 over 30 days.`;
-
-const { extractClaims } = await import("../src/extractor");
 
 async function once(): Promise<{ ms: number; claims: number; ok: boolean; error?: string }> {
   const t0 = Date.now();

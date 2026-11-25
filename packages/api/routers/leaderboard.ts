@@ -2,14 +2,13 @@ import { z } from "zod";
 import { memberProcedure, router } from "../trpc";
 import { alias } from "drizzle-orm/pg-core";
 import { db, desc, asc, eq, gte, and } from "@deepmint/db";
-import { scores, entities, instruments } from "@deepmint/db/schema";
+import { scores, entities } from "@deepmint/db/schema";
 import {
   LOWER_IS_BETTER_METRICS,
   MIN_RANKED_OUTCOMES,
   RETURN_METRICS,
 } from "@deepmint/shared";
 import type { MarketRegime } from "@deepmint/scoring";
-import { topByInstrument } from "../lib/topByInstrument";
 
 // The scorer's rows beside each ranked score: its entity's sample at that
 // horizon on that date, and whether the pooled hit rate cleared the z-test.
@@ -142,33 +141,6 @@ export const leaderboardRouter = router({
         // board or a stale one from a previous scoring run.
         asOfDate: row.asOfDate,
       }));
-    }),
-
-  /**
-   * Top entities for a specific instrument by hit rate on it, with at least
-   * MIN_TICKER_SAMPLE outcomes there (see topByInstrument).
-   */
-  byTicker: memberProcedure
-    .input(
-      z.object({
-        ticker: z.string().min(1),
-        entityType: z.enum(["player", "guide"]).optional(),
-        limit: z.number().min(1).max(50).default(10),
-      })
-    )
-    .query(async ({ input }) => {
-      const [instrument] = await db
-        .select({ id: instruments.id })
-        .from(instruments)
-        .where(eq(instruments.ticker, input.ticker.toUpperCase()))
-        .limit(1);
-
-      if (!instrument) return [];
-
-      return topByInstrument(db, instrument.id, {
-        entityType: input.entityType,
-        limit: input.limit,
-      });
     }),
 
   /**

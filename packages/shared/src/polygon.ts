@@ -284,8 +284,8 @@ async function fetchLatestClose(ticker: string): Promise<LatestClose> {
 /**
  * The latest session close, with its date, for pages and valuations. Memoised
  * per process for TTL_CURRENT (5 minutes), shared by concurrent callers, and
- * cached in Upstash when configured. Throws without a key or when Polygon fails;
- * a dev constant would be shown as a real dated close.
+ * cached in Upstash when configured. When it is not cached, throws without a key
+ * or when Polygon fails; a dev constant would be shown as a real dated close.
  *
  * Ledger writers keep the uncached getCurrentPrice and getEODPrice.
  */
@@ -483,7 +483,8 @@ export interface RegimeIndicatorsResult extends RegimeIndicators {
 /**
  * Fetch live regime indicators: VIX level, S&P 500 30d return, sector dispersion.
  * Results are cached in Redis for 1 hour. An indicator whose data is
- * unavailable falls back to a default and is named in `defaulted`.
+ * unavailable falls back to a default and is named in `defaulted`. With none
+ * available it throws: cached, that would fail every retry for the hour.
  *
  * Slow (~14 throttled Polygon calls): call it from background jobs only.
  * Interactive reads use the stored snapshot (market_regimes).
@@ -537,6 +538,7 @@ export async function getRegimeIndicators(): Promise<RegimeIndicatorsResult> {
       defaulted.push("sectorDispersion");
     }
 
+    if (defaulted.length === 3) throw new Error("No regime indicator is available");
     return { sp500Return30d, vixLevel, sectorDispersion, defaulted };
   });
 }

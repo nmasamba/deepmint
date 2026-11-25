@@ -5,7 +5,7 @@ import { pgTable, uuid, varchar, numeric, integer, jsonb, date, timestamp } from
  * throttled Polygon calls (minutes), so a background job writes it once a day
  * and interactive pages read the latest row instead of recomputing.
  *
- * Returns are stored in basis points (invariant #4). `defaulted_fields` names
+ * Returns are stored in basis points. `defaulted_fields` names
  * any indicator that fell back to a default because its data was unavailable,
  * so a partly-defaulted snapshot is never mistaken for live data.
  */

@@ -6,10 +6,8 @@ import {
   brierScore,
   targetPrecision,
   targetCoverage,
+  targetHitRate,
   isUsableTarget,
-  computeSliceOutcome,
-  continuousBrierScore,
-  timeDecayedBrierScore,
 } from "../guide";
 
 describe("hitRate", () => {
@@ -218,90 +216,52 @@ describe("targetCoverage", () => {
   });
 });
 
-describe("computeSliceOutcome", () => {
-  it("returns 1 for correct long direction", () => {
+describe("targetHitRate", () => {
+  const long = { direction: "long" as const, entryPriceCents: 10000 };
+  const short = { direction: "short" as const, entryPriceCents: 10000 };
+
+  it("returns null when no usable target was published", () => {
+    expect(targetHitRate([])).toBeNull();
     expect(
-      computeSliceOutcome({
-        direction: "long",
-        entryPriceCents: 10000,
-        snapshotPriceCents: 10500,
-      })
-    ).toBe(1);
+      targetHitRate([
+        { ...long, targetPriceCents: null, targetHit: null },
+        { ...long, targetPriceCents: 10050, targetHit: true }, // within 1%
+      ]),
+    ).toBeNull();
   });
 
-  it("returns 0 for wrong long direction", () => {
+  it("returns 0, not null, when every target was missed", () => {
+    expect(targetHitRate([{ ...long, targetPriceCents: 12000, targetHit: false }])).toBe(0);
+  });
+
+  it("is the share of usable targets that were hit, long and short", () => {
     expect(
-      computeSliceOutcome({
-        direction: "long",
-        entryPriceCents: 10000,
-        snapshotPriceCents: 9500,
-      })
+      targetHitRate([
+        { ...long, targetPriceCents: 12000, targetHit: true },
+        { ...long, targetPriceCents: 15000, targetHit: false },
+        { ...short, targetPriceCents: 9000, targetHit: true },
+        { ...long, targetPriceCents: null, targetHit: null },
+      ]),
+    ).toBeCloseTo(2 / 3);
+  });
+
+  it("leaves out a target the entry had already passed", () => {
+    // Markout calls these hit on the first bar: a long with its target below
+    // the entry, and a short with its target above it.
+    expect(
+      targetHitRate([
+        { ...long, targetPriceCents: 9000, targetHit: true },
+        { ...short, targetPriceCents: 11000, targetHit: true },
+        { ...long, targetPriceCents: 12000, targetHit: false },
+      ]),
     ).toBe(0);
   });
 
-  it("returns 1 for correct short direction", () => {
+  it("leaves out neutral claims", () => {
     expect(
-      computeSliceOutcome({
-        direction: "short",
-        entryPriceCents: 10000,
-        snapshotPriceCents: 9500,
-      })
-    ).toBe(1);
-  });
-
-  it("returns 1 for neutral within 2%", () => {
-    expect(
-      computeSliceOutcome({
-        direction: "neutral",
-        entryPriceCents: 10000,
-        snapshotPriceCents: 10100, // 1% move
-      })
-    ).toBe(1);
-  });
-
-  it("returns 0 for neutral beyond 2%", () => {
-    expect(
-      computeSliceOutcome({
-        direction: "neutral",
-        entryPriceCents: 10000,
-        snapshotPriceCents: 10300, // 3% move
-      })
-    ).toBe(0);
-  });
-});
-
-describe("continuousBrierScore", () => {
-  it("returns 1 for empty slices", () => {
-    expect(continuousBrierScore([])).toBe(1);
-  });
-
-  it("returns 0 for perfect forecasts", () => {
-    const slices = [
-      { forecastProbability: 1, outcome: 1 as const },
-      { forecastProbability: 0, outcome: 0 as const },
-    ];
-    expect(continuousBrierScore(slices)).toBeCloseTo(0);
-  });
-});
-
-describe("timeDecayedBrierScore", () => {
-  it("returns 1 for empty slices", () => {
-    expect(timeDecayedBrierScore([])).toBe(1);
-  });
-
-  it("weights recent slices more heavily", () => {
-    const slices = [
-      { daysBeforeResolution: 30, forecastProbability: 0.5, outcome: 1 as const }, // old, bad
-      { daysBeforeResolution: 1, forecastProbability: 0.9, outcome: 1 as const }, // recent, good
-    ];
-    const decayed = timeDecayedBrierScore(slices);
-    const uniform = continuousBrierScore(
-      slices.map((s) => ({
-        forecastProbability: s.forecastProbability,
-        outcome: s.outcome,
-      }))
-    );
-    // Decayed should be lower (better) because recent slice is better
-    expect(decayed).toBeLessThan(uniform);
+      targetHitRate([
+        { direction: "neutral", entryPriceCents: 10000, targetPriceCents: 12000, targetHit: true },
+      ]),
+    ).toBeNull();
   });
 });

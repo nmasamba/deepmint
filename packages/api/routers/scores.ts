@@ -30,37 +30,4 @@ export const scoresRouter = router({
           )
         );
     }),
-
-  /**
-   * Score time series for a specific metric (for charting).
-   */
-  history: memberProcedure
-    .input(
-      z.object({
-        entityId: z.string().uuid(),
-        metric: z.string().min(1),
-        horizon: z.string().optional(),
-        limit: z.number().min(1).max(365).default(90),
-      })
-    )
-    .query(async ({ input }) => {
-      const conditions = [
-        eq(scores.entityId, input.entityId),
-        eq(scores.metric, input.metric),
-      ];
-      if (input.horizon) {
-        conditions.push(eq(scores.horizon, input.horizon));
-      }
-
-      return db
-        .select({
-          value: scores.value,
-          asOfDate: scores.asOfDate,
-          regimeTag: scores.regimeTag,
-        })
-        .from(scores)
-        .where(and(...conditions))
-        .orderBy(desc(scores.asOfDate))
-        .limit(input.limit);
-    }),
 });

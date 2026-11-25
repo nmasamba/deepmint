@@ -14,6 +14,7 @@ export const outcomes = pgTable('outcomes', {
   returnBps: integer('return_bps').notNull(),                         // basis points (100 = 1%)
   directionCorrect: boolean('direction_correct').notNull(),
   targetHit: boolean('target_hit'),                                   // null if no target was set
+  // Unused and always null: for a continuous Brier score that was never wired up.
   brierSlices: jsonb('brier_slices').$type<Array<{ daysBeforeResolution: number; priceCents: number; directionCorrect: boolean }>>(),
   computedAt: timestamp('computed_at', { withTimezone: true }).defaultNow().notNull(),
   // NO updatedAt — written once; migration 0010's triggers refuse UPDATE and DELETE.

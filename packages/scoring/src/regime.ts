@@ -1,5 +1,6 @@
 /**
- * Market regime detection (build_spec §2.4).
+ * Market regime detection from VIX, the S&P 500's 30-day return and sector
+ * dispersion (see __tests__/regime-eiv.test.ts).
  */
 
 export type MarketRegime = "bull" | "bear" | "high_vol" | "low_vol" | "rotation";
@@ -30,7 +31,7 @@ export function detectRegime(data: RegimeInput): MarketRegime {
   return "bull"; // default
 }
 
-/** The stored form of a regime snapshot: returns in basis points (invariant #4). */
+/** The stored form of a regime snapshot: returns in basis points. */
 export interface RegimeSnapshotValues {
   vixLevel: string; // numeric(8,2) column
   sp500Return30dBps: number;

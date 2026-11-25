@@ -7,7 +7,8 @@ export const events = pgTable('events', {
   sourceUrl: varchar('source_url', { length: 2000 }),
   rawText: text('raw_text').notNull(),
   contentHash: varchar('content_hash', { length: 64 }).notNull().unique(), // SHA-256 hex
-  snapshotPath: varchar('snapshot_path', { length: 500 }),            // R2 key for screenshot/PDF
+  snapshotPath: varchar('snapshot_path', { length: 500 }),            // unused and always null: snapshots
+                                                                      // were never captured
   publisher: varchar('publisher', { length: 200 }),                   // publication that carried the
                                                                       // text; null for a Guide's own feed
   capturedAt: timestamp('captured_at', { withTimezone: true }).notNull(),

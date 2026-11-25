@@ -8,7 +8,7 @@ Docs it points to: [README](../README.md) · [KNOWN_ISSUES](KNOWN_ISSUES.md) · 
 
 ```text
 You are picking up Deepmint: a pnpm/Turborepo monorepo with apps/web (Next.js 15),
-apps/worker (18 Inngest functions, served by apps/web at /api/inngest) and
+apps/worker (17 Inngest functions, served by apps/web at /api/inngest) and
 packages/{api,db,ingestion,scoring,shared}. State below is as of 2026-10-05, main = cd63901.
 
 READ FIRST
@@ -64,7 +64,6 @@ WORKING RULES
      Add rows in order. Apply locally from the worktree that holds the migration with
      `DATABASE_URL=postgresql://deepmint:deepmint@localhost:5433/deepmint pnpm --filter @deepmint/db db:migrate`
      (drizzle-kit reads packages/db/.env or the shell, never .env.local).
-     Do not use packages/db/run-migration.mjs.
    - Never run db:seed against production: it writes fictional Guides and 100 fake claims.
 5. The ledger is append-only. claims, events, notes and outcomes are never updated or deleted.
    The only allowed UPDATE is the admin status change pending_review -> active | rejected.
@@ -80,6 +79,9 @@ WORKING RULES
 9. Work one step at a time and check with me before moving on.
 10. Mag-7 only for now. Expanding beyond the Mag 7 is planned only once the core product has
     matured. Don't propose it as a fix, and don't press the admin "Seed S&P 500 Top 50" button.
+11. The preview tool reads .claude/launch.json, which git ignores, so a new worktree has none. Copy
+    one from a checkout that has it, or write one that runs
+    `pnpm --filter @deepmint/web dev --port $PORT`.
 
 NEXT: workstream A is done; B remains. Ask me before starting.
 
@@ -89,8 +91,9 @@ A. Done: self-logged and undated claims are stored with entry_price_cents = null
 
 B. Upstash Redis (priority 1 in docs/EXTERNAL_KEYS.md).
    - It switches on rate limits (claims.submit 10/h, broker sync 1/h, v1 and MCP per key per
-     minute) and the follower-count cache. It does NOT cache prices. The leaderboard's regime no
-     longer needs it: since 2026-10-06 it is a stored daily snapshot (market_regimes).
+     minute), the follower-count cache and a shared 5-minute cache of latest closes. Claim, mirror
+     and markout prices are never cached. The leaderboard's regime no longer needs it: since
+     2026-10-06 it is a stored daily snapshot (market_regimes).
    - Steps:
      1. I run `vercel login`. You list env var NAMES, never values, to refresh
         docs/EXTERNAL_KEYS.md.
@@ -100,8 +103,6 @@ B. Upstash Redis (priority 1 in docs/EXTERNAL_KEYS.md).
         see new env after a fresh production deploy; ask me before triggering one.
      3. Verify: X-RateLimit-* headers are sent even without Upstash, so check that
         X-RateLimit-Remaining drops between two /api/v1 calls with the same key.
-     4. @deepmint/shared does not declare @upstash/redis, so outside the Next build (vitest, tsx)
-        its cache silently disables itself.
 
 Everything else is in docs/KNOWN_ISSUES.md.
 ```

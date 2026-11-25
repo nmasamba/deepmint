@@ -16,8 +16,8 @@ import { resolveAgentEntity } from "./agentEntity";
  * (api_keys.entity_id) — its claims are scored and audited exactly like a
  * human's. Auth reuses the dm_live_ API key + scope model: each
  * tool checks its own scope, the one the matching REST route needs, and write
- * tools need claims:write. Per invariant #9, only aggregated influence is ever
- * exposed (no raw influence events).
+ * tools need claims:write. Only aggregated influence is ever exposed (no raw
+ * influence events).
  */
 
 /** Minimal structural shape of the MCP SDK's AuthInfo (avoids a deep subpath import). */

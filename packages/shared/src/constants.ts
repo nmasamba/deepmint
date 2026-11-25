@@ -77,6 +77,3 @@ export const LOWER_IS_BETTER_METRICS: readonly string[] = [
   "calibration_brier",
   "max_drawdown",
 ];
-
-export const BPS_PER_PERCENT = 100;
-export const CENTS_PER_DOLLAR = 100;
