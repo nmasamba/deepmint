@@ -1,6 +1,6 @@
 # Known issues
 
-The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **10 open issues: no high, 2 medium and 8 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
+The register of verified defects in Deepmint's code, from the coherence audit of **2026-10-05**. Every entry was checked against `main` at `cd63901` (after PRs #6–#9). It lists **11 open issues: no high, 2 medium and 9 low**. Docs drift that this docs update fixed is listed at the end, under [Fixed by this docs update](#fixed-by-this-docs-update).
 
 ## How this register was produced
 
@@ -26,7 +26,7 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 
 | Area | High | Medium | Low | Total |
 |---|---|---|---|---|
-| [Scoring and ranking](#area-scoring) | 0 | 0 | 0 | 0 |
+| [Scoring and ranking](#area-scoring) | 0 | 0 | 1 | 1 |
 | [Product (web app)](#area-product) | 0 | 0 | 2 | 2 |
 | [API: tRPC, REST v1, MCP, auth](#area-api) | 0 | 0 | 2 | 2 |
 | [Workers and schedules](#area-workers) | 0 | 1 | 1 | 2 |
@@ -34,13 +34,23 @@ No high-severity issues remain open; the last three were fixed on 2026-10-06 (PR
 | [Data model and shared code](#area-data) | 0 | 0 | 0 | 0 |
 | [Infrastructure, config and tooling](#area-infra) | 0 | 1 | 2 | 3 |
 | [Code comments](#area-docs) | 0 | 0 | 0 | 0 |
-| **All** | **0** | **2** | **8** | **10** |
+| **All** | **0** | **2** | **9** | **11** |
 
 <a id="area-scoring"></a>
 
 ## Scoring and ranking
 
-No open issues.
+<a id="target-met-before-entry"></a>
+
+### Target metrics count some targets met before the entry
+
+**Low** · bug · `target-met-before-entry`
+
+- **What's wrong:** Both target metrics can count a target that was already met when the claim was priced.
+  - `targetPrecision` credits a target already behind the entry for a move against the claim: a short with its target above the entry scores up to 1 as the price rises to the target, and 0 when the price falls and the call is right. The local ledger has three, all wrong calls that score 1. `target_hit_rate` leaves such targets out.
+  - For a claim with a stored entry, markout's target window starts on its creation day. A dated rating or a backfilled post is priced at that day's close, so a target touched earlier in the day counts as reached, and `target_hit_rate` counts it.
+- **User impact:** A Guide's target hit rate can read better than the calls were, and target precision better or worse. Both show on the profile's Stats tab and in REST v1, and neither is a board on the leaderboard page.
+- **Evidence:** [`packages/scoring/src/guide.ts`](../packages/scoring/src/guide.ts) (`targetPrecision`, `targetHitRate`) · [`packages/scoring/src/markout.ts`](../packages/scoring/src/markout.ts) (`windowStartsAfter`) · [`apps/worker/functions/backfill.ts`](../apps/worker/functions/backfill.ts) and [`packages/ingestion/src/extractor.ts`](../packages/ingestion/src/extractor.ts) (`getEODPrice`)
 
 <a id="area-product"></a>
 
@@ -148,7 +158,7 @@ No open issues.
   - the ticker page and the `paper` and `signalSimulate` routers call Polygon outside Inngest, where no concurrency key reaches (each close is memoised for 5 minutes per instance);
   - `extract-claims` takes no slot, because its steps hold a model call of up to four minutes, and looks up one close for a claim with a stated rating date;
   - the slot stops overlap, not bursts: two short steps in a row on different instances are not 12.5 s apart.
-- **User impact:** A page view during a job, or a burst of short steps, can still draw a 429. Regime detection hides one behind fallbacks (dropped sector ETFs, default dispersion 0.08) that can mislabel the regime, a markout waits for the next day's run, a mirror trade is retried, and a page says the price is unavailable. Closing it takes a slot every caller shares, in Upstash (D23 option 2), which production does not have.
+- **User impact:** A page view during a job, or a burst of short steps, can still draw a 429. Regime detection hides one behind fallbacks (dropped sector ETFs, default dispersion 0.08) that can mislabel the regime, a markout waits for the next day's run, a mirror trade is retried, and a page says the price is unavailable. Closing it takes a slot every caller shares, in Upstash (D23 option 2), last recorded as unset in production.
 - **Evidence:** [`apps/worker/inngest.ts`](../apps/worker/inngest.ts) (`POLYGON_CONCURRENCY`) · [`packages/shared/src/polygon.ts`](../packages/shared/src/polygon.ts) (`polygonRateLimit`, `getLatestClose`) · [`packages/ingestion/src/extractor.ts`](../packages/ingestion/src/extractor.ts) (`processExtraction`)
 
 <a id="sentry-inert"></a>
