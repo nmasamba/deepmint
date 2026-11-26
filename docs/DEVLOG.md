@@ -4,6 +4,16 @@ Ongoing development notes, decisions, and status updates for Deepmint.
 
 ---
 
+## 2026-11-26 — Inngest Is Synced by Hand
+
+After the waves 9 and 10 deploys (#19 and its follow-up #20, 2026-11-25), nothing called `/api/inngest` until the maintainer ran `curl -sS -X PUT https://www.deepmint.ai/api/inngest --fail-with-body`. That registers the functions with Inngest using the deployment's signing key. So a deploy does not sync the app, and Inngest had been running an older list of functions.
+
+- **What it explains.** Production had never stored a market regime, though the job has existed since October and the Polygon key works (the ticker page shows the latest close). It had no consensus signal either. The night after the sync, the 17:30 job stored the first regime (2026-11-25: bear, only VIX defaulted, as on this plan it always is), consensus signals appeared for all seven stocks, and Vercel recorded no runtime error.
+- **What it does not show.** Whether ingest and markout ran, whether each step was its own request, and whether the Polygon jobs took turns are visible only in the Inngest dashboard. The maintainer has not found the login yet: the keys came from the Vercel integration. The sync always answers `modified: true`, even when nothing changed, so that answer proves nothing.
+- **Docs.** The README and EXTERNAL_KEYS say to run the sync after a deploy that adds a worker function or changes one's trigger, limits or retries. The plan's to-do list records what was checked, and adds finding the Inngest login.
+
+---
+
 ## 2026-11-23 — Remediation Waves 9 and 10: Dead Code, Tooling, One Polygon Job at a Time
 
 Waves 9 and 10 of [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md), the last pair: packages 68–77, one commit each, plus one extra commit, with no migration, in one PR under the pairs rule. The maintainer made four choices on 2026-11-23: `vercel.json` stays at the repo root, compose gets the Redis REST proxy, the two dormant instrument procedures stay, and Inngest's step checkpointing is turned off in the extra commit. Packages 21, 22 and 25 stay out, by the maintainer's choice that day: `RESEND_API_KEY`, `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY` and `NEXT_PUBLIC_SENTRY_DSN` are still empty and `DIGEST_FROM_EMAIL` and `BROKER_CREDENTIALS_KEY` missing. The PR closes 12 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) entries and narrows 2, which took the register from 22 open issues (0 high, 2 medium, 20 low) to 10; a follow-up after the merge adds 1, so it stands at 11 (0 high, 2 medium, 9 low). Every package was re-verified against `1dbbd11` before it changed, and every deletion was grepped again first.

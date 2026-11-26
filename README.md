@@ -391,14 +391,14 @@ The triggers are `claims_review_only`, `claims_no_delete` and `claims_no_truncat
 
 - **Vercel.**
   - Project `deepmint-web-7ald` (team `nmasambas-projects`) uses Root Directory `apps/web`.
-  - The Git integration builds `main` to production on Node 24.x. The latest production deploy is `1dbbd11` (2026-11-11).
+  - The Git integration builds `main` to production on Node 24.x. The latest production deploy is `6849549` (2026-11-25).
   - Every build runs the commands in the root [`vercel.json`](vercel.json), `cd ../.. && pnpm install` and `cd ../.. && pnpm --filter @deepmint/web build`. The dashboard overrides nothing (read on 2026-11-23: install, build and output are automatic), so editing that file changes builds.
 - **Domains.**
   - `https://www.deepmint.ai` is canonical, and `deepmint.ai` redirects to it with a 307.
   - `deepmint-web-7ald.vercel.app` also serves the app.
   - Webhook URLs must use the `www` host.
 - **Environment variables.** Changing an env var requires a redeploy to take effect.
-- **Inngest.** The app `deepmint` is synced to production through the Vercel integration. Its keys arrive with an `INNGEST_WORKFLOW_` prefix, and `packages/api/lib/inngestEnv.ts` maps them to the names the SDK reads before any Inngest client is built: the tRPC routers' (through `packages/api/trpc.ts`), the worker's and `/api/inngest`'s. The functions run inside the Vercel deployment at `/api/inngest`.
+- **Inngest.** The keys come from the Vercel integration, but a deploy does not sync the app with Inngest. After a deploy that adds a worker function or changes one's trigger, limits or retries, run `curl -sS -X PUT https://www.deepmint.ai/api/inngest --fail-with-body`. It registers the functions with Inngest using the deployment's own signing key, and answers `Successfully registered`. Until it was first run on 2026-11-25, the market-regime job, added in October, had never stored a row in production. The keys arrive with an `INNGEST_WORKFLOW_` prefix, and `packages/api/lib/inngestEnv.ts` maps them to the names the SDK reads before any Inngest client is built: the tRPC routers' (through `packages/api/trpc.ts`), the worker's and `/api/inngest`'s. The functions run inside the Vercel deployment at `/api/inngest`.
 - **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
   - Runs on every push and pull request to `main`, on Node 22.
   - Type-checks every package with its own `tsc` (`pnpm -r check`), scripts included.
