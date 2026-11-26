@@ -1054,15 +1054,15 @@ Not excluded: 98 issues. Excluded (open PRs): self-logged-claim-lookahead (NCE),
 
 ## To-do, by priority
 
-What is left, kept by each remediation PR; last updated by the follow-up to the waves 9 and 10 PR on 2026-11-25. Everything here is for the maintainer unless it says "session". It replaces the keys table and step list this section used to hold. Waves 9 and 10 have no migration.
+What is left, kept by each remediation PR; last updated on 2026-11-26, after the waves 9 and 10 deploys. Everything here is for the maintainer unless it says "session". It replaces the keys table and step list this section used to hold. Waves 9 and 10 have no migration.
 
 ### P0. Waves 9 and 10 (merged and deployed on 2026-11-25)
 
 1. In every other checkout, copy `.claude/launch.json` before pulling the merge: the pull deletes the tracked copy.
 2. If anything outside the repo links to `https://www.deepmint.ai/logo.png` (the Clerk dashboard, say), point it at another file: it is gone.
 3. **Done** on 2026-11-25: the PR is merged.
-4. In Inngest, check that the app synced with 17 functions, that `leaderboard-refresh` is gone, and that eight functions show the account key `"polygon"` with limit 1.
-5. On the first weekday evening after the deploy, check that the 16:30 ingest, the 17:00 markout, the scoring it starts and the 17:30 market regime all finish, and that each step is its own request. Locally the longest wait for the shared slot was 158 s, behind scoring's 163 s regime step.
+4. **Synced** by hand on 2026-11-25 (`curl -sS -X PUT https://www.deepmint.ai/api/inngest --fail-with-body`): deploys do not sync. Still to see in the Inngest dashboard: 17 functions, no `leaderboard-refresh`, and eight functions with the account key `"polygon"`, limit 1.
+5. **In part** on 2026-11-25: the 17:30 market regime stored its first row (bear, only VIX defaulted) and consensus signals appeared for all seven stocks, with no runtime errors. Ingest, markout and the one-request-per-step pattern show only in the Inngest dashboard. Check there that the 16:30 ingest, the 17:00 markout, the scoring it starts and the 17:30 market regime all finish, and that each step is its own request. Locally the longest wait for the shared slot was 158 s, behind scoring's 163 s regime step.
 
 ### P1. Owed checks from earlier waves
 
@@ -1093,7 +1093,7 @@ What is left, kept by each remediation PR; last updated by the follow-up to the 
 
 ### P4. Housekeeping
 
-19. Report whether production has an unprefixed `INNGEST_EVENT_KEY` (package 3).
+19. Find the way into the Inngest account: its keys came from the Vercel integration (Vercel → Integrations → Inngest). Items 4, 5 and 9 need its dashboard. Also report whether production has an unprefixed `INNGEST_EVENT_KEY` (package 3).
 20. Optional: add the Clerk session-token claim (package 13).
 21. Optional: a contact address for API Docs (`api-docs-nav-for-all`).
 22. Optional: the local, gitignored `CLAUDE.md` still points to `packages/shared/errors.ts`, which package 75 deleted.

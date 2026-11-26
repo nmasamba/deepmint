@@ -135,10 +135,11 @@ Optional at any time: set `NEXT_PUBLIC_APP_URL=https://www.deepmint.ai` (no visi
 - **If missing:** the SDK runs in cloud mode unless `INNGEST_DEV` is set. In cloud mode `send()` throws without an event key, and `/api/inngest` cannot verify Inngest's requests without the signing key, so no function runs.
 - **Before wave 1** the tRPC routers' clients never saw the mapping, so with only the prefixed keys their `claims/created` and `social/followed` sends would have failed silently, and a stale compiled `apps/worker/inngest.js` without it shadowed `inngest.ts` in the production bundle. Both are fixed; whether production ever lacked an unprefixed `INNGEST_EVENT_KEY` was not recorded.
 - **Get it:** Vercel → Integrations → Inngest (keys arrive prefixed), or Inngest dashboard → Production → event key and signing key.
+- **Sync after a deploy:** a deploy does not sync the app with Inngest (seen after #19 and #20, 2026-11-25: nothing called `/api/inngest` until a manual sync). After a deploy that adds a worker function or changes one's trigger, limits or retries, run `curl -sS -X PUT https://www.deepmint.ai/api/inngest --fail-with-body`. It needs no Inngest login and answers `Successfully registered`; `modified` is `true` even when nothing changed, so it proves nothing. Until the first such sync on 2026-11-25, the market-regime job (added in October) had never stored a row in production; it stored its first that night.
 - **Verify:**
   - `curl https://www.deepmint.ai/api/inngest` returned `"has_event_key":true,"has_signing_key":true,"function_count":15,"mode":"cloud"` on 2026-10-05 (16 functions since the market-regime job, 17 since `notify-followers-new-claim`, 18 since `paper-equity-snapshot`, 17 again since `leaderboard-refresh` was deleted).
   - For the routers, follow and then unfollow any profile, and look for a `social/followed` event in the Inngest dashboard's event list. Do not test with a claim: claims are append-only.
-- **Production:** app `deepmint` is synced through the Vercel integration. The route sets `maxDuration = 300`.
+- **Production:** app `deepmint`, keys from the Vercel integration, synced by hand (above), last on 2026-11-25. The route sets `maxDuration = 300`.
 
 **`INNGEST_DEV` (local only).** This setup is derived from the SDK's behaviour; nothing in the repo exercises it.
 1. Put `INNGEST_DEV=1` in `apps/web/.env.local`.
